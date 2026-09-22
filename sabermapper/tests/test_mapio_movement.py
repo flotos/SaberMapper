@@ -49,7 +49,7 @@ class MapIOTests(unittest.TestCase):
         self.assertTrue(any(row["path"] == "_burstSliders[0]" for row in result["unsupported"]))
 
     def test_authored_objects_semantic_roundtrip(self):
-        from test_arrangement import arrangement
+        from test_arrangement import arrangement, held_notes
         source = arrangement()
         section = source["sections"][0]
         section["obstacles"] = [{"id": "wall", "beat": 1, "duration_beats": 1,
@@ -58,10 +58,11 @@ class MapIOTests(unittest.TestCase):
                             "direction": 1, "tail_beat": 2, "tail_x": 2, "tail_y": 1, "tail_direction": 0}]
         section["chains"] = [{"id": "chain", "beat": 2, "x": 2, "y": 0, "color": 1,
                               "direction": 1, "tail_beat": 3, "tail_x": 2, "tail_y": 1, "slice_count": 3}]
+        section["notes"].extend(held_notes())
         source["tempo_events"] = [{"beat": 9, "bpm": 60}]
         native = compile_arrangement(source)
         parsed = parse_map(native, bpm=120)
-        self.assertEqual([len(parsed[key]) for key in ("notes", "obstacles", "arcs", "chains")], [2, 1, 1, 1])
+        self.assertEqual([len(parsed[key]) for key in ("notes", "obstacles", "arcs", "chains")], [5, 1, 1, 1])
         self.assertEqual(parsed["notes"][1]["seconds"], 4.25)
         self.assertEqual(parsed["obstacles"][0]["end_seconds"], 5.5)
         self.assertEqual(parsed["arcs"][0]["tail_beat"], 10.0)
@@ -98,7 +99,7 @@ class MovementTests(unittest.TestCase):
                  {"id": "b", "beat": 0, "x": 1, "y": 0, "color": 0, "direction": 1},
                  {"id": "c", "beat": 2, "x": 2, "y": 1, "color": 0, "direction": 8}]
         result = analyze_movement(notes)
-        self.assertEqual(result["model_version"], "1.1")
+        self.assertEqual(result["model_version"], "1.2")
         self.assertEqual(len(result["swings"]), 2)
         self.assertEqual(result["swings"][0]["note_ids"], ["a", "b"])
         self.assertTrue(result["swings"][1]["reset"])

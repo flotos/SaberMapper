@@ -131,10 +131,10 @@ def make_server(workspace: str | Path, port: int = 8765) -> ThreadingHTTPServer:
                     pieces = path.split("/", 5)
                     folder = store.directory(pieces[3])
                     relative = pieces[5]
-                    if not re.fullmatch(r"(?:song\.ogg|cover\.png|arrangement\.json|analysis\.json|feedback/[a-f0-9]+\.json|exports/[a-zA-Z0-9.-]+\.(?:zip|json))", relative):
+                    if not re.fullmatch(r"(?:song\.ogg|cover\.png|arrangement\.json|analysis\.json|musical/[a-f0-9]{32}/(?:report\.json|[a-z][a-z0-9_-]{0,39}\.wav)|feedback/[a-f0-9]+\.json|exports/[a-zA-Z0-9.-]+\.(?:zip|json))", relative):
                         raise ValueError("File is not a project download")
                     self._file(folder / relative)
-                elif path in {"/", "/index.html", "/app.js", "/style.css"}:
+                elif path in {"/", "/index.html", "/app.js", "/music.js", "/style.css"}:
                     self._file(STATIC / ("index.html" if path == "/" else path[1:]))
                 else:
                     self._json({"error": "Not found"}, 404)
@@ -166,6 +166,13 @@ def make_server(workspace: str | Path, port: int = 8765) -> ThreadingHTTPServer:
                 path = unquote(urlparse(self.path).path)
                 if path == "/api/demo":
                     self._json(store.create(demo=True))
+                elif re.fullmatch(r"/api/projects/[\w-]+/music", path):
+                    from .musical import analyze_project
+                    # Browser runs only bundled DSP. Optional model processes are agent CLI work.
+                    if data.get("backend") not in {"bands", "hpss"}:
+                        raise ValueError("Choose frequency bands or harmonic/percussive analysis")
+                    self._json(analyze_project(store, path.split("/")[3],
+                                              backend=data["backend"], preset=data.get("preset", "balanced")))
                 elif path == "/api/projects/import":
                     suffix = Path(str(data.get("filename", ""))).suffix.lower()
                     if suffix not in {".wav", ".ogg", ".mp3", ".flac"}:

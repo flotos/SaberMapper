@@ -34,6 +34,10 @@ def register_subcommands(subparsers):
     corpus = subparsers.add_parser("corpus", help="Exact-version corpus ingestion and processing")
     c = corpus.add_subparsers(dest="research_action", required=True)
     _leaf(c, "status")
+    analyze = _leaf(c, "analyze")
+    analyze.add_argument("--min-stars", type=float, default=6.5)
+    analyze.add_argument("--max-stars", type=float, default=8)
+    analyze.add_argument("--shortlist-limit", type=int, default=60)
     local = _leaf(c, "import")
     local.add_argument("archive", type=Path)
     local.add_argument("--hash", required=True)
@@ -55,6 +59,10 @@ def register_subcommands(subparsers):
     retrieve.add_argument("--length-beats", type=float)
     retrieve.add_argument("--forbid-song-family", action="append", default=[])
     retrieve.add_argument("--limit", type=int, default=8)
+    retrieve.add_argument("--player-fit", action="store_true", help="Use PLAYER.md provisional 6.5-8 ScoreSaber-star band")
+    retrieve.add_argument("--min-stars", type=float)
+    retrieve.add_argument("--max-stars", type=float)
+    retrieve.add_argument("--pattern-tag", help="Observable category such as varied_spacing or alternating_hands")
     cleanup = _leaf(c, "cleanup")
     cleanup.add_argument("hash")
     profile = subparsers.add_parser("profile", help="Historical calibration and explicit preferences")
@@ -94,6 +102,10 @@ def dispatch(args) -> bool:
         try:
             if action == "status":
                 result = {"corpus": corpus_report(store.rows()), "library": store.library_summary(limit=0)}
+            elif action == "analyze":
+                from .corpus_analysis import analyze_corpus
+                result = analyze_corpus(store, min_stars=args.min_stars, max_stars=args.max_stars,
+                                        shortlist_limit=args.shortlist_limit)
             elif action == "import":
                 result = store.import_archive(args.archive.read_bytes(), version_hash=args.hash,
                                               retain_audio=args.retain_audio,
@@ -114,11 +126,23 @@ def dispatch(args) -> bool:
             elif action == "process":
                 result = store.process_all(max_maps=args.max_maps, max_seconds=args.max_seconds)
             elif action == "retrieve":
-                catalog = _read(workspace / "corpus" / "patterns.json")
-                result = retrieve_patterns(catalog["patterns"], bpm=args.bpm, target_nps=args.nps,
+                from .corpus_analysis import chart_records, filter_patterns, pattern_tags
+                charts = chart_records(store)
+                lower, upper = getattr(args, "min_stars", None), getattr(args, "max_stars", None)
+                if getattr(args, "player_fit", False):
+                    lower = 6.5 if lower is None else lower
+                    upper = 8 if upper is None else upper
+                patterns = filter_patterns(store.catalog_patterns(), charts, min_stars=lower, max_stars=upper,
+                                           tag=getattr(args, "pattern_tag", None))
+                result = retrieve_patterns(patterns, bpm=args.bpm, target_nps=args.nps,
                                            length_beats=args.length_beats,
                                            forbidden_song_families=set(args.forbid_song_family),
                                            limit=args.limit)
+                for item in result:
+                    pattern = item["pattern"]
+                    item["source_chart"] = charts.get((pattern["version_hash"], pattern["difficulty"]))
+                    item["pattern_tags"] = pattern_tags(pattern)
+                    item["review_status"] = "unreviewed"
             elif action == "cleanup":
                 result = store.discard_archive_after_processing(args.hash)
             else:

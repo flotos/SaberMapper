@@ -1,4 +1,4 @@
-# Movement model 1.1 and implementation survey
+# Movement model 1.2 and implementation survey
 
 The shared `analyze_movement(notes, bpm, njs=..., spawn_offset_beats=...)` result contains versioned swings,
 aggregate proxies, review warnings, and an explicit unsupported-motion list.
@@ -13,6 +13,19 @@ constant-BPM assumption. Grid distance, angle change, one-second burst count,
 crossover count, reaction-time estimate from NJS/spawn offset, and recovery
 time are descriptive proxies, not comfort, injury, ranked difficulty, or star
 ratings. Walls, bombs, arcs, chains and complex rotations are not inferred.
+
+Model 1.2 adds one blocking rule, `fast_direction_break`. A same-hand cut arriving
+less than 0.2 s (`FAST_BREAK_SECONDS`) after the previous swing must turn at
+least 135 degrees (`REVERSAL_DEGREES`). A sideways or repeated cut at 16th-note
+speed cannot be reset in time. Simultaneous notes and dots are exempt. The finding
+has severity `error`, so project save and export refuse it. The rule was added
+after a playtest report of an unhittable 16th up-cut followed by a left-cut in
+the same cell. Half-beat 90-degree turns (about 0.24 s at 125 BPM) remain
+allowed; they are common flow. `sabermapper.swing_repair.repair_fast_breaks`
+and `project repair-swings` fix the findings deterministically: they remove the
+earlier note when it sits on a weaker metric position, otherwise re-angle the
+later note to the nearest reversing direction. Arc/chain anchors, locked
+sections and motif-expanded notes are reported, never changed.
 
 The following primary repositories were inspected on 2026-09-22:
 

@@ -187,6 +187,30 @@
       "title": "Audit external BeatForge code as a read-only reference and baseline candidate",
       "evidence": "docs/external-audit.md",
       "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-032",
+      "title": "Sustained-pitch evidence, pitch-change events and passage classifier for melodic layers",
+      "evidence": "docs/musical-analysis.md; sabermapper/musical.py; tests/test_musical.py (PitchAndPassageTests)",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-033",
+      "title": "Author arcs for held and intense vocals with validated head/tail notes",
+      "evidence": "skills/sabermapper-map/references/held-notes.md; sabermapper/validation.py; tests/test_arrangement.py (HeldObjectConnectionTests); workspace/projects/d002569949ef revision a25b11c7",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-034",
+      "title": "Density and repetition critique with explicit metrics",
+      "evidence": "docs/critique.md; sabermapper/critique.py; tests/test_critique.py; workspace/projects/d002569949ef/critique/",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-035",
+      "title": "Note-change placement in low-intensity passages",
+      "evidence": "docs/musical-analysis.md (passages, pitch_change, attack_profile); skills/sabermapper-map/references/musical-focus.md; docs/tickets-sm-032-034.md",
+      "status": "Implemented · local evidence available"
     }
   ]
 }

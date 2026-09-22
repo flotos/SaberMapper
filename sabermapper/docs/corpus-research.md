@@ -1,5 +1,33 @@
 # Corpus and research tools
 
+## Player-focused expansion and analysis
+
+The current player-focused inventory is in `workspace/corpus/difficulty-analysis.json` and the readable `workspace/corpus/player-analysis.md`. These generated reports supersede the historical pilot counts below. Run from the application directory:
+
+```powershell
+.venv/Scripts/python -m sabermapper corpus analyze --workspace workspace
+.venv/Scripts/python -m sabermapper corpus retrieve --workspace workspace --player-fit --pattern-tag varied_spacing --bpm 150 --nps 5 --limit 8
+```
+
+`analyze` joins exact version hashes and Standard difficulties to saved BeatSaver ScoreSaber ratings. It reports chart-weighted mean/median/range, unrated coverage, player-band coverage, difficulty labels, phrase/motif counts, overlapping geometry categories and local movement-metric distributions. A zero or missing rating is unknown and excluded from rating averages. BeatLeader ratings are never substituted. The default comparison band is the provisional 6.5–8 stars in `PLAYER.md`; explicit `--min-stars` and `--max-stars` override it. Reconcile newer player feedback before choosing a different band.
+
+`pattern-list.json` contains descriptive records for every current catalog phrase. `player-pattern-shortlist.json` contains up to 60 in-band candidates, with distinct motif families and at most two per map version. It cycles observable categories (alternating hands, simultaneous notes, diagonal cuts, varied spacing, opposite-half placement, three-row movement and others). Each record retains an exact source pointer, archive/audio hashes where available, mapper, source difficulty/stars, beat range, boundary notes, nearby context, movement metrics, warnings, and unreviewed/unknown-rights status. Categories describe geometry, not musical intent, enjoyment, or a phrase's star difficulty. These records are for reference study; they do not grant permission to redistribute or copy source note arrays.
+
+`retrieve --player-fit` filters exact source difficulties to 6.5–8 stars before proximity ranking. Optional `--min-stars`, `--max-stars` and `--pattern-tag` narrow the pool. Unrated sources are excluded whenever a star bound is supplied. Without those filters, broad research retrieval remains available. Retrieval rejects a stale catalog; reprocess before analyzing or retrieving.
+
+An explicitly invoked, bounded expansion is reproducible with:
+
+```powershell
+.venv/Scripts/python scripts/expand_player_corpus.py search
+.venv/Scripts/python scripts/expand_player_corpus.py ingest --max-bytes 1000000000
+.venv/Scripts/python -m sabermapper corpus process --workspace workspace --max-maps 250 --max-seconds 600
+.venv/Scripts/python -m sabermapper splits mark-development workspace/corpus/player-expansion-seeds.json --workspace workspace --reason "Player reference research"
+.venv/Scripts/python -m sabermapper corpus process --workspace workspace --max-maps 250 --max-seconds 600
+.venv/Scripts/python -m sabermapper corpus analyze --workspace workspace
+```
+
+Search uses bounded pages across mapping styles and upload eras, selects 80 target-band charts plus ten 5–6.5-star and ten 8–9-star contrasts, and caps new versions per mapper at three. It chooses an exact rated difficulty rather than the highest-NPS chart. Download and parser failures stay explicit. Search snapshots, selection manifests, ingestion results and analysis are local workspace artifacts. Search and ingestion require an explicit user request; they never run automatically in the app. The [BeatSaver API documentation](https://api.beatsaver.com/docs/) and [content policy](https://beatsaver.com/policy/tos) govern source access; redistribution rights remain unknown.
+
 These modules implement a local research pipeline. They do not contain a downloaded corpus, reviewed phrase pool, current player calibration, or trained preference model. The saved player snapshots are historical evidence through March 2025. Do not treat rank, votes, score accuracy, or synthetic labels as a quality or enjoyment verdict.
 
 ## Exact-version ingestion

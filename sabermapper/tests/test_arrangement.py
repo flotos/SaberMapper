@@ -17,6 +17,13 @@ def arrangement():
     }
 
 
+def held_notes():
+    """Head/tail color notes matching the shared arc and chain fixtures."""
+    return [{"id": "arc-head", "beat": 1, "x": 1, "y": 0, "color": 0, "direction": 1},
+            {"id": "arc-tail", "beat": 2, "x": 2, "y": 1, "color": 0, "direction": 0},
+            {"id": "chain-head", "beat": 2, "x": 2, "y": 0, "color": 1, "direction": 1}]
+
+
 class ArrangementTests(unittest.TestCase):
     def test_deterministic_motif_and_literal_expansion(self):
         source = arrangement()
@@ -47,10 +54,59 @@ class ArrangementTests(unittest.TestCase):
     def test_rapid_repeated_cut_is_warning_only(self):
         source = arrangement()
         source["sections"][0]["notes"].append(
-            {"id": "repeat", "beat": "1/4", "x": 0, "y": 1, "color": 0, "direction": 1})
+            {"id": "repeat", "beat": "7/16", "x": 0, "y": 1, "color": 0, "direction": 1})
         warnings = [d for d in validate_arrangement(source) if d["severity"] == "warning"]
         self.assertEqual([d["code"] for d in warnings], ["rapid_repeat_cut"])
         self.assertEqual(len(compile_arrangement(source)["colorNotes"]), 3)
+
+    def test_fast_non_reversing_cut_is_blocking(self):
+        # 1/4 beat at 120 BPM is 0.125 s: only a near-reversal (>=135 degrees) is allowed.
+        for direction, blocked in ((1, True), (2, True), (3, True), (0, False), (4, False), (5, False)):
+            source = arrangement()
+            source["sections"][0]["notes"].append(
+                {"id": "next", "beat": "1/4", "x": 1, "y": 1, "color": 0, "direction": direction})
+            codes = [d["code"] for d in validate_arrangement(source) if d["severity"] == "error"]
+            self.assertEqual(codes == ["fast_direction_break"], blocked, direction)
+            if blocked:
+                with self.assertRaises(ValueError):
+                    compile_arrangement(source)
+        source = arrangement()
+        source["sections"][0]["notes"].append(
+            {"id": "next", "beat": "1/2", "x": 0, "y": 1, "color": 0, "direction": 2})
+        self.assertFalse([d for d in validate_arrangement(source) if d["severity"] == "error"])
+
+    def test_swing_repair_drops_pickup_and_reangles_on_beat_pair(self):
+        from sabermapper.swing_repair import repair_fast_breaks
+        source = arrangement()
+        notes = source["sections"][0]["notes"]
+        notes += [{"id": "pickup", "beat": "7/4", "x": 2, "y": 0, "color": 1, "direction": 0},
+                  {"id": "entry", "beat": "2", "x": 2, "y": 1, "color": 1, "direction": 2},
+                  {"id": "cut-a", "beat": "3", "x": 1, "y": 1, "color": 0, "direction": 3},
+                  {"id": "cut-b", "beat": "13/4", "x": 1, "y": 0, "color": 0, "direction": 1}]
+        result = repair_fast_breaks(source)
+        self.assertEqual([(c["action"], c["object_id"]) for c in result["changes"]],
+                         [("removed", "verse/note/pickup"), ("reangled", "verse/note/cut-b")])
+        self.assertEqual(result["changes"][1]["to_direction"], 6)
+        self.assertFalse([d for d in validate_arrangement(result["arrangement"]) if d["severity"] == "error"])
+        self.assertEqual(len(source["sections"][0]["notes"]), 5)
+
+    def test_swing_repair_keeps_arc_anchors_and_locked_sections(self):
+        from sabermapper.swing_repair import repair_fast_breaks
+        source = arrangement()
+        notes = source["sections"][0]["notes"]
+        notes += [{"id": "pickup", "beat": "7/4", "x": 2, "y": 0, "color": 1, "direction": 0},
+                  {"id": "entry", "beat": "2", "x": 2, "y": 1, "color": 1, "direction": 2}]
+        source["sections"][0]["arcs"] = [{"id": "hold", "beat": "7/4", "x": 2, "y": 0, "color": 1, "direction": 0,
+                                          "tail_beat": "3", "tail_x": 3, "tail_y": 1, "tail_direction": 1,
+                                          "mid_anchor": 0}]
+        notes.append({"id": "tail", "beat": "3", "x": 3, "y": 1, "color": 1, "direction": 1})
+        result = repair_fast_breaks(source)
+        self.assertEqual([(c["action"], c["object_id"]) for c in result["changes"]],
+                         [("reangled", "verse/note/entry")])
+        source["sections"][0]["locked"] = True
+        result = repair_fast_breaks(source)
+        self.assertEqual(result["changes"], [])
+        self.assertEqual(len(result["unresolved"]), 1)
 
     def test_malformed_nested_json_returns_diagnostics(self):
         cases = []
@@ -109,6 +165,7 @@ class ArrangementTests(unittest.TestCase):
                             "direction": 1, "tail_beat": 2, "tail_x": 2, "tail_y": 1, "tail_direction": 0}]
         section["chains"] = [{"id": "chain", "beat": 2, "x": 2, "y": 0, "color": 1,
                               "direction": 1, "tail_beat": 3, "tail_x": 2, "tail_y": 1, "slice_count": 3}]
+        section["notes"].extend(held_notes())
         self.assertFalse([d for d in validate_arrangement(source) if d["severity"] == "error"])
         result = compile_arrangement(source)
         self.assertEqual(result["colorNotes"][0]["x"], 2)
@@ -116,6 +173,56 @@ class ArrangementTests(unittest.TestCase):
         self.assertEqual(result["colorNotes"][0]["b"], 8.0)  # offset is baked by ZIP export
         self.assertEqual(result["bpmEvents"], [{"b": 10.0, "m": 150}])
         self.assertEqual([len(result[k]) for k in ("bombNotes", "obstacles", "sliders", "burstSliders")], [1] * 4)
+
+class HeldObjectConnectionTests(unittest.TestCase):
+    def source(self):
+        source = arrangement()
+        section = source["sections"][0]
+        section["notes"].extend(held_notes())
+        section["arcs"] = [{"id": "arc", "beat": 1, "x": 1, "y": 0, "color": 0,
+                            "direction": 1, "tail_beat": 2, "tail_x": 2, "tail_y": 1, "tail_direction": 0}]
+        section["chains"] = [{"id": "chain", "beat": 2, "x": 2, "y": 0, "color": 1,
+                              "direction": 1, "tail_beat": 3, "tail_x": 2, "tail_y": 1, "slice_count": 3}]
+        return source
+
+    def codes(self, source):
+        return {d["code"] for d in validate_arrangement(source) if d["severity"] == "error"}
+
+    def test_connected_arc_and_chain_compile(self):
+        source = self.source()
+        self.assertFalse([d for d in validate_arrangement(source) if d["severity"] == "error"])
+        result = compile_arrangement(source)
+        self.assertEqual([len(result["sliders"]), len(result["burstSliders"])], [1, 1])
+
+    def test_dangling_head_tail_and_chain_head_are_errors(self):
+        for note_id, code in (("arc-head", "arc_head_without_note"),
+                              ("arc-tail", "arc_tail_without_note"),
+                              ("chain-head", "chain_head_without_note")):
+            source = self.source()
+            section = source["sections"][0]
+            section["notes"] = [n for n in section["notes"] if n["id"] != note_id]
+            with self.subTest(note_id=note_id):
+                self.assertIn(code, self.codes(source))
+                with self.assertRaises(ValueError):
+                    compile_arrangement(source)
+
+    def test_direction_mismatch_is_reported_per_end(self):
+        for note_id, code in (("arc-head", "arc_head_direction_mismatch"),
+                              ("arc-tail", "arc_tail_direction_mismatch"),
+                              ("chain-head", "chain_head_direction_mismatch")):
+            source = self.source()
+            note = next(n for n in source["sections"][0]["notes"] if n["id"] == note_id)
+            note["direction"] = 8
+            with self.subTest(note_id=note_id):
+                diagnostic = next(d for d in validate_arrangement(source) if d["code"] == code)
+                self.assertEqual(len(diagnostic["object_ids"]), 2)
+
+    def test_notes_with_errors_suppress_connection_checks(self):
+        source = self.source()
+        source["sections"][0]["notes"][0]["x"] = 9
+        codes = self.codes(source)
+        self.assertIn("invalid_note", codes)
+        self.assertFalse({c for c in codes if c.startswith(("arc_", "chain_"))})
 
 
 if __name__ == "__main__":

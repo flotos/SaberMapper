@@ -10,9 +10,15 @@ The generated 48-second demonstration is original synthesized audio with three p
 
 Choose a locally available WAV, FLAC, OGG or MP3 that you can use for this purpose. Record the source path and SHA-256, manually enter title and artist, and inspect decoded duration and waveform. `sabermapper.audio.inspect_audio(path)` returns a local identity record without guessing tags from the filename. `analyze_audio(path, bpm=..., offset_seconds=...)` provides onset, energy, tempo and section candidates. Review BPM, beat-zero phase and a bar anchor against the exact audio near its start, middle and end. The proposed half/double tempo alternatives are prompts to listen, not verified answers. Encode a new Vorbis file with `prepare_audio(source, destination)` if needed; it records both hashes and checks decoded duration/onset shift. Retain the original audio and conversion record.
 
-The CLI can create a real project with `python -m sabermapper import-audio TRACK --workspace workspace --title TITLE --artist ARTIST --bpm BPM`; title/artist may be entered later. For an analysis JSON without creating a project, run `python -m sabermapper analyze TRACK --bpm BPM --offset SECONDS --output report.json`. Use `python -m sabermapper serve --workspace workspace --port 8765` for the local browser review UI, then browse the displayed localhost address. The UI is a 2D review surface and does not replace editor or game playback. Projects keep arrangement revisions, locks and feedback in the selected workspace. Back up that workspace along with exact source audio and art.
+The CLI can create a real project with `python -m sabermapper import-audio TRACK --workspace workspace --title TITLE --artist ARTIST --bpm BPM`; title/artist may be entered later. Importing audio whose exact source bytes already belong to a project is refused with the existing project ID (continue that project instead); pass `--allow-duplicate` only for a deliberate second copy. Mis-encoded title/artist text such as `FumÃ©e` is repaired to UTF-8 on import. For an analysis JSON without creating a project, run `python -m sabermapper analyze TRACK --bpm BPM --offset SECONDS --output report.json`. Use `python -m sabermapper serve --workspace workspace --port 8765` for the local browser review UI, then browse the displayed localhost address. The UI is a 2D review surface and does not replace editor or game playback. Projects keep arrangement revisions, locks and feedback in the selected workspace. Back up that workspace along with exact source audio and art.
 
 ## Author, validate and export
+
+For instrument-led phrasing and whole-mix accents, the agent uses `music backends`,
+`music analyze`, `music list`, and `music inspect`. The studio's **Music layers**
+panel is an optional agent-operated inspection surface. See [musical analysis and agent composition](musical-analysis.md)
+for separation options, phrase focus weights, and listening controls. Codex or
+Claude Code authors the rhythms and movements from this evidence.
 
 The arrangement schema is summarized in the bundled [map skill](../skills/sabermapper-map/SKILL.md). It names song BPM/offset, one difficulty, reusable motifs, and ordered sections with stable IDs. A section can be marked unresolved while timing or its transition is uncertain; compilation will then fail until it is reviewed. Keep locked sections intact during an assistant edit.
 
@@ -23,6 +29,8 @@ python -m sabermapper export arrangement.json --audio track.ogg --cover cover.pn
 ```
 
 `validate` prints JSON diagnostics and exits nonzero for hard errors. `compile` writes Beat Saber v3.3 difficulty data. `export` writes a ZIP with Info.dat, the difficulty, song audio, cover and `SaberMapper-report.json`. Each output path must be new. Audio must decode as OGG Vorbis and the final gameplay object must fit inside decoded duration. PNG or JPEG covers are accepted. A positive `audio_offset_seconds` shifts exported object beats while Info.dat stays at zero offset. It does not edit the source audio. Keep the compatibility report and exact ZIP hash with your project record.
+
+Arcs and chains must be connected. `validate` reports a hard error when an arc has no color note at its head or tail, or a chain none at its head, matching the same beat, lane, row, colour and cut direction (`arc_head_without_note`, `arc_tail_without_note`, `chain_head_without_note`, plus `*_direction_mismatch` when a note is there with a different direction). An unconnected arc would export as a cosmetic curve rather than a held note.
 
 For a scoped change, give the assistant the report, relevant reviewed phrases, the current arrangement, and the player's beat-ranged feedback. Save a new arrangement/ZIP and compare the changed section while preserving unrelated sections and locks. The [review skill](../skills/sabermapper-review/SKILL.md) has a defect-versus-taste rubric. Use the [research skill](../skills/sabermapper-research/SKILL.md) only when collecting external mapping references or phrases.
 

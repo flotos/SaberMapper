@@ -19,10 +19,22 @@ Record the selected timing, exact audio hash, passages checked, method and remai
 
 ## Author, save and export
 
+For real-song composition or revisions to musical connection, read
+[musical focus and evidence](references/musical-focus.md). Use the
+local `music` tools to gather complementary evidence, then author phrase focus,
+rhythm and movement yourself. The application never delegates composition to an
+internal model or converts detector peaks to patterns. Prefer musical events and
+rests over stock-pattern density when deciding the rhythm of a phrase.
+
+Read [held notes](references/held-notes.md) before authoring. Held or intense
+vocals are the focus of their window and get arcs per that page, with the color
+notes that connect them at the head and tail. In low-intensity passages follow
+the quiet-passage policy in [musical focus and evidence](references/musical-focus.md).
+
 Read [arrangement contract](references/arrangement.md) before writing. Give each section a musical intent and stable IDs. Use motifs for recognizable recurring phrases and literal notes for a deliberate local change. Consider entry posture, intended motion, exit and recovery. Do not flatten unusual rotations or repetition merely because a heuristic warned; inspect context and ask how the player experienced it. Keep target source-map note arrays hidden until the authored map is frozen for comparison.
 
 For a requested revision, inspect the current file and exact feedback artifact first. Change only the requested unlocked section or shared motif when the requested scope warrants it. Preserve other IDs and `locked: true` sections. For projects, save with `python -m sabermapper project save ID --workspace workspace --revision CURRENT_SHA --arrangement EDITED.json`, rather than overwriting stored project files. If the revision conflicts, reread and reconcile with the current content rather than replacing it with an old draft. For standalone arrangements, save a new artifact or show a clear diff.
 
-Run `python -m sabermapper validate ARRANGEMENT.json`, then `python -m sabermapper compile ARRANGEMENT.json --output NEW_FILE.dat`. Fix hard diagnostics. After saving a resolved project, export with `python -m sabermapper project export ID --workspace workspace`. For standalone arrangements, use `python -m sabermapper export ARRANGEMENT.json --audio TRACK.ogg --cover COVER.png --output NEW_MAP.zip`. Check audio identity, duration and cover validity; human review is not required to produce a provisional local ZIP. Standalone output files are created exclusively; choose a new name for each iteration. A clean validator is a structural check, not a playability judgment. Record authored, validated, compiled, previewed and playtested status separately.
+Run `python -m sabermapper validate ARRANGEMENT.json`, then `python -m sabermapper compile ARRANGEMENT.json --output NEW_FILE.dat`. Fix hard diagnostics. Every same-hand cut that follows the previous one by less than 0.2 s must turn at least 135 degrees (a reversal). The validator blocks save and export with `fast_direction_break` otherwise. The usual cause is a 16th pickup running into a sideways cut that opens the next phrase; check these seams when you compose. `python -m sabermapper project repair-swings ID --workspace workspace --revision REV [--dry-run]` removes the weaker pickup or re-angles the later cut, and leaves arc/chain anchors, locked sections and motif notes alone. After saving a resolved project, export with `python -m sabermapper project export ID --workspace workspace`. For standalone arrangements, use `python -m sabermapper export ARRANGEMENT.json --audio TRACK.ogg --cover COVER.png --output NEW_MAP.zip`. Check audio identity, duration and cover validity; human review is not required to produce a provisional local ZIP. Standalone output files are created exclusively; choose a new name for each iteration. A clean validator is a structural check, not a playability judgment. Record authored, validated, compiled, previewed and playtested status separately.
 
 Inspect the ZIP in an available editor or ArcViewer and report exactly what was checked. Deliver the provisional artifact with remaining human timing and VR review clearly identified; do not stop the authorized local work merely because the user has not played it. When player feedback becomes available, save the exact verdict and use it for a scoped revision. Never claim listening, human approval or a game playtest from signal analysis, a synthetic result or local preview playback.

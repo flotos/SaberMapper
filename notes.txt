@@ -1,0 +1,27 @@
+- vivify mapping group: https://x.com/TVMG265182
+
+- Rules update: Held singing notes, or intense singing should always be the focus of track.
+  Use held note (quite "recently" added in beat saber) for these, up to bottom or bottom to up to match the pitch change if so. For example Living a Lie at 4:24, then 4:28, 4:30
+
+- Rules update: In passages with low musical intensity and little rhythm, place notes
+  mostly on note change (pitch or chord change), not on every amplitude peak.
+  Examples: Living a Lie intro (0:00-0:28) and the quiet breakdown (~2:38-2:58).
+  Detect these passages from evidence, not by hand: no strong drum onsets, and mix
+  energy under about half the song median. Both examples score zero on the drum term.
+  Inside them:
+    - Do not place from energy_rise events on sustained stems. On a held pad or voice
+      that detector fires ~6/s (about 3 per beat at 122 BPM) on envelope wobble, not
+      on attacks. This is what made the Living a Lie intro read as out of sync - the
+      notes faithfully tracked a bad onset list.
+    - Keep genuine attacks. The intro piano hits land within ~20 ms of the grid and
+      are real musical events.
+    - Pick the lead by rhythmic salience, not loudness. The intro pad is louder than
+      the piano that actually carries the pulse, so energy-based lead selection missed it.
+    - Quantize to 1/2 or whole beat, not 1/4. Sung note changes do not land on 16ths,
+      and fine quantization pushes them into gaps.
+    - Check section boundaries for an accent sitting on the seam. The loudest attack
+      in the Living a Lie intro (beat 32.0) fell between two sections and got no note.
+  Pairs with the held-note rule above: on a sustained vocal, the pitch move is both the
+  placement trigger and the up/down direction cue.
+  Note: the global grid was not the problem - 122 BPM at 0.302 s offset tracks the drums
+  to a 7.7 ms median across the whole song.

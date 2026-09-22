@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
 import sys
 
 from .storage import read_json
@@ -32,6 +33,10 @@ def main(argv=None):
         if name == "export":
             sub.add_argument("--audio", type=Path, required=True)
             sub.add_argument("--cover", type=Path, required=True)
+    sub = commands.add_parser("critique", help="Descriptive, non-blocking density, repetition and seam metrics")
+    sub.add_argument("arrangement", type=Path)
+    sub.add_argument("--report", type=Path, help="Musical evidence report.json enabling seam accent checks")
+    sub.add_argument("--output", type=Path)
     sub = commands.add_parser("serve", help="Start the browser studio on localhost")
     sub.add_argument("--workspace", type=Path, default=Path("workspace"))
     sub.add_argument("--port", type=int, default=8765)
@@ -43,6 +48,8 @@ def main(argv=None):
     sub.add_argument("--title", default="Untitled track")
     sub.add_argument("--artist", default="Unknown artist")
     sub.add_argument("--bpm", type=float)
+    sub.add_argument("--allow-duplicate", action="store_true",
+                     help="Import even if a project already uses this exact source audio")
     sub = commands.add_parser("analyze", help="Inspect waveform, tempo hypotheses, onsets and recurrence")
     sub.add_argument("audio", type=Path)
     sub.add_argument("--bpm", type=float)
@@ -62,12 +69,19 @@ def main(argv=None):
     sub.add_argument("--revision", required=True)
     sub = commands.add_parser("project", help="Read, revise, restore and export persistent projects")
     project_commands = sub.add_subparsers(dest="project_action", required=True)
-    for name in ("list", "get", "save", "export", "restore", "review"):
-        leaf = project_commands.add_parser(name)
+    for name in ("list", "get", "save", "export", "restore", "review", "critique", "repair-swings"):
+        leaf = project_commands.add_parser(name, help=(
+            "Fix blocking fast_direction_break findings: drop weak pickups or re-angle the later cut"
+            if name == "repair-swings" else None))
         leaf.add_argument("--workspace", type=Path, default=Path("workspace"))
         if name != "list":
             leaf.add_argument("project")
-        if name in ("save", "restore", "review"):
+        if name == "critique":
+            leaf.add_argument("--run", help="Musical evidence run ID enabling seam accent checks")
+            leaf.add_argument("--output", type=Path)
+        if name == "repair-swings":
+            leaf.add_argument("--dry-run", action="store_true", help="Report planned changes without saving")
+        if name in ("save", "restore", "review", "repair-swings"):
             leaf.add_argument("--revision", required=True)
         if name == "save":
             leaf.add_argument("--arrangement", type=Path, required=True)
@@ -82,10 +96,14 @@ def main(argv=None):
             leaf.add_argument("--minutes", type=float)
             leaf.add_argument("--decision", choices=("pending", "go", "revise", "stop"))
             leaf.add_argument("--variant", choices=("initial", "revised", "baseline"))
+    from .musical_cli import register_musical, dispatch_musical
+    register_musical(commands)
     from .research_cli import register_subcommands, dispatch
     register_subcommands(commands)
     args = parser.parse_args(argv)
     try:
+        if dispatch_musical(args, emit):
+            return 0
         if dispatch(args):
             return 0
         if args.command == "serve":
@@ -105,6 +123,10 @@ def main(argv=None):
             else:
                 from .export import export_arrangement
                 emit(export_arrangement(arrangement, args.audio, args.cover, args.output))
+        elif args.command == "critique":
+            from .critique import critique_arrangement
+            emit(critique_arrangement(read_json(args.arrangement),
+                                      read_json(args.report) if args.report else None), args.output)
         elif args.command == "analyze":
             from .audio import analyze_audio
             emit(analyze_audio(args.audio, bpm=args.bpm, offset_seconds=args.offset), args.output)
@@ -119,7 +141,8 @@ def main(argv=None):
                 result = store.create(demo=True)
                 emit({"project": result["project"], "revision": result["revision"]})
             elif args.command == "import-audio":
-                result = store.create(args.audio, title=args.title, artist=args.artist, bpm=args.bpm)
+                result = store.create(args.audio, title=args.title, artist=args.artist, bpm=args.bpm,
+                                      allow_duplicate=args.allow_duplicate)
                 emit({"project": result["project"], "revision": result["revision"]})
             elif args.command == "feedback":
                 emit(store.add_feedback(args.project, {"revision": args.revision, "start_beat": args.start,
@@ -134,6 +157,32 @@ def main(argv=None):
                 emit(store.export(args.project))
             elif args.project_action == "restore":
                 emit(store.restore(args.project, args.restore_revision, args.revision))
+            elif args.project_action == "critique":
+                from .critique import critique_arrangement
+                record = store.get(args.project)
+                report = None
+                if args.run:
+                    if not re.fullmatch(r"[a-f0-9]{32}", args.run):
+                        raise ValueError("Invalid musical evidence run ID")
+                    directory = store.directory(args.project)
+                    report = read_json(directory / "musical" / args.run / "report.json")
+                    from .audio import _hash
+                    if report["source"]["sha256"] != _hash(directory / "song.ogg"):
+                        raise ValueError("Evidence belongs to different audio; analyze the current project audio again")
+                emit({"revision": record["revision"], "run_id": args.run,
+                      **critique_arrangement(record["arrangement"], report)}, args.output)
+            elif args.project_action == "repair-swings":
+                from .swing_repair import repair_fast_breaks
+                record = store.get(args.project)
+                if record["revision"] != args.revision:
+                    raise ValueError(f"Project is at revision {record['revision']}; reread it before repairing")
+                repair = repair_fast_breaks(record["arrangement"])
+                revision = record["revision"]
+                if repair["changes"] and not args.dry_run:
+                    revision = store.save(args.project, repair["arrangement"], args.revision)["revision"]
+                emit({"project": args.project, "previous_revision": record["revision"], "revision": revision,
+                      "saved": revision != record["revision"], "changes": repair["changes"],
+                      "unresolved": repair["unresolved"]})
             elif args.project_action == "review":
                 record = {"revision": args.revision}
                 for name, key in (("timing_reviewed", "timing_reviewed"), ("playtested", "playtested"),

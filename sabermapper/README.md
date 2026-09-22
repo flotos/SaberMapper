@@ -10,7 +10,7 @@ Double-click **Start-SaberMapper.cmd**, or run:
 .\Start-SaberMapper.ps1
 ```
 
-The studio opens at **http://127.0.0.1:8765**. An original 48-second demo and the measured reference corpus are available in the current workspace. Choose **Import a track** for your own WAV, OGG, MP3 or FLAC file. Play the audio, correct timing, edit sections, record feedback and export a map ZIP. Select **3D preview** to open the saved map in the locally hosted ArcViewer at the current playhead. On a fresh checkout, run `scripts/install_arcviewer.ps1` once; see [local preview setup](docs/arcviewer-local.md).
+The studio opens at **http://127.0.0.1:8765**. An original 48-second demo and the measured reference corpus are available in the current workspace. Choose **Import audio** for your own WAV, OGG, MP3 or FLAC file. Play the audio, correct timing, edit sections, record feedback and export a map ZIP. Select **3D preview** to open the saved map in the locally hosted ArcViewer at the current playhead. On a fresh checkout, run `scripts/install_arcviewer.ps1` once; see [local preview setup](docs/arcviewer-local.md).
 
 For a fresh checkout, install Python 3.11 or later and run `setup.ps1` first. Runtime work is local; only explicitly invoked corpus downloads contact BeatSaver. The first setup installs Python packages.
 

@@ -4,9 +4,17 @@ from __future__ import annotations
 
 from math import atan2, cos, degrees, hypot, isfinite, radians, sin
 
-MODEL_VERSION = "1.1"
+MODEL_VERSION = "1.3"
+# A same-hand swing arriving sooner than this must nearly reverse the previous
+# cut; a sideways (90-degree) or repeated cut this fast forces a wrist reset.
+FAST_BREAK_SECONDS = 0.3
+REVERSAL_DEGREES = 135
+# Without a reset (a full beat), consecutive same-hand swings must alternate
+# forehand/backhand and turn at least this much.
+MIN_TURN_DEGREES = 90
 _VECTORS = {0: (0, 1), 1: (0, -1), 2: (-1, 0), 3: (1, 0),
             4: (-1, 1), 5: (1, 1), 6: (-1, -1), 7: (1, -1)}
+_OPPOSITE = {0: 1, 1: 0, 2: 3, 3: 2, 4: 7, 7: 4, 5: 6, 6: 5}
 
 
 def _finite(value, positive=False):
@@ -34,6 +42,37 @@ def _parity(direction, hand, angle):
     if direction in (0, 4, 5):
         return "backhand"
     return ("forehand" if direction == 3 else "backhand") if hand == 0 else ("forehand" if direction == 2 else "backhand")
+
+
+def turn_degrees(previous, direction, previous_angle=0.0, angle=0.0):
+    """Angle in degrees between two cut directions (0 = same, 180 = reversal)."""
+    a, b = _vector(previous, previous_angle), _vector(direction, angle)
+    return abs((degrees(atan2(b[1], b[0])) - degrees(atan2(a[1], a[0])) + 180) % 360 - 180)
+
+
+def flow_break(previous, direction, hand, gap_seconds, reset, previous_angle=0.0, angle=0.0):
+    """Return the blocking flow finding for a consecutive same-hand swing pair, or None.
+
+    ``previous`` is the effective direction of the earlier swing (a dot takes the
+    reverse of the swing before it). Returns ``(code, reason)``.
+    """
+    if previous is None or previous == 8 or direction == 8 or reset:
+        return None
+    change = turn_degrees(previous, direction, previous_angle, angle)
+    if gap_seconds < FAST_BREAK_SECONDS and change < REVERSAL_DEGREES:
+        return ("fast_direction_break",
+                f"same-hand cut {gap_seconds:.3f}s after the previous one turns only {change:.0f} degrees; "
+                f"within {FAST_BREAK_SECONDS}s it must reverse by at least {REVERSAL_DEGREES} degrees. "
+                "Re-angle one cut or remove the weaker note (see project repair-swings)")
+    same_parity = (not previous_angle and not angle
+                   and _parity(previous, hand, 0) == _parity(direction, hand, 0))
+    if change < MIN_TURN_DEGREES or (same_parity and change < REVERSAL_DEGREES):
+        return ("flow_parity_break",
+                f"same-hand cut {gap_seconds:.3f}s after the previous one turns {change:.0f} degrees"
+                f"{' on the same forehand/backhand' if same_parity else ''} without a full-beat reset; "
+                f"alternate parity and turn at least {MIN_TURN_DEGREES} degrees "
+                "(see project repair-swings)")
+    return None
 
 
 def _reaction_proxy(bpm, njs, spawn_offset_beats):
@@ -119,7 +158,13 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
                 angle_a, angle_b = degrees(atan2(prev_vec[1], prev_vec[0])), degrees(atan2(vec[1], vec[0]))
                 change = abs((angle_b - angle_a + 180) % 360 - 180)
                 angular_changes.append(change)
-                if gap and gap <= 0.25 and change < 60:
+                if gap and gap < FAST_BREAK_SECONDS and change < REVERSAL_DEGREES:
+                    warnings.append({"code": "fast_direction_break", "note_ids": [prior["note_ids"][-1], note["id"]],
+                                     "beat": note["beat"], "confidence": "high", "severity": "error",
+                                     "reason": f"same-hand cut {gap:.3f}s after the previous one turns only {change:.0f} degrees; "
+                                               f"below {FAST_BREAK_SECONDS}s it must reverse by at least {REVERSAL_DEGREES} "
+                                               "degrees. Remove the weaker note or re-angle one (see project repair-swings)"})
+                elif gap and gap <= 0.25 and change < 60:
                     warnings.append({"code": "rapid_repeat_cut", "note_ids": [prior["note_ids"][-1], note["id"]],
                                      "beat": note["beat"], "confidence": "medium",
                                      "reason": "rapid same-hand cuts point in broadly similar directions; review swing reset"})

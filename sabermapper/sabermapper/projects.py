@@ -21,6 +21,25 @@ class ConflictError(ValueError):
     pass
 
 
+class DuplicateProjectError(ValueError):
+    def __init__(self, project_id: str, title: str):
+        super().__init__(f"This audio was already imported as project {project_id} ({title}); "
+                         "continue that project, or pass allow_duplicate / --allow-duplicate for a deliberate second copy")
+        self.project_id = project_id
+
+
+def repair_mojibake(text: str) -> str:
+    """Undo UTF-8 text that was decoded as cp1252/latin-1 (e.g. 'FumÃ©e' -> 'Fumée')."""
+    if not re.search("[Â-ô][\u0080-¿‘-›Œ-Ÿ€™]", text):
+        return text
+    for codec in ("cp1252", "latin-1"):
+        try:
+            return text.encode(codec).decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            continue
+    return text
+
+
 class ProjectStore:
     def __init__(self, root: str | Path):
         self.root = Path(root).resolve()
@@ -47,9 +66,26 @@ class ProjectStore:
                 continue
         return sorted(result, key=lambda x: x["updated_at"] or "", reverse=True)
 
+    def find_by_source(self, source_sha256: str) -> dict | None:
+        """Return the most recently updated project imported from the exact same source audio."""
+        matches = []
+        for path in self.projects.glob("*/project.json"):
+            try:
+                item = read_json(path)
+            except (OSError, ValueError):
+                continue
+            if (item.get("audio") or {}).get("source_sha256") == source_sha256:
+                matches.append(item)
+        return max(matches, key=lambda x: x.get("updated_at") or "", default=None)
+
     def create(self, source: str | Path | None = None, *, title="Untitled track", artist="Unknown artist",
-               bpm: float | None = None, demo=False) -> dict:
-        from .audio import analyze_audio, generate_demo_audio, prepare_audio
+               bpm: float | None = None, demo=False, allow_duplicate=False) -> dict:
+        from .audio import _hash, analyze_audio, generate_demo_audio, prepare_audio
+        title, artist = repair_mojibake(title), repair_mojibake(artist)
+        if not demo and source is not None and not allow_duplicate:
+            existing = self.find_by_source(_hash(Path(source)))
+            if existing:
+                raise DuplicateProjectError(existing["id"], existing.get("title") or "")
         project_id = uuid.uuid4().hex[:12]
         path = self.projects / project_id
         path.mkdir()
@@ -89,6 +125,7 @@ class ProjectStore:
 
     def get(self, project_id: str) -> dict:
         from .movement import analyze_movement
+        from .musical import project_runs
         with self.lock:
             path = self.directory(project_id)
             arrangement = read_json(path / "arrangement.json")
@@ -110,6 +147,7 @@ class ProjectStore:
                 beatmap = None
             return {"project": read_json(path / "project.json"), "arrangement": arrangement,
                     "revision": arrangement_revision(arrangement), "analysis": read_json(path / "analysis.json"),
+                    "musical_runs": project_runs(path),
                     "notes": notes, "beatmap": beatmap, "diagnostics": diagnostics,
                     "movement": analyze_movement(notes, bpm=arrangement["song"]["bpm"],
                                                  njs=arrangement["difficulty"]["njs"],

@@ -86,9 +86,15 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
     if not isinstance(motifs, dict) or not isinstance(sections, list):
         add("error", "invalid_type", "motifs must be an object and sections an array")
         return findings
-    expanded = []
+    expanded, held, notes_ok = [], [], [True]
 
     def note_check(note, where, sid, origin, base):
+        before = len(findings)
+        _note_check(note, where, sid, origin, base)
+        if len(findings) != before:
+            notes_ok[0] = False
+
+    def _note_check(note, where, sid, origin, base):
         if not keys(note, {"id", "beat", "x", "y", "color", "direction"}, where, sid):
             return
         nid = note["id"]
@@ -199,7 +205,7 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
             continue
         sid = section.get("id")
         if not keys(section, {"id", "start_beat", "length_beats", "intent", "locked", "resolved", "notes", "patterns"}, "section", sid,
-                    optional={"bombs", "obstacles", "arcs", "chains"}):
+                    optional={"bombs", "obstacles", "arcs", "chains", "musical_focus"}):
             continue
         if not isinstance(sid, str) or not sid or "/" in sid or sid in section_ids:
             add("error", "invalid_id", "section ID must be nonempty, unique, and contain no slash", str(sid))
@@ -219,6 +225,12 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
         except (ValueError, TypeError, ZeroDivisionError, OverflowError):
             add("error", "invalid_section_beat", "section start must be nonnegative and length positive", sid)
             continue
+        if "musical_focus" in section:
+            from .musical import validate_focus
+            try:
+                validate_focus(section["musical_focus"], length)
+            except (ValueError, TypeError, ZeroDivisionError, OverflowError) as exc:
+                add("error", "invalid_musical_focus", str(exc), sid)
         if not isinstance(section["notes"], list) or not isinstance(section["patterns"], list):
             add("error", "invalid_type", "section notes and patterns must be arrays", sid)
             continue
@@ -277,7 +289,33 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
                     if item["id"] in ids:
                         add("error", "duplicate_id", f"duplicate {kind} ID", sid, [item["id"]])
                     ids.add(item["id"])
+                before = len(findings)
                 object_check(item, kind, sid, start, length)
+                if kind in ("arcs", "chains") and len(findings) == before:
+                    held.append((kind, sid, start, item))
+
+    # Arcs and chains only connect and rescore when a color note sits on the head
+    # (and, for arcs, the tail); a dangling arc exports as a cosmetic curve.
+    if notes_ok[0] and held:
+        index = {}
+        for item in expanded:
+            index.setdefault(item[:4], item)
+        for kind, sid, start, item in held:
+            oid = f'{sid}/{kind}/{item["id"]}'
+            ends = [("head", item["beat"], item["x"], item["y"], item["direction"])]
+            if kind == "arcs":
+                ends.append(("tail", item["tail_beat"], item["tail_x"], item["tail_y"], item["tail_direction"]))
+            for role, beat, x, y, direction in ends:
+                absolute = start + _beat(beat)
+                note = index.get((absolute, x, y, item["color"]))
+                if note is None:
+                    add("error", f"{kind[:-1]}_{role}_without_note",
+                        f"{oid} {role} at beat {absolute} has no color note at ({x},{y}) color {item['color']}",
+                        sid, [oid])
+                elif note[4] != direction:
+                    add("error", f"{kind[:-1]}_{role}_direction_mismatch",
+                        f"{oid} {role} direction {direction} does not match note {note[-1]} direction {note[4]}",
+                        sid, [oid, note[-1]])
 
     if "tempo_events" in arrangement:
         events = arrangement["tempo_events"]
@@ -327,7 +365,7 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
         section_by_id = {item[-1]: item[-2] for item in expanded}
         for warning in movement["warnings"]:
             ids = warning["note_ids"]
-            add("warning", warning["code"], warning["reason"], section_by_id.get(ids[-1]), ids)
+            add(warning.get("severity", "warning"), warning["code"], warning["reason"], section_by_id.get(ids[-1]), ids)
             findings[-1]["model_version"] = movement["model_version"]
             findings[-1]["confidence"] = warning["confidence"]
         for section in arrangement["sections"]:

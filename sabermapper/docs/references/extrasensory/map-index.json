@@ -1,0 +1,2460 @@
+{
+  "pack": "Extra Sensory II",
+  "packUrl": "https://exsii.totalbs.dev/",
+  "playlist": "https://beatsaver.com/playlists/797071",
+  "retrieved": "2026-09-22",
+  "localRoot": "sabermapper/workspace/corpus/extrasensory",
+  "maps": [
+    {
+      "order": 1,
+      "beatsaverId": "43a47",
+      "beatsaverUrl": "https://beatsaver.com/maps/43a47",
+      "mapHash": "4944e7285d06bd452c0e7089e1e94bdfd807626f",
+      "zip": "downloads/01-43a47.zip",
+      "extracted": "extracted/01-43a47",
+      "songName": "Breezer",
+      "songSubName": "(Unstable Build)",
+      "songAuthor": "Jaroslav Beck",
+      "mapper": "Jan Ilavsky",
+      "bpm": 112.5,
+      "durationSec": 173,
+      "environment": "TriangleEnvironment",
+      "contributors": [
+        {
+          "role": "Mapper, Lighter, Noodler, Vivifier",
+          "name": "Droobix (TheGoodBoi)"
+        },
+        {
+          "role": "Tweaking and Optimization",
+          "name": "Swifter"
+        },
+        {
+          "role": "Mapping assistance",
+          "name": "Mawntee"
+        },
+        {
+          "role": "Audio mixing",
+          "name": "The Carebear"
+        },
+        {
+          "role": "Breezer",
+          "name": "Jaroslav Beck"
+        },
+        {
+          "role": "Original mapping",
+          "name": "Ján Ilavský"
+        },
+        {
+          "role": "Sounds, Inspiration",
+          "name": "Kane Pixels"
+        }
+      ],
+      "editors": [
+        "ChroMapper"
+      ],
+      "assetBundlePlatforms": [
+        "_android2021",
+        "_windows2019",
+        "_windows2021"
+      ],
+      "bundleShippedInZip": true,
+      "difficulties": [
+        {
+          "characteristic": "Standard",
+          "difficulty": "Normal",
+          "label": "Hard-",
+          "schema": "3.3.0",
+          "njs": 16,
+          "njsOffset": 0,
+          "requirements": [
+            "Noodle Extensions",
+            "Vivify",
+            "Chroma"
+          ],
+          "counts": {
+            "notes": 163,
+            "bombs": 36,
+            "obstacles": 2,
+            "arcs": 0,
+            "chains": 0,
+            "basicLightEvents": 497,
+            "environmentEnhancements": 3,
+            "declaredMaterials": 0
+          },
+          "npsActive": 1.02,
+          "customEvents": {
+            "total": 42,
+            "vivify": {
+              "Blit": 6,
+              "InstantiatePrefab": 3,
+              "CreateCamera": 2,
+              "DestroyObject": 1
+            },
+            "heck": {
+              "AssignPlayerToTrack": 1,
+              "AnimateTrack": 23,
+              "AssignTrackParent": 4,
+              "AssignPathAnimation": 2
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "noteJumpMovementSpeed": 163,
+            "noteJumpStartBeatOffset": 163,
+            "animation": 87,
+            "track": 87,
+            "spawnEffect": 87,
+            "disableNoteGravity": 87
+          },
+          "trackCount": 14,
+          "assetCount": 7,
+          "assets": [
+            "assets/prefabs/br.prefab",
+            "assets/prefabs/jaroslav.prefab",
+            "assets/prefabs/tumble.prefab",
+            "assets/shader/imagpaste.mat",
+            "assets/shader/staticnotearrow.mat",
+            "assets/shader/staticnotebody.mat",
+            "assets/shader/vhs.mat"
+          ]
+        },
+        {
+          "characteristic": "Standard",
+          "difficulty": "Hard",
+          "label": null,
+          "schema": "3.3.0",
+          "njs": 16,
+          "njsOffset": 0,
+          "requirements": [
+            "Noodle Extensions",
+            "Vivify",
+            "Chroma"
+          ],
+          "counts": {
+            "notes": 190,
+            "bombs": 44,
+            "obstacles": 2,
+            "arcs": 0,
+            "chains": 0,
+            "basicLightEvents": 497,
+            "environmentEnhancements": 3,
+            "declaredMaterials": 0
+          },
+          "npsActive": 1.19,
+          "customEvents": {
+            "total": 44,
+            "vivify": {
+              "AssignObjectPrefab": 1,
+              "Blit": 6,
+              "InstantiatePrefab": 3,
+              "CreateCamera": 2,
+              "DestroyObject": 1
+            },
+            "heck": {
+              "AssignPlayerToTrack": 1,
+              "AnimateTrack": 24,
+              "AssignTrackParent": 4,
+              "AssignPathAnimation": 2
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "noteJumpMovementSpeed": 190,
+            "noteJumpStartBeatOffset": 190,
+            "animation": 114,
+            "track": 114,
+            "spawnEffect": 114,
+            "disableNoteGravity": 114
+          },
+          "trackCount": 15,
+          "assetCount": 7,
+          "assets": [
+            "assets/prefabs/br.prefab",
+            "assets/prefabs/jaroslav.prefab",
+            "assets/prefabs/tumble.prefab",
+            "assets/shader/imagpaste.mat",
+            "assets/shader/staticnotearrow.mat",
+            "assets/shader/staticnotebody.mat",
+            "assets/shader/vhs.mat"
+          ]
+        },
+        {
+          "characteristic": "Lawless",
+          "difficulty": "Expert",
+          "label": "Hard+",
+          "schema": "3.3.0",
+          "njs": 16,
+          "njsOffset": 0,
+          "requirements": [
+            "Noodle Extensions",
+            "Vivify",
+            "Chroma"
+          ],
+          "counts": {
+            "notes": 194,
+            "bombs": 44,
+            "obstacles": 2,
+            "arcs": 0,
+            "chains": 0,
+            "basicLightEvents": 497,
+            "environmentEnhancements": 3,
+            "declaredMaterials": 0
+          },
+          "npsActive": 1.21,
+          "customEvents": {
+            "total": 39,
+            "vivify": {
+              "Blit": 4,
+              "InstantiatePrefab": 3,
+              "CreateCamera": 1,
+              "DestroyObject": 1
+            },
+            "heck": {
+              "AssignPlayerToTrack": 1,
+              "AnimateTrack": 23,
+              "AssignTrackParent": 4,
+              "AssignPathAnimation": 2
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "noteJumpMovementSpeed": 194,
+            "noteJumpStartBeatOffset": 194,
+            "track": 116,
+            "animation": 114,
+            "spawnEffect": 114,
+            "disableNoteGravity": 114,
+            "uninteractable": 2
+          },
+          "trackCount": 14,
+          "assetCount": 5,
+          "assets": [
+            "assets/prefabs/br.prefab",
+            "assets/prefabs/jaroslav.prefab",
+            "assets/prefabs/tumble.prefab",
+            "assets/shader/imagpaste.mat",
+            "assets/shader/vhs.mat"
+          ]
+        }
+      ],
+      "assetBundles": {
+        "windows2021": {
+          "crc": 1614546449,
+          "url": "https://cdn.repo.totalbs.dev/1614546449.vivify",
+          "bytes": 11532797,
+          "sha256": "b25b9240db2eb52e2e93a0975151bcdce11d4ed079e774a50290abc536d6d708",
+          "local": "bundles/01-43a47_bundleWindows2021.vivify"
+        },
+        "android2021": {
+          "crc": 3440664542,
+          "url": "https://cdn.repo.totalbs.dev/3440664542.vivify",
+          "local": null,
+          "note": "404 on LunarRepo; present in the map zip and in droobix/map-source-files"
+        },
+        "windows2019": {
+          "crc": 2529316773,
+          "url": "https://cdn.repo.totalbs.dev/2529316773.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        }
+      }
+    },
+    {
+      "order": 2,
+      "beatsaverId": "43a24",
+      "beatsaverUrl": "https://beatsaver.com/maps/43a24",
+      "mapHash": "b4acc042f6541c06e57a384fa9796a10c45ff558",
+      "zip": "downloads/02-43a24.zip",
+      "extracted": "extracted/02-43a24",
+      "songName": "End Times",
+      "songSubName": "Outer Wilds",
+      "songAuthor": "Andrew Prahlow",
+      "mapper": "Chaimzy",
+      "bpm": 128.0,
+      "durationSec": 157,
+      "environment": "DefaultEnvironment",
+      "contributors": [
+        {
+          "role": "Chaim's Wesley Martin",
+          "name": "Swifter"
+        },
+        {
+          "role": "Astronaut UI",
+          "name": "Aeroluna"
+        },
+        {
+          "role": "Cover Art",
+          "name": "nasafrasa"
+        }
+      ],
+      "editors": [
+        "ChroMapper",
+        "ReMapper"
+      ],
+      "assetBundlePlatforms": [
+        "_android2021",
+        "_windows2019",
+        "_windows2021"
+      ],
+      "bundleShippedInZip": false,
+      "difficulties": [
+        {
+          "characteristic": "Standard",
+          "difficulty": "Hard",
+          "label": "There's more to explore here",
+          "schema": "3.2.0",
+          "njs": 16,
+          "njsOffset": 0,
+          "requirements": [
+            "Noodle Extensions",
+            "Chroma",
+            "Vivify"
+          ],
+          "counts": {
+            "notes": 32,
+            "bombs": 8,
+            "obstacles": 0,
+            "arcs": 0,
+            "chains": 0,
+            "basicLightEvents": 0,
+            "environmentEnhancements": 3,
+            "declaredMaterials": 0
+          },
+          "npsActive": 0.53,
+          "customEvents": {
+            "total": 693,
+            "vivify": {
+              "SetMaterialProperty": 175,
+              "Blit": 13,
+              "CreateScreenTexture": 7,
+              "InstantiatePrefab": 194,
+              "AssignObjectPrefab": 3,
+              "DestroyObject": 170
+            },
+            "heck": {
+              "AnimateTrack": 129,
+              "AssignPlayerToTrack": 2
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "disableNoteGravity": 32,
+            "spawnEffect": 32,
+            "noteJumpMovementSpeed": 32,
+            "noteJumpStartBeatOffset": 32,
+            "track": 32,
+            "coordinates": 28
+          },
+          "trackCount": 277,
+          "assetCount": 196,
+          "assets": [
+            "assets/cameras/camera0.prefab",
+            "assets/cameras/camera1.prefab",
+            "assets/cameras/camera10.prefab",
+            "assets/cameras/camera100.prefab",
+            "assets/cameras/camera101.prefab",
+            "assets/cameras/camera102.prefab",
+            "assets/cameras/camera103.prefab",
+            "assets/cameras/camera104.prefab",
+            "assets/cameras/camera105.prefab",
+            "assets/cameras/camera106.prefab",
+            "assets/cameras/camera107.prefab",
+            "assets/cameras/camera108.prefab",
+            "assets/cameras/camera109.prefab",
+            "assets/cameras/camera11.prefab",
+            "assets/cameras/camera110.prefab",
+            "assets/cameras/camera111.prefab",
+            "assets/cameras/camera112.prefab",
+            "assets/cameras/camera113.prefab",
+            "assets/cameras/camera114.prefab",
+            "assets/cameras/camera115.prefab",
+            "assets/cameras/camera116.prefab",
+            "assets/cameras/camera117.prefab",
+            "assets/cameras/camera118.prefab",
+            "assets/cameras/camera119.prefab",
+            "assets/cameras/camera12.prefab",
+            "assets/cameras/camera120.prefab",
+            "assets/cameras/camera121.prefab",
+            "assets/cameras/camera122.prefab",
+            "assets/cameras/camera123.prefab",
+            "assets/cameras/camera124.prefab",
+            "assets/cameras/camera125.prefab",
+            "assets/cameras/camera126.prefab",
+            "assets/cameras/camera127.prefab",
+            "assets/cameras/camera128.prefab",
+            "assets/cameras/camera129.prefab",
+            "assets/cameras/camera13.prefab",
+            "assets/cameras/camera130.prefab",
+            "assets/cameras/camera131.prefab",
+            "assets/cameras/camera132.prefab",
+            "assets/cameras/camera133.prefab",
+            "assets/cameras/camera134.prefab",
+            "assets/cameras/camera135.prefab",
+            "assets/cameras/camera136.prefab",
+            "assets/cameras/camera137.prefab",
+            "assets/cameras/camera138.prefab",
+            "assets/cameras/camera139.prefab",
+            "assets/cameras/camera14.prefab",
+            "assets/cameras/camera140.prefab",
+            "assets/cameras/camera141.prefab",
+            "assets/cameras/camera142.prefab",
+            "assets/cameras/camera143.prefab",
+            "assets/cameras/camera144.prefab",
+            "assets/cameras/camera145.prefab",
+            "assets/cameras/camera146.prefab",
+            "assets/cameras/camera147.prefab",
+            "assets/cameras/camera148.prefab",
+            "assets/cameras/camera149.prefab",
+            "assets/cameras/camera15.prefab",
+            "assets/cameras/camera150.prefab",
+            "assets/cameras/camera151.prefab",
+            "assets/cameras/camera152.prefab",
+            "assets/cameras/camera153.prefab",
+            "assets/cameras/camera154.prefab",
+            "assets/cameras/camera155.prefab",
+            "assets/cameras/camera156.prefab",
+            "assets/cameras/camera16.prefab",
+            "assets/cameras/camera17.prefab",
+            "assets/cameras/camera18.prefab",
+            "assets/cameras/camera19.prefab",
+            "assets/cameras/camera2.prefab",
+            "assets/cameras/camera20.prefab",
+            "assets/cameras/camera21.prefab",
+            "assets/cameras/camera22.prefab",
+            "assets/cameras/camera23.prefab",
+            "assets/cameras/camera24.prefab",
+            "assets/cameras/camera25.prefab",
+            "assets/cameras/camera26.prefab",
+            "assets/cameras/camera27.prefab",
+            "assets/cameras/camera28.prefab",
+            "assets/cameras/camera29.prefab",
+            "assets/cameras/camera3.prefab",
+            "assets/cameras/camera30.prefab",
+            "assets/cameras/camera31.prefab",
+            "assets/cameras/camera32.prefab",
+            "assets/cameras/camera33.prefab",
+            "assets/cameras/camera34.prefab",
+            "assets/cameras/camera35.prefab",
+            "assets/cameras/camera36.prefab",
+            "assets/cameras/camera37.prefab",
+            "assets/cameras/camera38.prefab",
+            "assets/cameras/camera39.prefab",
+            "assets/cameras/camera4.prefab",
+            "assets/cameras/camera40.prefab",
+            "assets/cameras/camera41.prefab",
+            "assets/cameras/camera42.prefab",
+            "assets/cameras/camera43.prefab",
+            "assets/cameras/camera44.prefab",
+            "assets/cameras/camera45.prefab",
+            "assets/cameras/camera46.prefab",
+            "assets/cameras/camera47.prefab",
+            "assets/cameras/camera48.prefab",
+            "assets/cameras/camera49.prefab",
+            "assets/cameras/camera5.prefab",
+            "assets/cameras/camera50.prefab",
+            "assets/cameras/camera51.prefab",
+            "assets/cameras/camera52.prefab",
+            "assets/cameras/camera53.prefab",
+            "assets/cameras/camera54.prefab",
+            "assets/cameras/camera55.prefab",
+            "assets/cameras/camera56.prefab",
+            "assets/cameras/camera57.prefab",
+            "assets/cameras/camera58.prefab",
+            "assets/cameras/camera59.prefab",
+            "assets/cameras/camera6.prefab",
+            "assets/cameras/camera60.prefab",
+            "assets/cameras/camera61.prefab",
+            "assets/cameras/camera62.prefab",
+            "assets/cameras/camera63.prefab",
+            "assets/cameras/camera64.prefab",
+            "assets/cameras/camera65.prefab",
+            "assets/cameras/camera66.prefab",
+            "assets/cameras/camera67.prefab",
+            "assets/cameras/camera68.prefab",
+            "assets/cameras/camera69.prefab",
+            "assets/cameras/camera7.prefab",
+            "assets/cameras/camera70.prefab",
+            "assets/cameras/camera71.prefab",
+            "assets/cameras/camera72.prefab",
+            "assets/cameras/camera73.prefab",
+            "assets/cameras/camera74.prefab",
+            "assets/cameras/camera75.prefab",
+            "assets/cameras/camera76.prefab",
+            "assets/cameras/camera77.prefab",
+            "assets/cameras/camera78.prefab",
+            "assets/cameras/camera79.prefab",
+            "assets/cameras/camera8.prefab",
+            "assets/cameras/camera80.prefab",
+            "assets/cameras/camera81.prefab",
+            "assets/cameras/camera82.prefab",
+            "assets/cameras/camera83.prefab",
+            "assets/cameras/camera84.prefab",
+            "assets/cameras/camera85.prefab",
+            "assets/cameras/camera86.prefab",
+            "assets/cameras/camera87.prefab",
+            "assets/cameras/camera88.prefab",
+            "assets/cameras/camera89.prefab",
+            "assets/cameras/camera9.prefab",
+            "assets/cameras/camera90.prefab",
+            "assets/cameras/camera91.prefab",
+            "assets/cameras/camera92.prefab",
+            "assets/cameras/camera93.prefab",
+            "assets/cameras/camera94.prefab",
+            "assets/cameras/camera95.prefab",
+            "assets/cameras/camera96.prefab",
+            "assets/cameras/camera97.prefab",
+            "assets/cameras/camera98.prefab",
+            "assets/cameras/camera99.prefab",
+            "assets/memorysequence/invcyl.prefab",
+            "assets/memorysequence/material/memorypanel.mat",
+            "assets/memorysequence/memorysequence.prefab",
+            "assets/planets/brittle hollow/bhorbit.prefab",
+            "assets/planets/dark bramble/dborbit.prefab",
+            "assets/planets/giants deep/gdorbit.prefab",
+            "assets/planets/giants deep/opc/opc_probe.prefab",
+            "assets/planets/hourglass twins/htorbit.prefab",
+            "assets/planets/timber hearth/thorbit.prefab",
+            "assets/player/blit/death.mat",
+            "assets/player/blit/eyes.mat",
+            "assets/player/platform/hearthianplatform.prefab",
+            "assets/player/scout/blackhole.prefab",
+            "assets/player/scout/scout.prefab",
+            "assets/player/scout/scoutphoto.prefab",
+            "assets/player/scout/whitehole.prefab",
+            "assets/player/ship/hearthianship.prefab",
+            "assets/player/sounds/breathein1.prefab",
+            "assets/player/ui/boostarrow.mat",
+            "assets/player/ui/boostgauge.mat",
+            "assets/player/ui/boosttext.mat",
+            "assets/player/ui/desktop/overlayuitex.mat",
+            "assets/player/ui/fuelarrow.mat",
+            "assets/player/ui/fuelgauge.mat",
+            "assets/player/ui/healthvignette.mat",
+            "assets/player/ui/multipliertext.mat",
+            "assets/player/ui/o2arrow.mat",
+            "assets/player/ui/o2gauge.mat",
+            "assets/player/ui/outerwildsui.prefab",
+            "assets/shaders/bloom/bloom.mat",
+            "assets/space/dsr.prefab",
+            "assets/space/space.prefab",
+            "assets/space/stars.prefab",
+            "assets/sun/sun.prefab",
+            "assets/sun/supernova/motes.prefab",
+            "assets/sun/supernova/nebulae.prefab",
+            "assets/sun/supernova/nebulaefast.prefab",
+            "assets/sun/supernova/novashockwave.prefab",
+            "assets/sun/supernova/supernova.prefab"
+          ]
+        }
+      ],
+      "assetBundles": {
+        "windows2021": {
+          "crc": 4245253238,
+          "url": "https://cdn.repo.totalbs.dev/4245253238.vivify",
+          "bytes": 16677982,
+          "sha256": "d569945770678df157b8fa1ee6755054c314f14aeec5a3293bcd84d8221ed0f8",
+          "local": "bundles/02-43a24_bundleWindows2021.vivify"
+        },
+        "android2021": {
+          "crc": 268337194,
+          "url": "https://cdn.repo.totalbs.dev/268337194.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        },
+        "windows2019": {
+          "crc": 388412152,
+          "url": "https://cdn.repo.totalbs.dev/388412152.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        }
+      }
+    },
+    {
+      "order": 3,
+      "beatsaverId": "43a25",
+      "beatsaverUrl": "https://beatsaver.com/maps/43a25",
+      "mapHash": "cb5470be988e526c08e1c7e98f2ba9c26ec6fbd0",
+      "zip": "downloads/03-43a25.zip",
+      "extracted": "extracted/03-43a25",
+      "songName": "Lifelike",
+      "songSubName": "",
+      "songAuthor": "Porter Robinson",
+      "mapper": "nasafrasa",
+      "bpm": 100.72,
+      "durationSec": 96,
+      "environment": "BillieEnvironment",
+      "contributors": [],
+      "editors": [
+        "ChroMapper",
+        "ReMapper"
+      ],
+      "assetBundlePlatforms": [
+        "_windows2019",
+        "_windows2021"
+      ],
+      "bundleShippedInZip": false,
+      "difficulties": [
+        {
+          "characteristic": "Standard",
+          "difficulty": "Easy",
+          "label": "Nurture",
+          "schema": "3.2.0",
+          "njs": 16,
+          "njsOffset": 0,
+          "requirements": [
+            "Noodle Extensions",
+            "Chroma",
+            "Vivify"
+          ],
+          "counts": {
+            "notes": 123,
+            "bombs": 0,
+            "obstacles": 0,
+            "arcs": 39,
+            "chains": 2,
+            "basicLightEvents": 77,
+            "environmentEnhancements": 16,
+            "declaredMaterials": 2
+          },
+          "npsActive": 1.56,
+          "customEvents": {
+            "total": 86,
+            "vivify": {
+              "Blit": 1,
+              "InstantiatePrefab": 14,
+              "SetCameraProperty": 1,
+              "AssignObjectPrefab": 2,
+              "SetMaterialProperty": 10,
+              "DestroyObject": 14,
+              "SetGlobalProperty": 1
+            },
+            "heck": {
+              "AnimateTrack": 41,
+              "AssignPlayerToTrack": 1,
+              "AssignTrackParent": 1
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "animation": 123,
+            "disableNoteGravity": 123,
+            "color": 123,
+            "noteJumpMovementSpeed": 123,
+            "noteJumpStartBeatOffset": 123,
+            "track": 123
+          },
+          "trackCount": 21,
+          "assetCount": 18,
+          "assets": [
+            "assets/clouds.prefab",
+            "assets/cloudsspiral.prefab",
+            "assets/doorleft.prefab",
+            "assets/doorright.prefab",
+            "assets/grass.prefab",
+            "assets/materials/camerawarm.mat",
+            "assets/materials/pianobase.mat",
+            "assets/materials/pianokeys.mat",
+            "assets/materials/pianopedal.mat",
+            "assets/materials/scribble.mat",
+            "assets/materials/white.mat",
+            "assets/piano.prefab",
+            "assets/scribbles.prefab",
+            "assets/skyboxblack.prefab",
+            "assets/skyboxday.prefab",
+            "assets/skyboxsunset.prefab",
+            "assets/tracktext.prefab",
+            "assets/water.prefab"
+          ]
+        },
+        {
+          "characteristic": "Standard",
+          "difficulty": "Normal",
+          "label": "Lifelike",
+          "schema": "3.2.0",
+          "njs": 16,
+          "njsOffset": 0,
+          "requirements": [
+            "Noodle Extensions",
+            "Chroma",
+            "Vivify"
+          ],
+          "counts": {
+            "notes": 145,
+            "bombs": 0,
+            "obstacles": 0,
+            "arcs": 52,
+            "chains": 10,
+            "basicLightEvents": 77,
+            "environmentEnhancements": 16,
+            "declaredMaterials": 2
+          },
+          "npsActive": 1.84,
+          "customEvents": {
+            "total": 86,
+            "vivify": {
+              "Blit": 1,
+              "InstantiatePrefab": 14,
+              "SetCameraProperty": 1,
+              "AssignObjectPrefab": 2,
+              "SetMaterialProperty": 10,
+              "DestroyObject": 14,
+              "SetGlobalProperty": 1
+            },
+            "heck": {
+              "AnimateTrack": 41,
+              "AssignPlayerToTrack": 1,
+              "AssignTrackParent": 1
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "animation": 145,
+            "disableNoteGravity": 145,
+            "color": 145,
+            "noteJumpMovementSpeed": 145,
+            "noteJumpStartBeatOffset": 145,
+            "track": 145
+          },
+          "trackCount": 21,
+          "assetCount": 18,
+          "assets": [
+            "assets/clouds.prefab",
+            "assets/cloudsspiral.prefab",
+            "assets/doorleft.prefab",
+            "assets/doorright.prefab",
+            "assets/grass.prefab",
+            "assets/materials/camerawarm.mat",
+            "assets/materials/pianobase.mat",
+            "assets/materials/pianokeys.mat",
+            "assets/materials/pianopedal.mat",
+            "assets/materials/scribble.mat",
+            "assets/materials/white.mat",
+            "assets/piano.prefab",
+            "assets/scribbles.prefab",
+            "assets/skyboxblack.prefab",
+            "assets/skyboxday.prefab",
+            "assets/skyboxsunset.prefab",
+            "assets/tracktext.prefab",
+            "assets/water.prefab"
+          ]
+        }
+      ],
+      "assetBundles": {
+        "windows2021": {
+          "crc": 2874852143,
+          "url": "https://cdn.repo.totalbs.dev/2874852143.vivify",
+          "bytes": 5581453,
+          "sha256": "80f7f6d01295dbf7322e797a6fba4c9d4761212d31350aa93b5cb5b31baaf5a1",
+          "local": "bundles/03-43a25_bundleWindows2021.vivify"
+        },
+        "windows2019": {
+          "crc": 2049252416,
+          "url": "https://cdn.repo.totalbs.dev/2049252416.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        }
+      }
+    },
+    {
+      "order": 4,
+      "beatsaverId": "43a1f",
+      "beatsaverUrl": "https://beatsaver.com/maps/43a1f",
+      "mapHash": "d265d40935983502ad6f05ddeb5417f3e37c2290",
+      "zip": "downloads/04-43a1f.zip",
+      "extracted": "extracted/04-43a1f",
+      "songName": "you",
+      "songSubName": "",
+      "songAuthor": "Simplifi",
+      "mapper": "Swifter",
+      "bpm": 70.0,
+      "durationSec": 157,
+      "environment": "BillieEnvironment",
+      "contributors": [],
+      "editors": [
+        "ChroMapper",
+        "ReMapper"
+      ],
+      "assetBundlePlatforms": [
+        "_android2021",
+        "_windows2019",
+        "_windows2021"
+      ],
+      "bundleShippedInZip": false,
+      "difficulties": [
+        {
+          "characteristic": "Standard",
+          "difficulty": "Normal",
+          "label": null,
+          "schema": "3.2.0",
+          "njs": 8,
+          "njsOffset": -0.25,
+          "requirements": [
+            "Chroma",
+            "Noodle Extensions",
+            "Vivify"
+          ],
+          "counts": {
+            "notes": 160,
+            "bombs": 0,
+            "obstacles": 0,
+            "arcs": 0,
+            "chains": 5,
+            "basicLightEvents": 0,
+            "environmentEnhancements": 1,
+            "declaredMaterials": 0
+          },
+          "npsActive": 1.11,
+          "customEvents": {
+            "total": 1247,
+            "vivify": {
+              "SetMaterialProperty": 340,
+              "InstantiatePrefab": 15,
+              "SetCameraProperty": 1,
+              "AssignObjectPrefab": 10,
+              "SetRenderingSettings": 1,
+              "DestroyObject": 6,
+              "Blit": 4
+            },
+            "heck": {
+              "AssignPathAnimation": 826,
+              "AssignPlayerToTrack": 3,
+              "AssignTrackParent": 1,
+              "AnimateTrack": 40
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "spawnEffect": 160,
+            "noteJumpMovementSpeed": 160,
+            "noteJumpStartBeatOffset": 160,
+            "track": 160,
+            "animation": 121,
+            "disableNoteGravity": 119,
+            "worldRotation": 101
+          },
+          "trackCount": 99,
+          "assetCount": 44,
+          "assets": [
+            "assets/fonts/pala sdf - outro text.mat",
+            "assets/materials/dropveins.mat",
+            "assets/materials/effects/ambientflare.mat",
+            "assets/materials/effects/ambientparticles.mat",
+            "assets/materials/effects/builduppanel.mat",
+            "assets/materials/effects/buildupwisps.mat",
+            "assets/materials/effects/dropwisps.mat",
+            "assets/materials/effects/explosion.mat",
+            "assets/materials/effects/implosion.mat",
+            "assets/materials/effects/outline.mat",
+            "assets/materials/effects/shaft.mat",
+            "assets/materials/effects/veinbacklight.mat",
+            "assets/materials/flowertiddle.mat",
+            "assets/materials/note/dropnote.mat",
+            "assets/materials/note/dropnote_debris.mat",
+            "assets/materials/note/dropnotearrow.mat",
+            "assets/materials/note/glassarrow.mat",
+            "assets/materials/note/glassnote.mat",
+            "assets/materials/note/glassnote_debris.mat",
+            "assets/materials/note/reflectivenote.mat",
+            "assets/materials/note/reflectivenote_debris.mat",
+            "assets/materials/pedal.mat",
+            "assets/materials/post processing/buildupeffects.mat",
+            "assets/materials/post processing/dropeffects.mat",
+            "assets/materials/ribbon.mat",
+            "assets/materials/saber/saberguide.mat",
+            "assets/materials/skybox/ambientskybox.mat",
+            "assets/materials/skybox/dropskybox.mat",
+            "assets/materials/skybox/endingskybox.mat",
+            "assets/materials/skybox/introskybox.mat",
+            "assets/prefabs/effects/ambientflare.prefab",
+            "assets/prefabs/effects/builduppanel.prefab",
+            "assets/prefabs/effects/buildupparticles.prefab",
+            "assets/prefabs/effects/buildupsphere.prefab",
+            "assets/prefabs/effects/explosions.prefab",
+            "assets/prefabs/objects/darkness.prefab",
+            "assets/prefabs/objects/flower.prefab",
+            "assets/prefabs/objects/veinbacklight.prefab",
+            "assets/prefabs/scene/ambientscene.prefab",
+            "assets/prefabs/scene/dropscene.prefab",
+            "assets/prefabs/scene/endingscene.prefab",
+            "assets/prefabs/scene/introscene.prefab",
+            "assets/prefabs/scene/outrotext.prefab",
+            "assets/prefabs/technical/reflection probe.prefab"
+          ]
+        },
+        {
+          "characteristic": "Standard",
+          "difficulty": "Hard",
+          "label": null,
+          "schema": "3.2.0",
+          "njs": 8,
+          "njsOffset": -0.25,
+          "requirements": [
+            "Chroma",
+            "Noodle Extensions",
+            "Vivify"
+          ],
+          "counts": {
+            "notes": 160,
+            "bombs": 0,
+            "obstacles": 0,
+            "arcs": 0,
+            "chains": 5,
+            "basicLightEvents": 0,
+            "environmentEnhancements": 1,
+            "declaredMaterials": 0
+          },
+          "npsActive": 1.11,
+          "customEvents": {
+            "total": 1247,
+            "vivify": {
+              "SetMaterialProperty": 340,
+              "InstantiatePrefab": 15,
+              "SetCameraProperty": 1,
+              "AssignObjectPrefab": 10,
+              "SetRenderingSettings": 1,
+              "DestroyObject": 6,
+              "Blit": 4
+            },
+            "heck": {
+              "AssignPathAnimation": 826,
+              "AssignPlayerToTrack": 3,
+              "AssignTrackParent": 1,
+              "AnimateTrack": 40
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "spawnEffect": 160,
+            "noteJumpMovementSpeed": 160,
+            "noteJumpStartBeatOffset": 160,
+            "track": 160,
+            "animation": 121,
+            "disableNoteGravity": 119,
+            "worldRotation": 101
+          },
+          "trackCount": 99,
+          "assetCount": 44,
+          "assets": [
+            "assets/fonts/pala sdf - outro text.mat",
+            "assets/materials/dropveins.mat",
+            "assets/materials/effects/ambientflare.mat",
+            "assets/materials/effects/ambientparticles.mat",
+            "assets/materials/effects/builduppanel.mat",
+            "assets/materials/effects/buildupwisps.mat",
+            "assets/materials/effects/dropwisps.mat",
+            "assets/materials/effects/explosion.mat",
+            "assets/materials/effects/implosion.mat",
+            "assets/materials/effects/outline.mat",
+            "assets/materials/effects/shaft.mat",
+            "assets/materials/effects/veinbacklight.mat",
+            "assets/materials/flowertiddle.mat",
+            "assets/materials/note/dropnote.mat",
+            "assets/materials/note/dropnote_debris.mat",
+            "assets/materials/note/dropnotearrow.mat",
+            "assets/materials/note/glassarrow.mat",
+            "assets/materials/note/glassnote.mat",
+            "assets/materials/note/glassnote_debris.mat",
+            "assets/materials/note/reflectivenote.mat",
+            "assets/materials/note/reflectivenote_debris.mat",
+            "assets/materials/pedal.mat",
+            "assets/materials/post processing/buildupeffects.mat",
+            "assets/materials/post processing/dropeffects.mat",
+            "assets/materials/ribbon.mat",
+            "assets/materials/saber/saberguide.mat",
+            "assets/materials/skybox/ambientskybox.mat",
+            "assets/materials/skybox/dropskybox.mat",
+            "assets/materials/skybox/endingskybox.mat",
+            "assets/materials/skybox/introskybox.mat",
+            "assets/prefabs/effects/ambientflare.prefab",
+            "assets/prefabs/effects/builduppanel.prefab",
+            "assets/prefabs/effects/buildupparticles.prefab",
+            "assets/prefabs/effects/buildupsphere.prefab",
+            "assets/prefabs/effects/explosions.prefab",
+            "assets/prefabs/objects/darkness.prefab",
+            "assets/prefabs/objects/flower.prefab",
+            "assets/prefabs/objects/veinbacklight.prefab",
+            "assets/prefabs/scene/ambientscene.prefab",
+            "assets/prefabs/scene/dropscene.prefab",
+            "assets/prefabs/scene/endingscene.prefab",
+            "assets/prefabs/scene/introscene.prefab",
+            "assets/prefabs/scene/outrotext.prefab",
+            "assets/prefabs/technical/reflection probe.prefab"
+          ]
+        }
+      ],
+      "assetBundles": {
+        "windows2021": {
+          "crc": 439194816,
+          "url": "https://cdn.repo.totalbs.dev/439194816.vivify",
+          "bytes": 1516949,
+          "sha256": "1e03ab00cc62897d8a4ac0a3e4bc6bcd4a3fada521f6e6e729fb0ea9cda20ae4",
+          "local": "bundles/04-43a1f_bundleWindows2021.vivify"
+        },
+        "android2021": {
+          "crc": 1563550775,
+          "url": "https://cdn.repo.totalbs.dev/1563550775.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        },
+        "windows2019": {
+          "crc": 2512046672,
+          "url": "https://cdn.repo.totalbs.dev/2512046672.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        }
+      }
+    },
+    {
+      "order": 5,
+      "beatsaverId": "43a2e",
+      "beatsaverUrl": "https://beatsaver.com/maps/43a2e",
+      "mapHash": "80fd2689ce77bdee4b31d61debf4dc9de764c1aa",
+      "zip": "downloads/05-43a2e.zip",
+      "extracted": "extracted/05-43a2e",
+      "songName": "Ego Death",
+      "songSubName": "",
+      "songAuthor": "Xtrullor",
+      "mapper": "Sands",
+      "bpm": 180.0,
+      "durationSec": 126,
+      "environment": "RocketEnvironment",
+      "contributors": [],
+      "editors": [
+        "ChroMapper"
+      ],
+      "assetBundlePlatforms": [
+        "_android2021",
+        "_windows2019",
+        "_windows2021"
+      ],
+      "bundleShippedInZip": false,
+      "difficulties": [
+        {
+          "characteristic": "Standard",
+          "difficulty": "Expert",
+          "label": "Install BS Antivirus",
+          "schema": "3.3.0",
+          "njs": 16,
+          "njsOffset": 0,
+          "requirements": [
+            "Chroma",
+            "Noodle Extensions",
+            "Vivify"
+          ],
+          "counts": {
+            "notes": 181,
+            "bombs": 0,
+            "obstacles": 0,
+            "arcs": 0,
+            "chains": 0,
+            "basicLightEvents": 0,
+            "environmentEnhancements": 14,
+            "declaredMaterials": 0
+          },
+          "npsActive": 2.15,
+          "customEvents": {
+            "total": 507,
+            "vivify": {
+              "InstantiatePrefab": 12,
+              "DestroyObject": 7,
+              "SetMaterialProperty": 125,
+              "Blit": 149
+            },
+            "heck": {
+              "AnimateTrack": 213,
+              "AssignPathAnimation": 1
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "disableBadCutSaberType": 163,
+            "noteJumpStartBeatOffset": 163,
+            "noteJumpMovementSpeed": 163,
+            "track": 163
+          },
+          "trackCount": 12,
+          "assetCount": 14,
+          "assets": [
+            "assets/boss.prefab",
+            "assets/brightness.mat",
+            "assets/electricfuzz.prefab",
+            "assets/hit.prefab",
+            "assets/introanim.prefab",
+            "assets/kick.mat",
+            "assets/platform.prefab",
+            "assets/rain.prefab",
+            "assets/reddeath.prefab",
+            "assets/sky3.mat",
+            "assets/skybox.mat",
+            "assets/thing.mat",
+            "assets/umm.mat",
+            "assets/warp.mat"
+          ]
+        },
+        {
+          "characteristic": "Standard",
+          "difficulty": "ExpertPlus",
+          "label": "Install Vivify.dll",
+          "schema": "3.3.0",
+          "njs": 16,
+          "njsOffset": 0,
+          "requirements": [
+            "Chroma",
+            "Noodle Extensions",
+            "Vivify"
+          ],
+          "counts": {
+            "notes": 318,
+            "bombs": 0,
+            "obstacles": 0,
+            "arcs": 0,
+            "chains": 0,
+            "basicLightEvents": 0,
+            "environmentEnhancements": 14,
+            "declaredMaterials": 0
+          },
+          "npsActive": 3.79,
+          "customEvents": {
+            "total": 507,
+            "vivify": {
+              "InstantiatePrefab": 12,
+              "DestroyObject": 7,
+              "SetMaterialProperty": 125,
+              "Blit": 149
+            },
+            "heck": {
+              "AnimateTrack": 213,
+              "AssignPathAnimation": 1
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "disableBadCutSaberType": 318,
+            "noteJumpStartBeatOffset": 318,
+            "noteJumpMovementSpeed": 318,
+            "track": 318
+          },
+          "trackCount": 12,
+          "assetCount": 14,
+          "assets": [
+            "assets/boss.prefab",
+            "assets/brightness.mat",
+            "assets/electricfuzz.prefab",
+            "assets/hit.prefab",
+            "assets/introanim.prefab",
+            "assets/kick.mat",
+            "assets/platform.prefab",
+            "assets/rain.prefab",
+            "assets/reddeath.prefab",
+            "assets/sky3.mat",
+            "assets/skybox.mat",
+            "assets/thing.mat",
+            "assets/umm.mat",
+            "assets/warp.mat"
+          ]
+        }
+      ],
+      "assetBundles": {
+        "windows2021": {
+          "crc": 2195937566,
+          "url": "https://cdn.repo.totalbs.dev/2195937566.vivify",
+          "bytes": 4241781,
+          "sha256": "49f432d926a506c7b61b1d78fd21705f73c602d008390cd1662692c836485191",
+          "local": "bundles/05-43a2e_bundleWindows2021.vivify"
+        },
+        "android2021": {
+          "crc": 3817251849,
+          "url": "https://cdn.repo.totalbs.dev/3817251849.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        },
+        "windows2019": {
+          "crc": 377480426,
+          "url": "https://cdn.repo.totalbs.dev/377480426.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        }
+      }
+    },
+    {
+      "order": 6,
+      "beatsaverId": "43a4a",
+      "beatsaverUrl": "https://beatsaver.com/maps/43a4a",
+      "mapHash": "82d8b81f0477d2c51952854f24aa3b34587324e5",
+      "zip": "downloads/06-43a4a.zip",
+      "extracted": "extracted/06-43a4a",
+      "songName": "3 BIG SHOTS FROM [KITCHEN GUN]",
+      "songSubName": "",
+      "songAuthor": "Grambam36",
+      "mapper": "Droobix",
+      "bpm": 140.0,
+      "durationSec": 150,
+      "environment": "BigMirrorEnvironment",
+      "contributors": [
+        {
+          "role": "Mapper, Lighter, Noodler, Vivifier",
+          "name": "Droobix (TheGoodBoi)"
+        },
+        {
+          "role": "Tweaking and optimization",
+          "name": "Swifter"
+        },
+        {
+          "role": "Testplayer",
+          "name": "Mawntee"
+        },
+        {
+          "role": "Lots of troubleshooting",
+          "name": "Aeroluna"
+        },
+        {
+          "role": "Overwhelming support and encouragement",
+          "name": "TBS Members"
+        },
+        {
+          "role": "YTPMV creator",
+          "name": "Grambam36"
+        },
+        {
+          "role": "Original song",
+          "name": "Toby Fox"
+        }
+      ],
+      "editors": [
+        "ChroMapper"
+      ],
+      "assetBundlePlatforms": [
+        "_android2021",
+        "_windows2019",
+        "_windows2021"
+      ],
+      "bundleShippedInZip": false,
+      "difficulties": [
+        {
+          "characteristic": "Standard",
+          "difficulty": "Expert",
+          "label": "an easier way",
+          "schema": "3.3.0",
+          "njs": 17,
+          "njsOffset": 0,
+          "requirements": [
+            "Chroma",
+            "Noodle Extensions",
+            "Vivify"
+          ],
+          "counts": {
+            "notes": 548,
+            "bombs": 39,
+            "obstacles": 24,
+            "arcs": 0,
+            "chains": 0,
+            "basicLightEvents": 343,
+            "environmentEnhancements": 15,
+            "declaredMaterials": 0
+          },
+          "npsActive": 3.91,
+          "customEvents": {
+            "total": 709,
+            "vivify": {
+              "SetRenderingSettings": 1,
+              "InstantiatePrefab": 133,
+              "SetMaterialProperty": 47,
+              "DestroyObject": 48,
+              "Blit": 10,
+              "CreateCamera": 1
+            },
+            "heck": {
+              "AnimateTrack": 398,
+              "AssignPathAnimation": 24,
+              "AssignTrackParent": 47
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "noteJumpMovementSpeed": 548,
+            "noteJumpStartBeatOffset": 548,
+            "track": 437,
+            "spawnEffect": 394,
+            "_disableSpawnEffect": 254,
+            "_disableNoteGravity": 254,
+            "disableNoteGravity": 227,
+            "disableBadCutSaberType": 157,
+            "flip": 148,
+            "link": 76,
+            "animation": 49,
+            "uninteractable": 45
+          },
+          "trackCount": 152,
+          "assetCount": 37,
+          "assets": [
+            "assets/prefabs/alley.prefab",
+            "assets/prefabs/car.prefab",
+            "assets/prefabs/carp.prefab",
+            "assets/prefabs/chaos1.prefab",
+            "assets/prefabs/chaos2.prefab",
+            "assets/prefabs/city1.prefab",
+            "assets/prefabs/city2.prefab",
+            "assets/prefabs/city3.prefab",
+            "assets/prefabs/field.prefab",
+            "assets/prefabs/kitchen.prefab",
+            "assets/prefabs/leftwing.prefab",
+            "assets/prefabs/papers.prefab",
+            "assets/prefabs/posters.prefab",
+            "assets/prefabs/ralsei.prefab",
+            "assets/prefabs/rightwing.prefab",
+            "assets/prefabs/screen1.prefab",
+            "assets/prefabs/screen2.prefab",
+            "assets/prefabs/screen3.prefab",
+            "assets/prefabs/screen4.prefab",
+            "assets/prefabs/screenmat1.mat",
+            "assets/prefabs/screenmat2.mat",
+            "assets/prefabs/screenmat3.mat",
+            "assets/prefabs/screenmat4.mat",
+            "assets/prefabs/string.prefab",
+            "assets/prefabs/susie.prefab",
+            "assets/prefabs/thetvplane.prefab",
+            "assets/prefabs/toilet.prefab",
+            "assets/prefabs/tracks.prefab",
+            "assets/prefabs/trailercamera_1.prefab",
+            "assets/prefabs/world.prefab",
+            "assets/shader/crouch.mat",
+            "assets/shader/crunch.mat",
+            "assets/shader/new.mat",
+            "assets/shader/notewigmat.mat",
+            "assets/shader/shotmat.mat",
+            "assets/shader/vhsmat.mat",
+            "assets/shader/vidscreen.mat"
+          ]
+        },
+        {
+          "characteristic": "Standard",
+          "difficulty": "ExpertPlus",
+          "label": "[[SPARKLE LIKE NEW]]",
+          "schema": "3.3.0",
+          "njs": 17,
+          "njsOffset": 0,
+          "requirements": [
+            "Chroma",
+            "Noodle Extensions",
+            "Vivify"
+          ],
+          "counts": {
+            "notes": 597,
+            "bombs": 0,
+            "obstacles": 29,
+            "arcs": 0,
+            "chains": 6,
+            "basicLightEvents": 343,
+            "environmentEnhancements": 15,
+            "declaredMaterials": 0
+          },
+          "npsActive": 4.26,
+          "customEvents": {
+            "total": 748,
+            "vivify": {
+              "SetRenderingSettings": 1,
+              "InstantiatePrefab": 133,
+              "SetMaterialProperty": 47,
+              "DestroyObject": 48,
+              "CreateScreenTexture": 4,
+              "Blit": 46,
+              "CreateCamera": 1
+            },
+            "heck": {
+              "AnimateTrack": 397,
+              "AssignPathAnimation": 24,
+              "AssignTrackParent": 47
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "noteJumpMovementSpeed": 597,
+            "noteJumpStartBeatOffset": 597,
+            "track": 457,
+            "spawnEffect": 405,
+            "_disableSpawnEffect": 274,
+            "_disableNoteGravity": 274,
+            "disableNoteGravity": 226,
+            "disableBadCutSaberType": 156,
+            "flip": 148,
+            "link": 76,
+            "animation": 49,
+            "uninteractable": 45,
+            "coordinates": 8
+          },
+          "trackCount": 152,
+          "assetCount": 38,
+          "assets": [
+            "assets/prefabs/alley.prefab",
+            "assets/prefabs/car.prefab",
+            "assets/prefabs/carp.prefab",
+            "assets/prefabs/chaos1.prefab",
+            "assets/prefabs/chaos2.prefab",
+            "assets/prefabs/city1.prefab",
+            "assets/prefabs/city2.prefab",
+            "assets/prefabs/city3.prefab",
+            "assets/prefabs/field.prefab",
+            "assets/prefabs/kitchen.prefab",
+            "assets/prefabs/leftwing.prefab",
+            "assets/prefabs/papers.prefab",
+            "assets/prefabs/posters.prefab",
+            "assets/prefabs/ralsei.prefab",
+            "assets/prefabs/rightwing.prefab",
+            "assets/prefabs/screen1.prefab",
+            "assets/prefabs/screen2.prefab",
+            "assets/prefabs/screen3.prefab",
+            "assets/prefabs/screen4.prefab",
+            "assets/prefabs/screenmat1.mat",
+            "assets/prefabs/screenmat2.mat",
+            "assets/prefabs/screenmat3.mat",
+            "assets/prefabs/screenmat4.mat",
+            "assets/prefabs/string.prefab",
+            "assets/prefabs/susie.prefab",
+            "assets/prefabs/thetvplane.prefab",
+            "assets/prefabs/toilet.prefab",
+            "assets/prefabs/tracks.prefab",
+            "assets/prefabs/trailercamera_1.prefab",
+            "assets/prefabs/world.prefab",
+            "assets/shader/crouch.mat",
+            "assets/shader/crunch.mat",
+            "assets/shader/new.mat",
+            "assets/shader/notewigmat.mat",
+            "assets/shader/oldmat.mat",
+            "assets/shader/shotmat.mat",
+            "assets/shader/vhsmat.mat",
+            "assets/shader/vidscreen.mat"
+          ]
+        }
+      ],
+      "assetBundles": {
+        "windows2021": {
+          "crc": 3416881939,
+          "url": "https://cdn.repo.totalbs.dev/3416881939.vivify",
+          "bytes": 30806200,
+          "sha256": "5edf44ca9eed736125af2cfcdb8e24c07f2c24046302dcf499aba34b4117fc6a",
+          "local": "bundles/06-43a4a_bundleWindows2021.vivify"
+        },
+        "android2021": {
+          "crc": 223024126,
+          "url": "https://cdn.repo.totalbs.dev/223024126.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        },
+        "windows2019": {
+          "crc": 2669732511,
+          "url": "https://cdn.repo.totalbs.dev/2669732511.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        }
+      }
+    },
+    {
+      "order": 7,
+      "beatsaverId": "43a26",
+      "beatsaverUrl": "https://beatsaver.com/maps/43a26",
+      "mapHash": "334adfdc5bdf2436e601760ebf53e04560ed71a6",
+      "zip": "downloads/07-43a26.zip",
+      "extracted": "extracted/07-43a26",
+      "songName": "luminescent",
+      "songSubName": "",
+      "songAuthor": "sxth sns",
+      "mapper": "nasafrasa",
+      "bpm": 170.0,
+      "durationSec": 167,
+      "environment": "DefaultEnvironment",
+      "contributors": [],
+      "editors": [
+        "ChroMapper",
+        "ReMapper"
+      ],
+      "assetBundlePlatforms": [
+        "_windows2019",
+        "_windows2021"
+      ],
+      "bundleShippedInZip": false,
+      "difficulties": [
+        {
+          "characteristic": "Standard",
+          "difficulty": "Hard",
+          "label": "fluorescent",
+          "schema": "3.2.0",
+          "njs": 16,
+          "njsOffset": 0,
+          "requirements": [
+            "Noodle Extensions",
+            "Chroma",
+            "Vivify"
+          ],
+          "counts": {
+            "notes": 551,
+            "bombs": 0,
+            "obstacles": 0,
+            "arcs": 16,
+            "chains": 5,
+            "basicLightEvents": 66,
+            "environmentEnhancements": 7,
+            "declaredMaterials": 1
+          },
+          "npsActive": 3.52,
+          "customEvents": {
+            "total": 994,
+            "vivify": {
+              "SetMaterialProperty": 536,
+              "InstantiatePrefab": 17,
+              "DestroyObject": 17,
+              "Blit": 239
+            },
+            "heck": {
+              "AnimateTrack": 141,
+              "AnimateComponent": 44
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "disableNoteGravity": 551,
+            "spawnEffect": 551,
+            "noteJumpMovementSpeed": 551,
+            "noteJumpStartBeatOffset": 551,
+            "track": 551,
+            "animation": 269
+          },
+          "trackCount": 6,
+          "assetCount": 27,
+          "assets": [
+            "assets/materials/pp_glitch.mat",
+            "assets/materials/pp_pixelate.mat",
+            "assets/materials/pp_scanlines.mat",
+            "assets/materials/pp_vhs.mat",
+            "assets/materials/sky1.mat",
+            "assets/materials/sky2.mat",
+            "assets/materials/sky3.mat",
+            "assets/materials/sky4.mat",
+            "assets/materials/sky6.mat",
+            "assets/materials/skybox1.1.mat",
+            "assets/materials/skybox1.2.mat",
+            "assets/materials/skybox1.3.mat",
+            "assets/materials/skybox1.4.mat",
+            "assets/materials/skybox1.5.mat",
+            "assets/materials/skybox1.6.mat",
+            "assets/materials/star.mat",
+            "assets/mountains.prefab",
+            "assets/sky1.prefab",
+            "assets/sky2.prefab",
+            "assets/sky3.prefab",
+            "assets/sky4.prefab",
+            "assets/sky6.prefab",
+            "assets/skybox1.prefab",
+            "assets/stars.prefab",
+            "assets/starsclose.prefab",
+            "assets/streaks.prefab",
+            "assets/water.prefab"
+          ]
+        },
+        {
+          "characteristic": "Standard",
+          "difficulty": "ExpertPlus",
+          "label": "luminescent",
+          "schema": "3.2.0",
+          "njs": 16,
+          "njsOffset": 0,
+          "requirements": [
+            "Noodle Extensions",
+            "Chroma",
+            "Vivify"
+          ],
+          "counts": {
+            "notes": 712,
+            "bombs": 0,
+            "obstacles": 0,
+            "arcs": 18,
+            "chains": 6,
+            "basicLightEvents": 66,
+            "environmentEnhancements": 7,
+            "declaredMaterials": 1
+          },
+          "npsActive": 4.54,
+          "customEvents": {
+            "total": 994,
+            "vivify": {
+              "SetMaterialProperty": 536,
+              "InstantiatePrefab": 17,
+              "DestroyObject": 17,
+              "Blit": 239
+            },
+            "heck": {
+              "AnimateTrack": 141,
+              "AnimateComponent": 44
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "disableNoteGravity": 712,
+            "spawnEffect": 712,
+            "noteJumpMovementSpeed": 712,
+            "noteJumpStartBeatOffset": 712,
+            "track": 712,
+            "animation": 296
+          },
+          "trackCount": 6,
+          "assetCount": 27,
+          "assets": [
+            "assets/materials/pp_glitch.mat",
+            "assets/materials/pp_pixelate.mat",
+            "assets/materials/pp_scanlines.mat",
+            "assets/materials/pp_vhs.mat",
+            "assets/materials/sky1.mat",
+            "assets/materials/sky2.mat",
+            "assets/materials/sky3.mat",
+            "assets/materials/sky4.mat",
+            "assets/materials/sky6.mat",
+            "assets/materials/skybox1.1.mat",
+            "assets/materials/skybox1.2.mat",
+            "assets/materials/skybox1.3.mat",
+            "assets/materials/skybox1.4.mat",
+            "assets/materials/skybox1.5.mat",
+            "assets/materials/skybox1.6.mat",
+            "assets/materials/star.mat",
+            "assets/mountains.prefab",
+            "assets/sky1.prefab",
+            "assets/sky2.prefab",
+            "assets/sky3.prefab",
+            "assets/sky4.prefab",
+            "assets/sky6.prefab",
+            "assets/skybox1.prefab",
+            "assets/stars.prefab",
+            "assets/starsclose.prefab",
+            "assets/streaks.prefab",
+            "assets/water.prefab"
+          ]
+        }
+      ],
+      "assetBundles": {
+        "windows2021": {
+          "crc": 3576816246,
+          "url": "https://cdn.repo.totalbs.dev/3576816246.vivify",
+          "bytes": 6522489,
+          "sha256": "2322e964509e87861f3295137950aaaf3c34df05ac1338daaedad07918b3cac7",
+          "local": "bundles/07-43a26_bundleWindows2021.vivify"
+        },
+        "windows2019": {
+          "crc": 2125274369,
+          "url": "https://cdn.repo.totalbs.dev/2125274369.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        }
+      }
+    },
+    {
+      "order": 8,
+      "beatsaverId": "43a4b",
+      "beatsaverUrl": "https://beatsaver.com/maps/43a4b",
+      "mapHash": "bb8c40d9220ddcc5ec5fe2e015823d9111b21a8b",
+      "zip": "downloads/08-43a4b.zip",
+      "extracted": "extracted/08-43a4b",
+      "songName": "Yoi Okashi to Warui Okashi",
+      "songSubName": "",
+      "songAuthor": "Asatsumei",
+      "mapper": "Elecast",
+      "bpm": 175.0,
+      "durationSec": 304,
+      "environment": "BigMirrorEnvironment",
+      "contributors": [
+        {
+          "role": "Mapper & Lighter",
+          "name": "Elecast"
+        },
+        {
+          "role": "Mapper",
+          "name": "Fatalution"
+        }
+      ],
+      "editors": [
+        "MMA2",
+        "ChroMapper"
+      ],
+      "assetBundlePlatforms": [
+        "_windows2019",
+        "_windows2021"
+      ],
+      "bundleShippedInZip": false,
+      "difficulties": [
+        {
+          "characteristic": "Standard",
+          "difficulty": "Expert",
+          "label": null,
+          "schema": "3.3.0",
+          "njs": 18,
+          "njsOffset": -0.25,
+          "requirements": [
+            "Noodle Extensions",
+            "Chroma",
+            "Vivify"
+          ],
+          "counts": {
+            "notes": 1237,
+            "bombs": 176,
+            "obstacles": 249,
+            "arcs": 46,
+            "chains": 0,
+            "basicLightEvents": 1893,
+            "environmentEnhancements": 80,
+            "declaredMaterials": 7
+          },
+          "npsActive": 4.14,
+          "customEvents": {
+            "total": 7785,
+            "vivify": {
+              "InstantiatePrefab": 788,
+              "SetMaterialProperty": 4241,
+              "DestroyObject": 789,
+              "SetRenderSetting": 1,
+              "SetAnimatorProperty": 6,
+              "Blit": 40,
+              "AssignObjectPrefab": 6
+            },
+            "heck": {
+              "AnimateTrack": 1909,
+              "AssignPathAnimation": 5
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "noteJumpMovementSpeed": 1237,
+            "noteJumpStartBeatOffset": 1237,
+            "track": 1237
+          },
+          "trackCount": 774,
+          "assetCount": 101,
+          "assets": [
+            "assets/imported/fantasy skybox free/cubemaps/classic/0_back.mat",
+            "assets/imported/fantasy skybox free/cubemaps/classic/0_bottom.mat",
+            "assets/imported/fantasy skybox free/cubemaps/classic/0_front.mat",
+            "assets/imported/fantasy skybox free/cubemaps/classic/0_left.mat",
+            "assets/imported/fantasy skybox free/cubemaps/classic/0_right.mat",
+            "assets/imported/fantasy skybox free/cubemaps/classic/0_top.mat",
+            "assets/yoi okashi/assets/catb.mat",
+            "assets/yoi okashi/assets/catc.mat",
+            "assets/yoi okashi/assets/cate.prefab",
+            "assets/yoi okashi/assets/cath.prefab",
+            "assets/yoi okashi/assets/catm.prefab",
+            "assets/yoi okashi/assets/city.prefab",
+            "assets/yoi okashi/assets/cloud0.prefab",
+            "assets/yoi okashi/assets/cloud1.prefab",
+            "assets/yoi okashi/assets/cloud2.prefab",
+            "assets/yoi okashi/assets/cloud3.prefab",
+            "assets/yoi okashi/assets/cs_bad_color.mat",
+            "assets/yoi okashi/assets/cs_color.mat",
+            "assets/yoi okashi/assets/cs_contrast.mat",
+            "assets/yoi okashi/assets/cs_dithering.mat",
+            "assets/yoi okashi/assets/cs_fancy_color.mat",
+            "assets/yoi okashi/assets/cs_glitch.mat",
+            "assets/yoi okashi/assets/cs_space.mat",
+            "assets/yoi okashi/assets/cs_vhs.mat",
+            "assets/yoi okashi/assets/custom objects/custombombmat.mat",
+            "assets/yoi okashi/assets/custom objects/customnotearrow.mat",
+            "assets/yoi okashi/assets/custom objects/customnotebase.mat",
+            "assets/yoi okashi/assets/custom objects/customnotedebris.mat",
+            "assets/yoi okashi/assets/dan_p.prefab",
+            "assets/yoi okashi/assets/field.prefab",
+            "assets/yoi okashi/assets/field2.prefab",
+            "assets/yoi okashi/assets/fpa.prefab",
+            "assets/yoi okashi/assets/glitch.mat",
+            "assets/yoi okashi/assets/glitcheye.prefab",
+            "assets/yoi okashi/assets/grass.mat",
+            "assets/yoi okashi/assets/grass_100.mat",
+            "assets/yoi okashi/assets/grass_p.prefab",
+            "assets/yoi okashi/assets/grass_tree.mat",
+            "assets/yoi okashi/assets/m0.mat",
+            "assets/yoi okashi/assets/m1.mat",
+            "assets/yoi okashi/assets/m10.mat",
+            "assets/yoi okashi/assets/m11.mat",
+            "assets/yoi okashi/assets/m12.mat",
+            "assets/yoi okashi/assets/m13.mat",
+            "assets/yoi okashi/assets/m14.mat",
+            "assets/yoi okashi/assets/m15.mat",
+            "assets/yoi okashi/assets/m16.mat",
+            "assets/yoi okashi/assets/m2.mat",
+            "assets/yoi okashi/assets/m3.mat",
+            "assets/yoi okashi/assets/m4.mat",
+            "assets/yoi okashi/assets/m5.mat",
+            "assets/yoi okashi/assets/m6.mat",
+            "assets/yoi okashi/assets/m7.mat",
+            "assets/yoi okashi/assets/m8.mat",
+            "assets/yoi okashi/assets/m9.mat",
+            "assets/yoi okashi/assets/mw0.mat",
+            "assets/yoi okashi/assets/mw1.mat",
+            "assets/yoi okashi/assets/mw2.mat",
+            "assets/yoi okashi/assets/mw3.mat",
+            "assets/yoi okashi/assets/ofield.prefab",
+            "assets/yoi okashi/assets/ringpf0.prefab",
+            "assets/yoi okashi/assets/ringpf0b.prefab",
+            "assets/yoi okashi/assets/ringpf1.prefab",
+            "assets/yoi okashi/assets/ringpf1b.prefab",
+            "assets/yoi okashi/assets/ringpf2.prefab",
+            "assets/yoi okashi/assets/ringpf2b.prefab",
+            "assets/yoi okashi/assets/ringpf3.prefab",
+            "assets/yoi okashi/assets/ringpf4.prefab",
+            "assets/yoi okashi/assets/ringpf5.prefab",
+            "assets/yoi okashi/assets/ringpf6.prefab",
+            "assets/yoi okashi/assets/ringpf7.prefab",
+            "assets/yoi okashi/assets/rl0.mat",
+            "assets/yoi okashi/assets/rl1.mat",
+            "assets/yoi okashi/assets/rl2.mat",
+            "assets/yoi okashi/assets/rl3.mat",
+            "assets/yoi okashi/assets/rl4.mat",
+            "assets/yoi okashi/assets/rl5.mat",
+            "assets/yoi okashi/assets/rl6.mat",
+            "assets/yoi okashi/assets/rl7.mat",
+            "assets/yoi okashi/assets/sectiona.prefab",
+            "assets/yoi okashi/assets/sectionb.prefab",
+            "assets/yoi okashi/assets/sectionc.prefab",
+            "assets/yoi okashi/assets/sectiond.prefab",
+            "assets/yoi okashi/assets/skypf.prefab",
+            "assets/yoi okashi/assets/starpp.prefab",
+            "assets/yoi okashi/assets/stars_p.prefab",
+            "assets/yoi okashi/assets/t0.mat",
+            "assets/yoi okashi/assets/t1.mat",
+            "assets/yoi okashi/assets/t2.mat",
+            "assets/yoi okashi/assets/t3.mat",
+            "assets/yoi okashi/assets/t4.mat",
+            "assets/yoi okashi/assets/t5.mat",
+            "assets/yoi okashi/assets/t6.mat",
+            "assets/yoi okashi/assets/t7.mat",
+            "assets/yoi okashi/assets/t8.mat",
+            "assets/yoi okashi/assets/texta.prefab",
+            "assets/yoi okashi/assets/textb.prefab",
+            "assets/yoi okashi/assets/textbm.mat",
+            "assets/yoi okashi/assets/textc.prefab",
+            "assets/yoi okashi/assets/textcm.mat",
+            "assets/yoi okashi/assets/windows.prefab"
+          ]
+        },
+        {
+          "characteristic": "Standard",
+          "difficulty": "ExpertPlus",
+          "label": null,
+          "schema": "3.3.0",
+          "njs": 20,
+          "njsOffset": -0.5,
+          "requirements": [
+            "Noodle Extensions",
+            "Chroma",
+            "Vivify"
+          ],
+          "counts": {
+            "notes": 2475,
+            "bombs": 185,
+            "obstacles": 260,
+            "arcs": 25,
+            "chains": 0,
+            "basicLightEvents": 1893,
+            "environmentEnhancements": 80,
+            "declaredMaterials": 7
+          },
+          "npsActive": 8.28,
+          "customEvents": {
+            "total": 7785,
+            "vivify": {
+              "InstantiatePrefab": 788,
+              "SetMaterialProperty": 4241,
+              "DestroyObject": 789,
+              "SetRenderSetting": 1,
+              "SetAnimatorProperty": 6,
+              "Blit": 40,
+              "AssignObjectPrefab": 6
+            },
+            "heck": {
+              "AnimateTrack": 1909,
+              "AssignPathAnimation": 5
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "noteJumpMovementSpeed": 2475,
+            "noteJumpStartBeatOffset": 2475,
+            "track": 2475
+          },
+          "trackCount": 774,
+          "assetCount": 101,
+          "assets": [
+            "assets/imported/fantasy skybox free/cubemaps/classic/0_back.mat",
+            "assets/imported/fantasy skybox free/cubemaps/classic/0_bottom.mat",
+            "assets/imported/fantasy skybox free/cubemaps/classic/0_front.mat",
+            "assets/imported/fantasy skybox free/cubemaps/classic/0_left.mat",
+            "assets/imported/fantasy skybox free/cubemaps/classic/0_right.mat",
+            "assets/imported/fantasy skybox free/cubemaps/classic/0_top.mat",
+            "assets/yoi okashi/assets/catb.mat",
+            "assets/yoi okashi/assets/catc.mat",
+            "assets/yoi okashi/assets/cate.prefab",
+            "assets/yoi okashi/assets/cath.prefab",
+            "assets/yoi okashi/assets/catm.prefab",
+            "assets/yoi okashi/assets/city.prefab",
+            "assets/yoi okashi/assets/cloud0.prefab",
+            "assets/yoi okashi/assets/cloud1.prefab",
+            "assets/yoi okashi/assets/cloud2.prefab",
+            "assets/yoi okashi/assets/cloud3.prefab",
+            "assets/yoi okashi/assets/cs_bad_color.mat",
+            "assets/yoi okashi/assets/cs_color.mat",
+            "assets/yoi okashi/assets/cs_contrast.mat",
+            "assets/yoi okashi/assets/cs_dithering.mat",
+            "assets/yoi okashi/assets/cs_fancy_color.mat",
+            "assets/yoi okashi/assets/cs_glitch.mat",
+            "assets/yoi okashi/assets/cs_space.mat",
+            "assets/yoi okashi/assets/cs_vhs.mat",
+            "assets/yoi okashi/assets/custom objects/custombombmat.mat",
+            "assets/yoi okashi/assets/custom objects/customnotearrow.mat",
+            "assets/yoi okashi/assets/custom objects/customnotebase.mat",
+            "assets/yoi okashi/assets/custom objects/customnotedebris.mat",
+            "assets/yoi okashi/assets/dan_p.prefab",
+            "assets/yoi okashi/assets/field.prefab",
+            "assets/yoi okashi/assets/field2.prefab",
+            "assets/yoi okashi/assets/fpa.prefab",
+            "assets/yoi okashi/assets/glitch.mat",
+            "assets/yoi okashi/assets/glitcheye.prefab",
+            "assets/yoi okashi/assets/grass.mat",
+            "assets/yoi okashi/assets/grass_100.mat",
+            "assets/yoi okashi/assets/grass_p.prefab",
+            "assets/yoi okashi/assets/grass_tree.mat",
+            "assets/yoi okashi/assets/m0.mat",
+            "assets/yoi okashi/assets/m1.mat",
+            "assets/yoi okashi/assets/m10.mat",
+            "assets/yoi okashi/assets/m11.mat",
+            "assets/yoi okashi/assets/m12.mat",
+            "assets/yoi okashi/assets/m13.mat",
+            "assets/yoi okashi/assets/m14.mat",
+            "assets/yoi okashi/assets/m15.mat",
+            "assets/yoi okashi/assets/m16.mat",
+            "assets/yoi okashi/assets/m2.mat",
+            "assets/yoi okashi/assets/m3.mat",
+            "assets/yoi okashi/assets/m4.mat",
+            "assets/yoi okashi/assets/m5.mat",
+            "assets/yoi okashi/assets/m6.mat",
+            "assets/yoi okashi/assets/m7.mat",
+            "assets/yoi okashi/assets/m8.mat",
+            "assets/yoi okashi/assets/m9.mat",
+            "assets/yoi okashi/assets/mw0.mat",
+            "assets/yoi okashi/assets/mw1.mat",
+            "assets/yoi okashi/assets/mw2.mat",
+            "assets/yoi okashi/assets/mw3.mat",
+            "assets/yoi okashi/assets/ofield.prefab",
+            "assets/yoi okashi/assets/ringpf0.prefab",
+            "assets/yoi okashi/assets/ringpf0b.prefab",
+            "assets/yoi okashi/assets/ringpf1.prefab",
+            "assets/yoi okashi/assets/ringpf1b.prefab",
+            "assets/yoi okashi/assets/ringpf2.prefab",
+            "assets/yoi okashi/assets/ringpf2b.prefab",
+            "assets/yoi okashi/assets/ringpf3.prefab",
+            "assets/yoi okashi/assets/ringpf4.prefab",
+            "assets/yoi okashi/assets/ringpf5.prefab",
+            "assets/yoi okashi/assets/ringpf6.prefab",
+            "assets/yoi okashi/assets/ringpf7.prefab",
+            "assets/yoi okashi/assets/rl0.mat",
+            "assets/yoi okashi/assets/rl1.mat",
+            "assets/yoi okashi/assets/rl2.mat",
+            "assets/yoi okashi/assets/rl3.mat",
+            "assets/yoi okashi/assets/rl4.mat",
+            "assets/yoi okashi/assets/rl5.mat",
+            "assets/yoi okashi/assets/rl6.mat",
+            "assets/yoi okashi/assets/rl7.mat",
+            "assets/yoi okashi/assets/sectiona.prefab",
+            "assets/yoi okashi/assets/sectionb.prefab",
+            "assets/yoi okashi/assets/sectionc.prefab",
+            "assets/yoi okashi/assets/sectiond.prefab",
+            "assets/yoi okashi/assets/skypf.prefab",
+            "assets/yoi okashi/assets/starpp.prefab",
+            "assets/yoi okashi/assets/stars_p.prefab",
+            "assets/yoi okashi/assets/t0.mat",
+            "assets/yoi okashi/assets/t1.mat",
+            "assets/yoi okashi/assets/t2.mat",
+            "assets/yoi okashi/assets/t3.mat",
+            "assets/yoi okashi/assets/t4.mat",
+            "assets/yoi okashi/assets/t5.mat",
+            "assets/yoi okashi/assets/t6.mat",
+            "assets/yoi okashi/assets/t7.mat",
+            "assets/yoi okashi/assets/t8.mat",
+            "assets/yoi okashi/assets/texta.prefab",
+            "assets/yoi okashi/assets/textb.prefab",
+            "assets/yoi okashi/assets/textbm.mat",
+            "assets/yoi okashi/assets/textc.prefab",
+            "assets/yoi okashi/assets/textcm.mat",
+            "assets/yoi okashi/assets/windows.prefab"
+          ]
+        }
+      ],
+      "assetBundles": {
+        "windows2021": {
+          "crc": 2608972127,
+          "url": "https://cdn.repo.totalbs.dev/2608972127.vivify",
+          "bytes": 2803205,
+          "sha256": "52de9052c084c66bf7c19cd7b9f43890b5ea04d7711a83f2e0b8f0f33523a3ab",
+          "local": "bundles/08-43a4b_bundleWindows2021.vivify"
+        },
+        "windows2019": {
+          "crc": 3360852256,
+          "url": "https://cdn.repo.totalbs.dev/3360852256.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        }
+      }
+    },
+    {
+      "order": 9,
+      "beatsaverId": "43a5d",
+      "beatsaverUrl": "https://beatsaver.com/maps/43a5d",
+      "mapHash": "6f3e5a591648dbb927199c6deba7647ac85b341a",
+      "zip": "downloads/09-43a5d.zip",
+      "extracted": "extracted/09-43a5d",
+      "songName": "Through The Screen",
+      "songSubName": "",
+      "songAuthor": "RXLZQ",
+      "mapper": "Mawntee",
+      "bpm": 160.0,
+      "durationSec": 150,
+      "environment": "WeaveEnvironment",
+      "contributors": [],
+      "editors": [
+        "MMA2",
+        "ChroMapper",
+        "MawnteesStinkyScript"
+      ],
+      "assetBundlePlatforms": [
+        "_windows2019",
+        "_windows2021"
+      ],
+      "bundleShippedInZip": false,
+      "difficulties": [
+        {
+          "characteristic": "Standard",
+          "difficulty": "Normal",
+          "label": null,
+          "schema": "3.3.0",
+          "njs": 16,
+          "njsOffset": 0,
+          "requirements": [
+            "Chroma",
+            "Noodle Extensions",
+            "Vivify",
+            "AudioLink"
+          ],
+          "counts": {
+            "notes": 230,
+            "bombs": 0,
+            "obstacles": 0,
+            "arcs": 0,
+            "chains": 0,
+            "basicLightEvents": 0,
+            "environmentEnhancements": 20,
+            "declaredMaterials": 0
+          },
+          "npsActive": 1.74,
+          "customEvents": {
+            "total": 65,
+            "vivify": {
+              "SetCameraProperty": 1,
+              "SetGlobalProperty": 7,
+              "InstantiatePrefab": 12,
+              "AssignObjectPrefab": 1,
+              "DestroyObject": 12,
+              "Blit": 3,
+              "SetRenderingSettings": 4
+            },
+            "heck": {
+              "AnimateTrack": 20,
+              "AnimateComponent": 2,
+              "AssignTrackParent": 2,
+              "AssignPlayerToTrack": 1
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "noteJumpMovementSpeed": 230,
+            "noteJumpStartBeatOffset": 230,
+            "spawnEffect": 230,
+            "disableNoteGravity": 230,
+            "animation": 230,
+            "disableBadCutSaberType": 162,
+            "link": 162,
+            "track": 82,
+            "disableSpawnEffect": 20
+          },
+          "trackCount": 16,
+          "assetCount": 11,
+          "assets": [
+            "assets/_mawntee/materials/mildacid.mat",
+            "assets/_mawntee/materials/mildacid2.mat",
+            "assets/_mawntee/prefabs/tts_alwaysenabled.prefab",
+            "assets/_mawntee/prefabs/tts_saberclone_left.prefab",
+            "assets/_mawntee/prefabs/tts_saberclone_right.prefab",
+            "assets/_mawntee/prefabs/tts_scene1.prefab",
+            "assets/_mawntee/prefabs/tts_scene2.prefab",
+            "assets/_mawntee/prefabs/tts_scene3_camera.prefab",
+            "assets/_mawntee/prefabs/tts_scene3_scenery.prefab",
+            "assets/_mawntee/prefabs/tts_scene3_screen.prefab",
+            "assets/_mawntee/prefabs/tts_viewyoinker.prefab"
+          ]
+        },
+        {
+          "characteristic": "Standard",
+          "difficulty": "ExpertPlus",
+          "label": null,
+          "schema": "3.3.0",
+          "njs": 16,
+          "njsOffset": 0,
+          "requirements": [
+            "Chroma",
+            "Noodle Extensions",
+            "Vivify",
+            "AudioLink"
+          ],
+          "counts": {
+            "notes": 279,
+            "bombs": 0,
+            "obstacles": 0,
+            "arcs": 0,
+            "chains": 0,
+            "basicLightEvents": 0,
+            "environmentEnhancements": 20,
+            "declaredMaterials": 0
+          },
+          "npsActive": 2.12,
+          "customEvents": {
+            "total": 65,
+            "vivify": {
+              "SetCameraProperty": 1,
+              "SetGlobalProperty": 7,
+              "InstantiatePrefab": 12,
+              "AssignObjectPrefab": 1,
+              "DestroyObject": 12,
+              "Blit": 3,
+              "SetRenderingSettings": 4
+            },
+            "heck": {
+              "AnimateTrack": 20,
+              "AnimateComponent": 2,
+              "AssignTrackParent": 2,
+              "AssignPlayerToTrack": 1
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "noteJumpMovementSpeed": 279,
+            "noteJumpStartBeatOffset": 279,
+            "spawnEffect": 279,
+            "disableNoteGravity": 279,
+            "animation": 279,
+            "disableBadCutSaberType": 201,
+            "link": 188,
+            "track": 94,
+            "disableSpawnEffect": 20
+          },
+          "trackCount": 16,
+          "assetCount": 11,
+          "assets": [
+            "assets/_mawntee/materials/mildacid.mat",
+            "assets/_mawntee/materials/mildacid2.mat",
+            "assets/_mawntee/prefabs/tts_alwaysenabled.prefab",
+            "assets/_mawntee/prefabs/tts_saberclone_left.prefab",
+            "assets/_mawntee/prefabs/tts_saberclone_right.prefab",
+            "assets/_mawntee/prefabs/tts_scene1.prefab",
+            "assets/_mawntee/prefabs/tts_scene2.prefab",
+            "assets/_mawntee/prefabs/tts_scene3_camera.prefab",
+            "assets/_mawntee/prefabs/tts_scene3_scenery.prefab",
+            "assets/_mawntee/prefabs/tts_scene3_screen.prefab",
+            "assets/_mawntee/prefabs/tts_viewyoinker.prefab"
+          ]
+        }
+      ],
+      "assetBundles": {
+        "windows2021": {
+          "crc": 743306464,
+          "url": "https://cdn.repo.totalbs.dev/743306464.vivify",
+          "bytes": 1443249,
+          "sha256": "412a9489a284bfefc0268b9941d63e08374969db34cae4c5b30c729faf34adc8",
+          "local": "bundles/09-43a5d_bundleWindows2021.vivify"
+        },
+        "windows2019": {
+          "crc": 3665654059,
+          "url": "https://cdn.repo.totalbs.dev/3665654059.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        }
+      }
+    },
+    {
+      "order": 10,
+      "beatsaverId": "43999",
+      "beatsaverUrl": "https://beatsaver.com/maps/43999",
+      "mapHash": "1473c363132596be0f3d3885a3053f74d6cda9fa",
+      "zip": "downloads/10-43999.zip",
+      "extracted": "extracted/10-43999",
+      "songName": "42-flux",
+      "songSubName": "",
+      "songAuthor": "rN vs. nm-y",
+      "mapper": "Aeroluna",
+      "bpm": 225.0,
+      "durationSec": 158,
+      "environment": "DefaultEnvironment",
+      "contributors": [],
+      "editors": [],
+      "assetBundlePlatforms": [
+        "_android2021",
+        "_windows2019",
+        "_windows2021"
+      ],
+      "bundleShippedInZip": false,
+      "difficulties": [
+        {
+          "characteristic": "Standard",
+          "difficulty": "Expert",
+          "label": "ETERNITY",
+          "schema": "3.2.0",
+          "njs": 16,
+          "njsOffset": 0,
+          "requirements": [
+            "Noodle Extensions",
+            "Vivify",
+            "Chroma",
+            "AudioLink"
+          ],
+          "counts": {
+            "notes": 659,
+            "bombs": 9,
+            "obstacles": 0,
+            "arcs": 0,
+            "chains": 0,
+            "basicLightEvents": 0,
+            "environmentEnhancements": 2,
+            "declaredMaterials": 0
+          },
+          "npsActive": 4.73,
+          "customEvents": {
+            "total": 1485,
+            "vivify": {
+              "AssignObjectPrefab": 4,
+              "CreateScreenTexture": 14,
+              "SetRenderingSettings": 6,
+              "SetGlobalProperty": 6,
+              "InstantiatePrefab": 21,
+              "DestroyObject": 17,
+              "Blit": 67,
+              "SetCameraProperty": 11,
+              "CreateCamera": 4,
+              "SetMaterialProperty": 42,
+              "SetAnimatorProperty": 1
+            },
+            "heck": {
+              "AssignPlayerToTrack": 2,
+              "AssignPathAnimation": 268,
+              "AnimateTrack": 1021,
+              "AssignTrackParent": 1
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "noteJumpStartBeatOffset": 659,
+            "track": 658,
+            "animation": 658,
+            "noteJumpMovementSpeed": 613,
+            "spawnEffect": 381,
+            "link": 332,
+            "disableNoteGravity": 119,
+            "flip": 78,
+            "disableBadCutSaberType": 56
+          },
+          "trackCount": 375,
+          "assetCount": 48,
+          "assets": [
+            "assets/abstract/clockscene.prefab",
+            "assets/blackhole/blackhole.prefab",
+            "assets/blackhole/screenscene.prefab",
+            "assets/blendexperiment/blender.mat",
+            "assets/cylinder/cylinderscene.prefab",
+            "assets/cylinder/shader/panel.mat",
+            "assets/desert/desertscene.prefab",
+            "assets/desert/sun/eclipse/eclipse.prefab",
+            "assets/desert/sun/eclipse/sun.prefab",
+            "assets/icosphere/icospherescene.prefab",
+            "assets/icosphere/rain/icosphererainscene.prefab",
+            "assets/icosphere/rain/reflectivewet.mat",
+            "assets/libary/butterfliesportal.prefab",
+            "assets/libary/libraryscene.prefab",
+            "assets/libary/libraryscene2.prefab",
+            "assets/libary/portalfloor.mat",
+            "assets/libary/portalpeek.prefab",
+            "assets/libary/static.mat",
+            "assets/monitor/materials/wingdingscreen.mat",
+            "assets/monitor/monitorscene.prefab",
+            "assets/monitor/monitorscene2.prefab",
+            "assets/podium/lit/materials/volumetricfog.mat",
+            "assets/podium/podium.prefab",
+            "assets/podium/podiumfakelitscene.prefab",
+            "assets/shaders/blackout.mat",
+            "assets/shaders/bloom.mat",
+            "assets/shaders/boxcolorize.mat",
+            "assets/shaders/colormultiply.mat",
+            "assets/shaders/colorzoom.mat",
+            "assets/shaders/distortnotes/one.mat",
+            "assets/shaders/filmgrain.mat",
+            "assets/shaders/invert.mat",
+            "assets/shaders/justaglitch.mat",
+            "assets/shaders/outline.mat",
+            "assets/shaders/pixelsort.mat",
+            "assets/shaders/scram.mat",
+            "assets/shaders/tile.mat",
+            "assets/shaders/transversechromaticaberration.mat",
+            "assets/shaders/tvdistort.mat",
+            "assets/shaders/tveffect.mat",
+            "assets/shaders/wipe.mat",
+            "assets/skybox/nebulaskybox.mat",
+            "assets/smoke/smoke.prefab",
+            "assets/wingdings/overlay.mat",
+            "assets/wingdings/overlayquad.prefab",
+            "assets/wingdings/overlayquadmat.mat",
+            "assets/wormhole/wormhole.mat",
+            "assets/wormhole/wormholescene.prefab"
+          ]
+        },
+        {
+          "characteristic": "Standard",
+          "difficulty": "ExpertPlus",
+          "label": "CATACLYSMIA",
+          "schema": "3.2.0",
+          "njs": 16,
+          "njsOffset": 0,
+          "requirements": [
+            "Noodle Extensions",
+            "Vivify",
+            "Chroma",
+            "AudioLink"
+          ],
+          "counts": {
+            "notes": 877,
+            "bombs": 13,
+            "obstacles": 0,
+            "arcs": 0,
+            "chains": 0,
+            "basicLightEvents": 0,
+            "environmentEnhancements": 2,
+            "declaredMaterials": 0
+          },
+          "npsActive": 6.3,
+          "customEvents": {
+            "total": 1602,
+            "vivify": {
+              "AssignObjectPrefab": 4,
+              "CreateScreenTexture": 14,
+              "SetRenderingSettings": 6,
+              "SetGlobalProperty": 6,
+              "InstantiatePrefab": 21,
+              "DestroyObject": 17,
+              "Blit": 67,
+              "SetCameraProperty": 11,
+              "CreateCamera": 4,
+              "SetMaterialProperty": 42,
+              "SetAnimatorProperty": 1
+            },
+            "heck": {
+              "AssignPlayerToTrack": 2,
+              "AssignPathAnimation": 378,
+              "AnimateTrack": 1028,
+              "AssignTrackParent": 1
+            },
+            "other": {}
+          },
+          "noteCustomDataFields": {
+            "noteJumpStartBeatOffset": 877,
+            "track": 876,
+            "animation": 876,
+            "noteJumpMovementSpeed": 806,
+            "spawnEffect": 465,
+            "link": 418,
+            "disableNoteGravity": 133,
+            "disableBadCutSaberType": 69,
+            "flip": 2
+          },
+          "trackCount": 485,
+          "assetCount": 48,
+          "assets": [
+            "assets/abstract/clockscene.prefab",
+            "assets/blackhole/blackhole.prefab",
+            "assets/blackhole/screenscene.prefab",
+            "assets/blendexperiment/blender.mat",
+            "assets/cylinder/cylinderscene.prefab",
+            "assets/cylinder/shader/panel.mat",
+            "assets/desert/desertscene.prefab",
+            "assets/desert/sun/eclipse/eclipse.prefab",
+            "assets/desert/sun/eclipse/sun.prefab",
+            "assets/icosphere/icospherescene.prefab",
+            "assets/icosphere/rain/icosphererainscene.prefab",
+            "assets/icosphere/rain/reflectivewet.mat",
+            "assets/libary/butterfliesportal.prefab",
+            "assets/libary/libraryscene.prefab",
+            "assets/libary/libraryscene2.prefab",
+            "assets/libary/portalfloor.mat",
+            "assets/libary/portalpeek.prefab",
+            "assets/libary/static.mat",
+            "assets/monitor/materials/wingdingscreen.mat",
+            "assets/monitor/monitorscene.prefab",
+            "assets/monitor/monitorscene2.prefab",
+            "assets/podium/lit/materials/volumetricfog.mat",
+            "assets/podium/podium.prefab",
+            "assets/podium/podiumfakelitscene.prefab",
+            "assets/shaders/blackout.mat",
+            "assets/shaders/bloom.mat",
+            "assets/shaders/boxcolorize.mat",
+            "assets/shaders/colormultiply.mat",
+            "assets/shaders/colorzoom.mat",
+            "assets/shaders/distortnotes/one.mat",
+            "assets/shaders/filmgrain.mat",
+            "assets/shaders/invert.mat",
+            "assets/shaders/justaglitch.mat",
+            "assets/shaders/outline.mat",
+            "assets/shaders/pixelsort.mat",
+            "assets/shaders/scram.mat",
+            "assets/shaders/tile.mat",
+            "assets/shaders/transversechromaticaberration.mat",
+            "assets/shaders/tvdistort.mat",
+            "assets/shaders/tveffect.mat",
+            "assets/shaders/wipe.mat",
+            "assets/skybox/nebulaskybox.mat",
+            "assets/smoke/smoke.prefab",
+            "assets/wingdings/overlay.mat",
+            "assets/wingdings/overlayquad.prefab",
+            "assets/wingdings/overlayquadmat.mat",
+            "assets/wormhole/wormhole.mat",
+            "assets/wormhole/wormholescene.prefab"
+          ]
+        }
+      ],
+      "assetBundles": {
+        "windows2021": {
+          "crc": 1446668609,
+          "url": "https://cdn.repo.totalbs.dev/1446668609.vivify",
+          "bytes": 5994906,
+          "sha256": "8e82a865b45981f2d22a1f1e4151564210c86c1a68b1bc1762dfcd6dedbc2d33",
+          "local": "bundles/10-43999_bundleWindows2021.vivify"
+        },
+        "android2021": {
+          "crc": 2158164444,
+          "url": "https://cdn.repo.totalbs.dev/2158164444.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        },
+        "windows2019": {
+          "crc": 2592651210,
+          "url": "https://cdn.repo.totalbs.dev/2592651210.vivify",
+          "local": null,
+          "note": "resolves on LunarRepo"
+        }
+      }
+    }
+  ],
+  "assetBundles": {
+    "host": "LunarRepo — https://repo.totalbs.dev/",
+    "urlPattern": "https://cdn.repo.totalbs.dev/{crc}.vivify",
+    "crcSource": "Info.dat _customData._assetBundle.<platform>",
+    "crcSemantics": "Unity AssetBundle CRC from the build manifest; NOT a CRC32 of the file. Lookup key only.",
+    "why": "BeatSaver does not package .vivify files; Vivify auto-downloads them at play time.",
+    "localDir": "sabermapper/workspace/corpus/extrasensory/bundles/ (windows2021 for all 10)"
+  }
+}

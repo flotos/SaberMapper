@@ -114,7 +114,7 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
     if any(b["seconds"] < a["seconds"] for a, b in zip(beat_sorted, beat_sorted[1:])):
         raise ValueError("note seconds must increase with beat")
     clean.sort(key=lambda n: (n["seconds"], n["color"], n["id"]))
-    swings, warnings, previous = [], [], {0: None, 1: None}
+    swings, warnings, previous, flow = [], [], {0: None, 1: None}, {0: None, 1: None}
     distances, speed_pairs, recovery, angular_changes = [], [], [], []
     crossover_count = 0
     for note in clean:
@@ -153,26 +153,25 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
             if gap > 0:
                 recovery.append(gap)
                 speed_pairs.append(distance / gap)
-            prev_vec, vec = _vector(prior["direction"], prior["angle"]), _vector(note["direction"], note["angle"])
-            if prev_vec and vec:
-                angle_a, angle_b = degrees(atan2(prev_vec[1], prev_vec[0])), degrees(atan2(vec[1], vec[0]))
-                change = abs((angle_b - angle_a + 180) % 360 - 180)
-                angular_changes.append(change)
-                if gap and gap < FAST_BREAK_SECONDS and change < REVERSAL_DEGREES:
-                    warnings.append({"code": "fast_direction_break", "note_ids": [prior["note_ids"][-1], note["id"]],
-                                     "beat": note["beat"], "confidence": "high", "severity": "error",
-                                     "reason": f"same-hand cut {gap:.3f}s after the previous one turns only {change:.0f} degrees; "
-                                               f"below {FAST_BREAK_SECONDS}s it must reverse by at least {REVERSAL_DEGREES} "
-                                               "degrees. Remove the weaker note or re-angle one (see project repair-swings)"})
-                elif gap and gap <= 0.25 and change < 60:
-                    warnings.append({"code": "rapid_repeat_cut", "note_ids": [prior["note_ids"][-1], note["id"]],
-                                     "beat": note["beat"], "confidence": "medium",
-                                     "reason": "rapid same-hand cuts point in broadly similar directions; review swing reset"})
+            if prior["direction"] != 8 and note["direction"] != 8:
+                angular_changes.append(turn_degrees(prior["direction"], note["direction"], prior["angle"], note["angle"]))
+            effective = flow[note["color"]]
+            found = gap and effective and flow_break(effective[0], note["direction"], note["color"], gap, reset,
+                                                     effective[1], note["angle"])
+            if found:
+                warnings.append({"code": found[0], "note_ids": [prior["note_ids"][-1], note["id"]],
+                                 "beat": note["beat"], "confidence": "high", "severity": "error", "reason": found[1]})
             if gap and distance / gap > 12:
                 warnings.append({"code": "reach_proxy", "note_ids": [prior["note_ids"][-1], note["id"]],
                                  "beat": note["beat"], "confidence": "low", "reason": "large grid displacement in short time"})
         swings.append(swing)
         previous[note["color"]] = swing
+        if note["direction"] != 8:
+            flow[note["color"]] = (note["direction"], note["angle"])
+        else:  # a dot is cut as the reversal of the swing before it
+            effective = flow[note["color"]]
+            flow[note["color"]] = ((_OPPOSITE[effective[0]], effective[1])
+                                   if effective and not reset else None)
     span = swings[-1]["seconds"] - swings[0]["seconds"] if len(swings) > 1 else 0
     longest, run = (1, 1) if swings else (0, 0)
     for left, right in zip(swings, swings[1:]):

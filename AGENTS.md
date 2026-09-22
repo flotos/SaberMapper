@@ -14,6 +14,10 @@ Design every tool and feature agent-first and agent-facing. Expose all mapping c
 
 Apply this contract when implementing features, writing documentation and skills, and choosing workflows. The existing studio UI is an optional agent-operated support tool, not a required user authoring workflow.
 
+## Audio is the source of every note
+
+The goal is mapping the song's audio to notes, never applying notes for their own sake. Every note must sit on an identifiable sound in the project's musical evidence (drum hit, sung onset, pitch change, riff or bass attack), and every stretch where the song is playing must be mapped. Section labels, roles and position (intro, outro, "quiet") never override per-bar audio evidence. `sabermapper/sabermapper/audio_grounding.py` enforces this. `project save` refuses stretches of 8 s or more of active audio left unmapped (`audio_unmapped`). `project get` and `project critique` report shorter gaps and notes with no audio under them (`note_without_audio`, `low_audio_support`), using the newest evidence run for the current audio by default. Do not deliver a map whose audio findings are unresolved, and do not deliver one never checked against its audio (`audio_evidence_missing`).
+
 ## Systematic fixes, never song-specific patches
 
 Treat every defect found in one song's map, whether from user feedback, review, critique or validation, as evidence of a general gap. Editing only the affected arrangement is not a complete fix. For every such fix:

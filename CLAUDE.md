@@ -12,6 +12,10 @@ All map work is done by the agent, never by a human operator. The agent handles 
 
 Build every tool and feature for agent use first. Provide discoverable CLI or programmatic access, structured inputs and outputs, actionable errors, and revision-aware writes where applicable. Required mapping operations must be executable and inspectable by the agent without human UI interaction. Do not ask the user to edit arrangements, run commands, copy diagnostics, manage revisions, or operate studio controls. ArcViewer is the user-facing visual review surface; the conversation is the interface for requests and feedback. Follow the shared agent-first product contract in @AGENTS.md when changing code, documentation, skills, or workflows.
 
+## Audio first
+
+The audio is always the focus: map the song's sounds to notes, never place notes that no sound supports, and never leave a playing stretch unmapped. Follow "Audio is the source of every note" in @AGENTS.md; `project save` blocks long unmapped audio, and `project critique` reports the rest.
+
 ## Systematic fixes
 
 Never fix a map problem for only one song. Trace each problem found through feedback, review or validation to its root cause. Encode the fix as a verifier check, an automated pipeline correction or a skill update, in that order of preference, and add a regression test. Rerun it across every project in the workspace and correct all affected arrangements through `project save`. Follow the full procedure in the "Systematic fixes" section of @AGENTS.md.

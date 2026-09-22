@@ -363,9 +363,14 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
                                     njs=arrangement["difficulty"]["njs"],
                                     spawn_offset_beats=arrangement["difficulty"]["spawn_offset_beats"])
         section_by_id = {item[-1]: item[-2] for item in expanded}
+        locked = {section["id"] for section in arrangement["sections"] if section.get("locked") is True}
         for warning in movement["warnings"]:
             ids = warning["note_ids"]
-            add(warning.get("severity", "warning"), warning["code"], warning["reason"], section_by_id.get(ids[-1]), ids)
+            severity, reason = warning.get("severity", "warning"), warning["reason"]
+            if severity == "error" and all(section_by_id.get(oid) in locked for oid in ids):
+                # Locked sections are user-approved; report but do not block unrelated edits.
+                severity, reason = "warning", reason + "; section is locked, unlock it to repair"
+            add(severity, warning["code"], reason, section_by_id.get(ids[-1]), ids)
             findings[-1]["model_version"] = movement["model_version"]
             findings[-1]["confidence"] = warning["confidence"]
         for section in arrangement["sections"]:

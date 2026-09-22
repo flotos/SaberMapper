@@ -205,6 +205,16 @@ class SalienceTests(unittest.TestCase):
         result = self.result([0, 1, 1.5, 2.5, 3, 4, 5, 5.5, 6, 7])
         self.assertFalse(codes(result) & {"vocal_line_unmapped", "drum_rhythm_unmapped"})
 
+    def test_dense_sixteenth_drums_are_judged_per_half_beat_slot(self):
+        report = self.report()
+        report["layers"]["drums"]["events"] = [
+            {"id": f"d{i}", "seconds": (4 + i / 4) / 2, "method": "spectral_flux",
+             "strength": 0.9 if i % 2 == 0 else 0.4} for i in range(17)]
+        notes = [note(i, b, (i % 4, 0, i % 2, 1)) for i, b in enumerate([0, 1, 1.5, 2.5, 3, 4, 5, 5.5, 6, 7])]
+        result = critique_arrangement(arrangement([section("s", 0, 8, notes)]), report)
+        self.assertNotIn("drum_rhythm_unmapped", codes(result))
+        self.assertEqual(result["metrics"]["salience"]["bars"][1]["onsets"], 8)
+
     def test_without_vocal_and_drum_layers_the_check_is_skipped(self):
         result = critique_arrangement(arrangement([section("s", 0, 8, [note(0, 0, (0, 0, 0, 1))])]),
                                       {"layers": {"mix": {"events": []}}})

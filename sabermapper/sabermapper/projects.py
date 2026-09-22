@@ -11,6 +11,7 @@ import threading
 import uuid
 
 from .arrangement import compile_arrangement, expanded_notes
+from .audio_grounding import project_audio_findings
 from .composition import make_cover, starting_arrangement
 from .revisions import arrangement_revision
 from .storage import WorkspaceLock, contained, digest, now, read_json, write_json
@@ -130,6 +131,12 @@ class ProjectStore:
             path = self.directory(project_id)
             arrangement = read_json(path / "arrangement.json")
             diagnostics = validate_arrangement(arrangement)
+            audio_run, audio = None, {"checked": False}
+            try:
+                audio_run, audio, findings = project_audio_findings(path, arrangement)
+                diagnostics += findings
+            except (ValueError, KeyError, TypeError, ZeroDivisionError):
+                pass  # structurally invalid arrangements already carry their own errors
             notes = []
             try:
                 notes = [{**n, "beat": float(n["beat"])} for n in expanded_notes(arrangement)]
@@ -147,7 +154,7 @@ class ProjectStore:
                 beatmap = None
             return {"project": read_json(path / "project.json"), "arrangement": arrangement,
                     "revision": arrangement_revision(arrangement), "analysis": read_json(path / "analysis.json"),
-                    "musical_runs": project_runs(path),
+                    "musical_runs": project_runs(path), "audio_check": {"run_id": audio_run, **audio},
                     "notes": notes, "beatmap": beatmap, "diagnostics": diagnostics,
                     "movement": analyze_movement(notes, bpm=arrangement["song"]["bpm"],
                                                  njs=arrangement["difficulty"]["njs"],
@@ -171,6 +178,12 @@ class ProjectStore:
             errors = [d for d in validate_arrangement(arrangement) if d["severity"] == "error" and d["code"] != "unresolved_section"]
             if errors:
                 raise ValueError("; ".join(d["message"] for d in errors[:10]))
+            # The map exists to follow the song: refuse long stretches of playing audio left unmapped.
+            run_id, _, findings = project_audio_findings(path, arrangement)
+            blocking = [d for d in findings if d["severity"] == "error"]
+            if blocking:
+                raise ValueError(f"Audio left unmapped (evidence run {run_id}): "
+                                 + "; ".join(d["message"] for d in blocking[:10]))
             new_sections = {s["id"]: s for s in arrangement["sections"]}
             if any(s["locked"] for s in original["sections"]):
                 if (any(original["song"].get(k) != arrangement["song"].get(k) for k in ("bpm", "audio_offset_seconds"))

@@ -1,4 +1,4 @@
-# Movement model 1.2 and implementation survey
+# Movement model 1.3 and implementation survey
 
 The shared `analyze_movement(notes, bpm, njs=..., spawn_offset_beats=...)` result contains versioned swings,
 aggregate proxies, review warnings, and an explicit unsupported-motion list.
@@ -14,18 +14,37 @@ crossover count, reaction-time estimate from NJS/spawn offset, and recovery
 time are descriptive proxies, not comfort, injury, ranked difficulty, or star
 ratings. Walls, bombs, arcs, chains and complex rotations are not inferred.
 
-Model 1.2 adds one blocking rule, `fast_direction_break`. A same-hand cut arriving
-less than 0.2 s (`FAST_BREAK_SECONDS`) after the previous swing must turn at
-least 135 degrees (`REVERSAL_DEGREES`). A sideways or repeated cut at 16th-note
-speed cannot be reset in time. Simultaneous notes and dots are exempt. The finding
-has severity `error`, so project save and export refuse it. The rule was added
-after a playtest report of an unhittable 16th up-cut followed by a left-cut in
-the same cell. Half-beat 90-degree turns (about 0.24 s at 125 BPM) remain
-allowed; they are common flow. `sabermapper.swing_repair.repair_fast_breaks`
-and `project repair-swings` fix the findings deterministically: they remove the
-earlier note when it sits on a weaker metric position, otherwise re-angle the
-later note to the nearest reversing direction. Arc/chain anchors, locked
-sections and motif-expanded notes are reported, never changed.
+Model 1.3 has two blocking flow rules, both defined once in `movement.flow_break`.
+They apply to consecutive same-hand swings without a reset (a reset is a gap of a
+full beat or more):
+
+- `fast_direction_break`: a cut less than 0.3 s (`FAST_BREAK_SECONDS`) after the
+  previous swing must turn at least 135 degrees (`REVERSAL_DEGREES`). A 90-degree
+  turn this fast forces a wrist reset.
+- `flow_parity_break`: at any non-reset gap, the swings must turn at least 90
+  degrees (`MIN_TURN_DEGREES`), and they must not stay on the same
+  forehand/backhand unless they turn 135 degrees or more.
+
+A dot counts as the reversal of the swing before it, so down-dot-down is still
+caught. Simultaneous notes are exempt. Findings have severity `error`, so
+project save and export refuse them. When every involved note is in a locked
+section, the finding is downgraded to a warning.
+
+History: model 1.2 blocked only cuts under 0.2 s, after a playtest report of an
+unhittable 16th up-cut followed by a left-cut. Model 1.3 followed two player
+reports. The Revival 1:03 had an arc tail cutting right into the top-right
+corner and then a down-cut from the same cell 0.24 s later. Living a Lie 1:38
+had a down-right cut followed by a right cut, 45 degrees apart. The player asked
+for a systematic fix, with half-beat 90-degree turns at 0.3 s or less blocked
+everywhere.
+
+`sabermapper.swing_repair.repair_fast_breaks` and `project repair-swings` fix
+findings deterministically. They drop a 16th pickup under 0.2 s that sits on a
+weaker metric position. Otherwise they re-angle whichever cut of the pair leaves
+the fewest breaks nearby, preferring the smallest turn from the authored
+direction. Arc heads and tails are re-angled together with their note. A pattern
+instance involved in a break is inlined as literal notes first; the compiled
+output stays the same. Chain anchors and locked sections are never changed.
 
 The following primary repositories were inspected on 2026-09-22:
 

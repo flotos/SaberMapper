@@ -71,13 +71,15 @@ def main(argv=None):
     project_commands = sub.add_subparsers(dest="project_action", required=True)
     for name in ("list", "get", "save", "export", "restore", "review", "critique", "repair-swings"):
         leaf = project_commands.add_parser(name, help=(
-            "Fix blocking fast_direction_break findings: drop weak pickups or re-angle the later cut"
+            "Fix blocking fast_direction_break/flow_parity_break findings: drop 16th pickups or "
+            "re-angle one cut (arc directions follow)"
             if name == "repair-swings" else None))
         leaf.add_argument("--workspace", type=Path, default=Path("workspace"))
         if name != "list":
             leaf.add_argument("project")
         if name == "critique":
-            leaf.add_argument("--run", help="Musical evidence run ID enabling seam accent checks")
+            leaf.add_argument("--run", help="Musical evidence run ID for the audio checks; "
+                                             "defaults to the newest run of the current audio")
             leaf.add_argument("--output", type=Path)
         if name == "repair-swings":
             leaf.add_argument("--dry-run", action="store_true", help="Report planned changes without saving")
@@ -160,8 +162,11 @@ def main(argv=None):
             elif args.project_action == "critique":
                 from .critique import critique_arrangement
                 record = store.get(args.project)
-                report = None
-                if args.run:
+                report, run_id = None, args.run
+                if not args.run:
+                    from .musical import latest_run
+                    run_id, report = latest_run(store.directory(args.project))
+                else:
                     if not re.fullmatch(r"[a-f0-9]{32}", args.run):
                         raise ValueError("Invalid musical evidence run ID")
                     directory = store.directory(args.project)
@@ -169,8 +174,14 @@ def main(argv=None):
                     from .audio import _hash
                     if report["source"]["sha256"] != _hash(directory / "song.ogg"):
                         raise ValueError("Evidence belongs to different audio; analyze the current project audio again")
-                emit({"revision": record["revision"], "run_id": args.run,
-                      **critique_arrangement(record["arrangement"], report)}, args.output)
+                result = critique_arrangement(record["arrangement"], report)
+                if report is None:
+                    result["warnings"].insert(0, {
+                        "severity": "warning", "code": "audio_evidence_missing", "section_id": None,
+                        "object_ids": [], "value": None, "threshold": None,
+                        "message": "No musical evidence run matches this project's audio, so nothing was checked "
+                                   f"against the song; run `music analyze {args.project}` before judging the map."})
+                emit({"revision": record["revision"], "run_id": run_id, **result}, args.output)
             elif args.project_action == "repair-swings":
                 from .swing_repair import repair_fast_breaks
                 record = store.get(args.project)

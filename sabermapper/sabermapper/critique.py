@@ -14,6 +14,7 @@ import math
 from statistics import median
 
 from .arrangement import expanded_notes
+from .audio_grounding import DEFINITIONS as AUDIO_DEFINITIONS, audio_findings
 
 MODEL_VERSION = "1.0"
 WINDOW_SECONDS = 4.0
@@ -45,6 +46,7 @@ DRUM_PATTERN_MIN_ONSETS = 6
 VOCAL_MAPPED_THRESHOLD = 0.5
 DRUM_MAPPED_THRESHOLD = 0.6
 SALIENCE_MIN_BARS = 1
+DRUM_SLOTS_PER_BEAT = 2
 
 DEFINITIONS = {
     "rolling_nps": "Notes per second inside 4-second windows hopped every 1 second from the first note to the last.",
@@ -69,7 +71,8 @@ DEFINITIONS = {
     "boundary_accent_unmapped": "A non-energy_rise musical event of strength 0.7 or more sits within 0.25 beat of a section seam that carries no note within 0.25 beat.",
     "singing_bar": "A 4-beat bar (absolute beats 0, 4, 8...) where vocals sustains cover at least 25% and at least 2 vocals spectral_flux events of strength 0.25 or more start: articulated singing.",
     "vocal_line_unmapped": "One or more consecutive singing bars where fewer than 50% of those vocal onsets have a note within 0.13 beat: the map follows another layer while the voice is the focal point.",
-    "drum_rhythm_unmapped": "One or more consecutive non-singing bars (voice holding or resting) with at least 6 drums spectral_flux events of strength 0.3 or more, fewer than 60% of which have a note within 0.13 beat.",
+    "drum_rhythm_unmapped": "One or more consecutive non-singing bars (voice holding or resting) with at least 6 drums spectral_flux events of strength 0.3 or more (only the strongest per half-beat slot counts), fewer than 60% of which have a note within 0.13 beat.",
+    **AUDIO_DEFINITIONS,
 }
 
 
@@ -269,16 +272,25 @@ def _salience(arrangement, spans, notes, report, warn):
         return {"checked": False, "bars": []}
     from .musical import seconds_to_beat
 
-    def onsets(name, threshold):
-        return sorted(seconds_to_beat(e["seconds"], arrangement) for e in layers[name].get("events", [])
-                      if e.get("method") == "spectral_flux" and e.get("strength", 0) >= threshold)
+    def onsets(name, threshold, slots=None):
+        found = [(seconds_to_beat(e["seconds"], arrangement), e["strength"]) for e in layers[name].get("events", [])
+                 if e.get("method") == "spectral_flux" and e.get("strength", 0) >= threshold]
+        if slots:
+            # Dense grooves (sixteenth hats) are judged at a mappable resolution: the strongest hit per slot.
+            strongest = {}
+            for beat, strength in found:
+                slot = math.floor(beat * slots + 0.5)
+                if slot not in strongest or strongest[slot][1] < strength:
+                    strongest[slot] = (beat, strength)
+            found = list(strongest.values())
+        return sorted(beat for beat, _ in found)
 
     def near(beat):
         index = bisect_left(beats, beat - SALIENCE_MATCH_BEATS)
         return index < len(beats) and beats[index] <= beat + SALIENCE_MATCH_BEATS
 
     beats = sorted(float(n["beat"]) for n in notes)
-    vocals, drums = onsets("vocals", VOCAL_ONSET_STRENGTH), onsets("drums", DRUM_ONSET_STRENGTH)
+    vocals, drums = onsets("vocals", VOCAL_ONSET_STRENGTH), onsets("drums", DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT)
     sustains = [(seconds_to_beat(s["start_seconds"], arrangement), seconds_to_beat(s["end_seconds"], arrangement))
                 for s in layers["vocals"].get("sustains") or []]
     end, bars = max(s["end_beat"] for s in spans), []
@@ -367,5 +379,10 @@ def critique_arrangement(arrangement: dict, report: dict | None = None) -> dict:
                "movement_objects": _movement_objects(arrangement, spans, report),
                "boundary_accents": _boundary_accents(arrangement, spans, notes, report, warn),
                "salience": _salience(arrangement, spans, notes, report, warn)}
+    # Audio grounding: blocking spans are save errors elsewhere; here every finding stays a warning.
+    metrics["audio"], findings = audio_findings(arrangement, report)
+    for finding in findings:
+        warn(finding["code"], finding["message"], value=finding["value"], threshold=finding["threshold"],
+             section_id=finding["section_id"], object_ids=finding["object_ids"])
     return {"model_version": MODEL_VERSION, "metrics": metrics, "warnings": warnings,
             "definitions": DEFINITIONS}

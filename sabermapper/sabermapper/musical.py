@@ -526,6 +526,18 @@ def project_runs(directory):
     return result
 
 
+def latest_run(directory):
+    """Return (run_id, report) for the newest evidence run of the project's current audio, else (None, None)."""
+    directory = Path(directory)
+    reports = [(path.parent.name, read_json(path)) for path in (directory / "musical").glob("*/report.json")]
+    if not reports or not (directory / "song.ogg").exists():
+        return None, None
+    current = _hash(directory / "song.ogg")
+    matching = [(run_id, report) for run_id, report in reports
+                if (report.get("source") or {}).get("sha256") == current]
+    return max(matching, key=lambda item: item[1].get("created_at", "")) if matching else (None, None)
+
+
 def analyze_project(store, project_id, **options):
     directory = store.directory(project_id)
     run_id = uuid.uuid4().hex

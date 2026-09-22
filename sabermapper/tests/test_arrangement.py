@@ -51,13 +51,13 @@ class ArrangementTests(unittest.TestCase):
         self.assertIn("unsupported_field", codes)
         self.assertIn("unresolved_section", codes)
 
-    def test_rapid_repeated_cut_is_warning_only(self):
-        source = arrangement()
-        source["sections"][0]["notes"].append(
-            {"id": "repeat", "beat": "7/16", "x": 0, "y": 1, "color": 0, "direction": 1})
-        warnings = [d for d in validate_arrangement(source) if d["severity"] == "warning"]
-        self.assertEqual([d["code"] for d in warnings], ["rapid_repeat_cut"])
-        self.assertEqual(len(compile_arrangement(source)["colorNotes"]), 3)
+    def test_repeated_cut_blocks_unless_reset(self):
+        for beat, blocked in (("7/16", True), ("1", False)):
+            source = arrangement()
+            source["sections"][0]["notes"].append(
+                {"id": "repeat", "beat": beat, "x": 0, "y": 1, "color": 0, "direction": 1})
+            codes = [d["code"] for d in validate_arrangement(source) if d["severity"] == "error"]
+            self.assertEqual(codes, ["fast_direction_break"] if blocked else [], beat)
 
     def test_fast_non_reversing_cut_is_blocking(self):
         # 1/4 beat at 120 BPM is 0.125 s: only a near-reversal (>=135 degrees) is allowed.
@@ -70,10 +70,34 @@ class ArrangementTests(unittest.TestCase):
             if blocked:
                 with self.assertRaises(ValueError):
                     compile_arrangement(source)
+        # Player report: sideways then down at a half beat (0.24 s at 125 BPM) forces a wrist reset.
+        # 1/2 beat at 120 BPM is 0.25 s; 3/4 beat is 0.375 s, where an alternating 90-degree turn flows.
+        for beat, direction, expected in (("1/2", 2, ["fast_direction_break"]),
+                                          ("3/4", 2, []),
+                                          ("3/4", 6, ["flow_parity_break"]),
+                                          ("1", 6, [])):
+            source = arrangement()
+            source["sections"][0]["notes"].append(
+                {"id": "next", "beat": beat, "x": 0, "y": 1, "color": 0, "direction": direction})
+            codes = [d["code"] for d in validate_arrangement(source) if d["severity"] == "error"]
+            self.assertEqual(codes, expected, (beat, direction))
+
+    def test_dot_counts_as_reversal(self):
         source = arrangement()
+        source["sections"][0]["notes"] += [
+            {"id": "dot", "beat": "3/4", "x": 0, "y": 1, "color": 0, "direction": 8},
+            {"id": "again", "beat": "3/2", "x": 0, "y": 0, "color": 0, "direction": 0}]
+        codes = [d["code"] for d in validate_arrangement(source) if d["severity"] == "error"]
+        self.assertEqual(codes, ["flow_parity_break"])
+
+    def test_locked_flow_break_is_reported_not_blocking(self):
+        source = arrangement()
+        source["sections"][0]["locked"] = True
         source["sections"][0]["notes"].append(
             {"id": "next", "beat": "1/2", "x": 0, "y": 1, "color": 0, "direction": 2})
-        self.assertFalse([d for d in validate_arrangement(source) if d["severity"] == "error"])
+        finding = next(d for d in validate_arrangement(source) if d["code"] == "fast_direction_break")
+        self.assertEqual(finding["severity"], "warning")
+        self.assertIn("locked", finding["message"])
 
     def test_swing_repair_drops_pickup_and_reangles_on_beat_pair(self):
         from sabermapper.swing_repair import repair_fast_breaks
@@ -105,8 +129,36 @@ class ArrangementTests(unittest.TestCase):
                          [("reangled", "verse/note/entry")])
         source["sections"][0]["locked"] = True
         result = repair_fast_breaks(source)
-        self.assertEqual(result["changes"], [])
-        self.assertEqual(len(result["unresolved"]), 1)
+        self.assertEqual((result["changes"], result["unresolved"]), ([], []))
+
+    def test_swing_repair_reangles_arc_tail_in_sync(self):
+        # The Revival 1:03: arc tail cuts right into the corner, then down from the same cell a half beat later.
+        from sabermapper.swing_repair import repair_fast_breaks
+        source = arrangement()
+        section = source["sections"][0]
+        section["patterns"] = []
+        section["notes"] = [{"id": "head", "beat": "1/2", "x": 2, "y": 2, "color": 1, "direction": 2},
+                            {"id": "tail", "beat": "2", "x": 3, "y": 2, "color": 1, "direction": 3},
+                            {"id": "down", "beat": "5/2", "x": 3, "y": 2, "color": 1, "direction": 1}]
+        section["arcs"] = [{"id": "hold", "beat": "1/2", "x": 2, "y": 2, "color": 1, "direction": 2,
+                            "tail_beat": "2", "tail_x": 3, "tail_y": 2, "tail_direction": 3}]
+        result = repair_fast_breaks(source)
+        self.assertEqual(len(result["changes"]), 1)
+        fixed = result["arrangement"]["sections"][0]
+        self.assertFalse([d for d in validate_arrangement(result["arrangement"]) if d["severity"] == "error"])
+        tail = next(n for n in fixed["notes"] if n["id"] == "tail")
+        self.assertEqual(fixed["arcs"][0]["tail_direction"], tail["direction"])
+
+    def test_swing_repair_inlines_pattern_to_fix_motif_note(self):
+        from sabermapper.swing_repair import repair_fast_breaks
+        source = arrangement()
+        source["sections"][0]["notes"].append(
+            {"id": "next", "beat": "1/4", "x": 0, "y": 1, "color": 0, "direction": 2})
+        source["sections"][0]["notes"][0]["id"] = "right"
+        result = repair_fast_breaks(source)
+        self.assertEqual(result["unresolved"], [])
+        self.assertFalse([d for d in validate_arrangement(result["arrangement"]) if d["severity"] == "error"])
+        self.assertEqual(len(compile_arrangement(result["arrangement"])["colorNotes"]), 3)
 
     def test_malformed_nested_json_returns_diagnostics(self):
         cases = []

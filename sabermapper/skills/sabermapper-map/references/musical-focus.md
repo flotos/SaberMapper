@@ -132,6 +132,16 @@ such as a grid-locked piano, rather than loudness; quantize to 1/2 or whole
 beats, never 1/4; check section seams so a strong accent on a seam still gets a
 note; and keep density well below the body of the song.
 
+A passage is quiet only where the evidence says so (`low_intensity` true, mix
+energy clearly below the song median). Position does not make a passage quiet:
+an intro with a drum groove, riff or bass line is a mapped passage, however
+early it comes. Quiet passages still follow every audible layer. Use drums,
+guitar, bass and synth attacks when no voice or melody is present. Never limit a
+quiet passage to vocal or melodic pitch changes. Lullaby (2026-09-22) went 45 s
+with one note because an instrumental intro was labelled "quiet" and then
+searched only for vocal and melodic changes. Borrowed Waters' intro had the same
+defect. `audio_unmapped` now blocks that on save.
+
 ## Rhythm, not a metronome
 
 Standing user rule (2026-09-22, `rhythm_not_metronome` in `player-profile.json`):
@@ -185,10 +195,16 @@ played a strong pattern, and the notes sat between the drum hits.
 - `python -m sabermapper critique ARRANGEMENT.json --report musical/RUN/report.json`
   checks this. `vocal_line_unmapped` means fewer than half the vocal onsets in a
   singing bar carry a note. `drum_rhythm_unmapped` means fewer than 60% of a
-  strong drum pattern's hits carry a note while the voice holds or rests.
+  strong drum pattern's hits carry a note while the voice holds or rests. Only
+  the strongest hit per half-beat counts, so dense sixteenth hats never demand
+  a stream.
   `metrics.salience.bars` lists each bar's salient layer. Both are warnings:
   fast melismas thinned for flow or real bleed can explain a flag. Resolve or
   justify every flagged range before saving.
+- When repairing flagged bars, re-author only those bars. Keep every existing
+  arc and its head and tail notes, keep a rewritten bar at no fewer than
+  min(4, its old note count) notes, and fit each seam to the neighbouring notes
+  under the blocking flow rule.
 
 ## Import manifest and separation environment
 

@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "retrieved_at": "2026-09-22",
+  "notes": [
+    {
+      "title": "Timing and rhythm",
+      "summary": "Check alignment at the start, middle and end. Preserve intentional syncopation; correct source alignment before shifting notes.",
+      "source": "https://bsmg.wiki/mapping/basic-mapping.html#timing-rhythm"
+    },
+    {
+      "title": "Musical emphasis",
+      "summary": "Let movement reflect the sound: doubles, space and wider strokes should have an audible reason.",
+      "source": "https://bsmg.wiki/mapping/basic-mapping.html#emphasis-consistency"
+    },
+    {
+      "title": "Parity and recovery",
+      "summary": "Inspect each hand's entry and exit. Rapid repeated cuts merit review, but a reset after a rest can be deliberate.",
+      "source": "https://bsmg.wiki/mapping/intermediate-mapping.html#parity"
+    },
+    {
+      "title": "Repetition with variation",
+      "summary": "Recurring music can retain a recognizable phrase while changed instrumentation motivates a different accent or exit.",
+      "source": "https://bsmg.wiki/mapping/intermediate-mapping.html#consistency"
+    },
+    {
+      "title": "Visibility and jumps",
+      "summary": "Consider clutter, jump settings and neighboring patterns together. A warning remains a hypothesis until reviewed.",
+      "source": "https://bsmg.wiki/mapping/intermediate-mapping.html#note-jump-speed"
+    },
+    {
+      "title": "Functional lighting",
+      "summary": "Keep the environment readable and mark structure. A playable map does not require rich animation.",
+      "source": "https://bsmg.wiki/mapping/basic-lighting.html"
+    },
+    {
+      "title": "Technical intent",
+      "summary": "Unusual movement is not automatically defective. Record setup, readability, intent and recovery before revising it.",
+      "source": "https://bsmg.wiki/mapping/intermediate-mapping.html"
+    }
+  ]
+}

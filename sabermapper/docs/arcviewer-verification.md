@@ -1,0 +1,9 @@
+# ArcViewer browser import of the original demo
+
+On 2026-09-22, I exported original generated project `94b03ed87912` using `ProjectStore.export` and loaded `workspace/projects/94b03ed87912/exports/map-8ce241e5ea-fb0bb0.zip` into the [official ArcViewer browser build](https://allpoland.github.io/ArcViewer/) (v0.8.1, reached from its [repository README](https://github.com/AllPoland/ArcViewer)). ZIP SHA-256: `4D3AE3C341FAA69DC126E86F492EED077148DDA3841A2158BB63451F1C6532AA`. This is an original synthesized 48-second track, not personal audio or a downloaded community map.
+
+The viewer loaded the cover, title **Neon Circuit**, artist **SaberMapper Originals**, mapper **SaberMapper**, and **Standard / Expert** selection. Pressing Play advanced its displayed timer from 0:00 to 0:07 and showed red and blue note blocks in the 3D lane. The screenshot [arcviewer.png](../artifacts/arcviewer.png) records the 0:07 state. The local export report counted 100 color notes, six basic lighting events and a final note at 46.5 seconds; ArcViewer's visible UI did not independently show a total object count. No import error appeared in the observed UI. I disabled static lights in ArcViewer's first-run warning, so this pass does not establish that the six exported events were visibly displayed.
+
+This verifies browser preview import and visible timed 3D objects. It does not verify decoded audio heard by a person, exact hit timing, note ergonomics, photo comfort, a Beat Saber game import, or replay desire. ArcViewer itself says it is a previewer rather than gameplay or comprehensive error checking. Follow with timing checks near start/middle/end and a game playtest on the selected build.
+
+The local Steam installation identified for later game testing is build `24925021`; this browser check did not launch that build. A separate [assistant-authored study](authored-study.md) also imported into ArcViewer after one automated QA revision.

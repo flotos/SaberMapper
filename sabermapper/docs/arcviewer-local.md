@@ -1,0 +1,11 @@
+# Local ArcViewer integration
+
+Select **3D preview** on an open project. SaberMapper exports the saved revision and opens the local ArcViewer in a new tab at the audio playhead, with the project's Standard difficulty selected. Playback stays paused until you start it in ArcViewer. After saving edits, select the button again to preview a fresh export. The studio also provides reopen and ZIP download links if a popup is blocked.
+
+Run `scripts/install_arcviewer.ps1` once on a fresh checkout (Git and network access required). The viewer subsequently runs locally without downloading a map or audio to an external service. Keep the studio server running. For a wheel installation, set `SABERMAPPER_ARCVIEWER` to the absolute deployment checkout directory before starting the server.
+
+The unmodified upstream WebGL deployment is cloned into ignored `vendor/arcviewer`, pinned to commit `c776256497b66f7c91a74162cfcd943b0f45ee2e` of the `deploy` branch (ArcViewer 0.8.1). Its source branch is also available from [AllPoland/ArcViewer](https://github.com/AllPoland/ArcViewer), licensed GPL-3.0. The viewer is a separate checkout, not included in the SaberMapper wheel. Preserve upstream license and corresponding-source obligations if distributing it.
+
+The server serves only files within that deployment directory, hides dotfiles, and uses the WebAssembly MIME type. Unity-specific script permissions apply only to viewer assets; the studio's existing policy stays intact. The viewer's network policy permits local resources only. The integration uses upstream's `url`, `noProxy`, `t`, `mode`, and `difficulty` URL arguments. Imported BeatSaver/replay URLs inside this local viewer are outside this integration's offline scope.
+
+Verification: all 44 unit/integration tests and the existing studio browser workflow passed. `python tests/browser_arcviewer.py` opened the actual local Unity build, loaded the generated ZIP at 5 seconds, exercised playback, stale-revision rejection, hidden-file/path containment, WebAssembly serving and popup-blocked fallback. It passed with zero external requests and zero page errors. The screenshot `artifacts/arcviewer-local.png` shows notes during playback at 0:07. The rebuilt wheel SHA-256 is `0fe19928afabbd10a7b32bdf74d9a4bd1acbaa1cfda6dc88b679c531183d4080`, superseding the earlier release artifact recorded in verification.md.

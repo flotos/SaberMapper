@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "summary": "Nine unmodified ranked Standard results since 2024 average 7.43 ScoreSaber stars and 80.50% base-score accuracy. Eight cluster in January 2025. These historical scores do not establish current taste or comfort.",
+  "statistics": {
+    "count": 9,
+    "mean_stars": 7.43,
+    "median_stars": 7.54,
+    "mean_accuracy_percent": 80.5018,
+    "min_date": "2024-12-01T10:10:00.000Z",
+    "max_date": "2025-01-31T17:50:07.000Z"
+  },
+  "provenance": "planning/research/scoresaber-snapshot.json",
+  "uncertainty": "Saved best results are not all attempts. Named references and current playtests remain necessary."
+}

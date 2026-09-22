@@ -1,0 +1,12 @@
+{
+  "schema_version": "0.1",
+  "provenance": "synthetic demonstration; no audio exists",
+  "song": {"title": "Synthetic Circuit", "artist": "SaberMapper Fixture", "bpm": 120, "audio_offset_seconds": 0},
+  "audio_sha256": null,
+  "timing_reviewed": false,
+  "sections": [
+    {"id": "intro", "start_beat": 0, "length_beats": 8, "intent": "sparse setup", "accent_beats": [0, 4]},
+    {"id": "drive", "start_beat": 8, "length_beats": 8, "intent": "alternating technical motion", "accent_beats": [8, 10, 12, 14]},
+    {"id": "outro", "start_beat": 16, "length_beats": 8, "intent": "release", "accent_beats": [16, 20]}
+  ]
+}

@@ -1,0 +1,192 @@
+{
+  "schema_version": "1.0",
+  "scope": "Software capability and external acceptance evidence are separate.",
+  "tickets": [
+    {
+      "id": "SM-001",
+      "title": "Define architecture, boundaries, and versioned contracts",
+      "evidence": "docs/architecture.md",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-002",
+      "title": "Calibrate player difficulty and technical preferences",
+      "evidence": "sabermapper/profile.py",
+      "status": "Implemented · Current player calibration pending"
+    },
+    {
+      "id": "SM-003",
+      "title": "Research mapping guides and build an evidence-based knowledge base",
+      "evidence": "docs/mapping-knowledge.md",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-004",
+      "title": "Design a diverse corpus and exact-version reference manifest",
+      "evidence": "sabermapper/corpus.py",
+      "status": "Implemented · Human phrase curation pending"
+    },
+    {
+      "id": "SM-005",
+      "title": "Grow a minimal local CLI from the playable slice",
+      "evidence": "sabermapper/__main__.py",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-006",
+      "title": "Implement bounded BeatSaver discovery and downloads",
+      "evidence": "sabermapper/corpus.py",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-007",
+      "title": "Parse map versions into a loss-aware internal representation",
+      "evidence": "sabermapper/mapio.py",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-008",
+      "title": "Run and audit the large corpus research pipeline",
+      "evidence": "sabermapper/corpus.py",
+      "status": "Implemented · Measured pilot report available"
+    },
+    {
+      "id": "SM-009",
+      "title": "Extract contextual patterns and movement features",
+      "evidence": "sabermapper/patterns.py",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-010",
+      "title": "Group motif families and measure repetition versus variation",
+      "evidence": "sabermapper/patterns.py",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-011",
+      "title": "Create mapping-quality labels and personal preference examples",
+      "evidence": "sabermapper/learning.py",
+      "status": "Implemented · Human labels not fabricated"
+    },
+    {
+      "id": "SM-012",
+      "title": "Optional stretch: test a local quality and preference ranker",
+      "evidence": "sabermapper/learning.py",
+      "status": "Implemented · No preference claim without labels"
+    },
+    {
+      "id": "SM-013",
+      "title": "Retrieve compatible, diverse patterns with evidence",
+      "evidence": "sabermapper/patterns.py",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-014",
+      "title": "Import audio and establish reliable metadata provenance",
+      "evidence": "sabermapper/audio.py",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-015",
+      "title": "Build a correctable beat, downbeat, and tempo pipeline",
+      "evidence": "sabermapper/timing.py",
+      "status": "Implemented · Listening review required"
+    },
+    {
+      "id": "SM-016",
+      "title": "Analyze onsets, musical sections, energy, and recurring phrases",
+      "evidence": "sabermapper/structure.py",
+      "status": "Implemented · Section labels need musical review"
+    },
+    {
+      "id": "SM-017",
+      "title": "Co-design the plain-text arrangement with the mapping skill",
+      "evidence": "sabermapper/arrangement.py",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-018",
+      "title": "Compile arrangements into reproducible map objects",
+      "evidence": "sabermapper/arrangement.py",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-019",
+      "title": "Validate correctness and diagnose mapping problems without flattening tech",
+      "evidence": "sabermapper/validation.py",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-020",
+      "title": "Use ArcViewer playback and build a 2D review timeline",
+      "evidence": "sabermapper/static/app.js",
+      "status": "Implemented · VR playtest remains separate"
+    },
+    {
+      "id": "SM-021",
+      "title": "Connect visual feedback to scoped assistant revisions",
+      "evidence": "sabermapper/projects.py",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-022",
+      "title": "Create the mapping skill for Codex and Claude Code",
+      "evidence": "skills/sabermapper-map/SKILL.md",
+      "status": "Implemented · Musical quality requires player feedback"
+    },
+    {
+      "id": "SM-023",
+      "title": "Create the corpus and mapping-research skill",
+      "evidence": "skills/sabermapper-research/SKILL.md",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-024",
+      "title": "Create a critique and revision skill for finished drafts",
+      "evidence": "skills/sabermapper-review/SKILL.md",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-025",
+      "title": "Add basic lighting and reliable Beat Saber export",
+      "evidence": "sabermapper/export.py",
+      "status": "Implemented · In-game compatibility needs playtest"
+    },
+    {
+      "id": "SM-026",
+      "title": "Evaluate generated maps and close the playtest feedback loop",
+      "evidence": "docs/evaluation-protocol.md",
+      "status": "Implemented · Human playtest observations pending"
+    },
+    {
+      "id": "SM-027",
+      "title": "Package the local toolkit and document the complete workflow",
+      "evidence": "Start-SaberMapper.ps1",
+      "status": "Implemented · local evidence available"
+    },
+    {
+      "id": "SM-028",
+      "title": "Freeze family-split rules and a budgeted evaluation protocol",
+      "evidence": "sabermapper/evaluation.py",
+      "status": "Implemented · Manual timing anchors pending"
+    },
+    {
+      "id": "SM-029",
+      "title": "Milestone 0: test assistant-authored mapping on one track",
+      "evidence": "docs/experiment-workflow.md",
+      "status": "Implemented · Replay decision belongs to user"
+    },
+    {
+      "id": "SM-030",
+      "title": "Own shared swing inference, transitions, and difficulty proxies",
+      "evidence": "sabermapper/movement.py",
+      "status": "Implemented · Heuristic; not biomechanics"
+    },
+    {
+      "id": "SM-031",
+      "title": "Audit external BeatForge code as a read-only reference and baseline candidate",
+      "evidence": "docs/external-audit.md",
+      "status": "Implemented · local evidence available"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": "0.1",
+  "song": {"title": "Synthetic Circuit", "artist": "SaberMapper Fixture", "bpm": 120, "audio_offset_seconds": 0},
+  "difficulty": {"name": "Expert", "rank": 7, "njs": 16, "spawn_offset_beats": 0},
+  "motifs": {
+    "alternating-pair": [
+      {"id": "ap-red", "beat": 0, "x": 1, "y": 1, "color": 0, "direction": 1},
+      {"id": "ap-blue", "beat": "1/2", "x": 2, "y": 1, "color": 1, "direction": 0}
+    ],
+    "release-pair": [
+      {"id": "rp-red", "beat": 0, "x": 0, "y": 1, "color": 0, "direction": 3},
+      {"id": "rp-blue", "beat": 1, "x": 3, "y": 1, "color": 1, "direction": 2}
+    ]
+  },
+  "sections": [
+    {"id": "intro", "start_beat": 0, "length_beats": 8, "intent": "sparse setup; preserve as manual anchor", "locked": true, "resolved": true, "notes": [
+      {"id": "intro-red", "beat": 0, "x": 1, "y": 1, "color": 0, "direction": 1},
+      {"id": "intro-blue", "beat": 4, "x": 2, "y": 1, "color": 1, "direction": 1}
+    ], "patterns": []},
+    {"id": "drive", "start_beat": 8, "length_beats": 8, "intent": "alternating technical motion on even accents", "locked": false, "resolved": true, "notes": [
+      {"id": "drive-accent-red", "beat": 2, "x": 0, "y": 2, "color": 0, "direction": 1},
+      {"id": "drive-accent-blue", "beat": 6, "x": 3, "y": 2, "color": 1, "direction": 1}
+    ], "patterns": [
+      {"id": "drive-motif-a", "motif": "alternating-pair", "start_beat": 0},
+      {"id": "drive-motif-b", "motif": "alternating-pair", "start_beat": 4}
+    ]},
+    {"id": "outro", "start_beat": 16, "length_beats": 8, "intent": "release into a final wide pair", "locked": false, "resolved": true, "notes": [], "patterns": [
+      {"id": "outro-motif", "motif": "release-pair", "start_beat": 0}
+    ]}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "observed_at": "2026-09-22",
+  "source": "local Steam appmanifest_620980.acf",
+  "platform": "SteamVR",
+  "steam_app_id": 620980,
+  "build_id": "24925021",
+  "installed": true,
+  "install_directory": "C:/Program Files (x86)/Steam/steamapps/common/Beat Saber",
+  "plugins_directory_present": false,
+  "game_launched_by_implementation": false,
+  "in_game_playtest": "not performed"
+}

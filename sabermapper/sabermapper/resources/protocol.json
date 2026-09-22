@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "summary": "Freeze song-family splits before tuning. Keep exact versions and audio aliases together, quarantine cross-split merges, and treat inspected pilot material as development data. Compare a rules baseline and an authored map with order-balanced review. Log timing, technical interest, enjoyment, fatigue and review time separately.",
+  "human_validation": "Synthetic ratings are never user preference labels. Sparse or unsuccessful ranker experiments return no-go.",
+  "timing_references_target": 3,
+  "qualitative_songs_target": [
+    3,
+    5
+  ]
+}

@@ -1,0 +1,5 @@
+# Untrusted external reference clone; audited read-only, never imported.
+external-ideas-dont-trust/
+# Installed copies of sabermapper/skills (regenerate with scripts/install_skills.py).
+.agents/
+.claude/skills/

@@ -1,6 +1,6 @@
 ---
 name: sabermapper-review
-description: Review or revise a SaberMapper arrangement and exported Beat Saber map using exact artifacts, diagnostics, preview, and player feedback; use when the user asks for a map critique or change.
+description: Review or revise a SaberMapper arrangement and exported Beat Saber map using exact artifacts, diagnostics and player feedback; use when the user asks for a map critique or change.
 ---
 
 # Review a map
@@ -20,4 +20,4 @@ layers, separator bleed and detector peaks are uncertainty, not proof of an
 instrument event. Weights express agent intent, not automatic note generation.
 Focus metadata is revision-aware and locked with its containing section.
 
-For a scoped edit, preserve locked sections and unrelated data. Save a new arrangement, compile to a new path, and compare object counts and the exact changed beat range. Export only if resolved and provided with a decodable local OGG Vorbis and valid cover. The local timeline/editor can support inspection, but only an actual user game playtest establishes feel and replay desire. State which stages were completed and what remains unverified.
+For a scoped edit, preserve locked sections and unrelated data. Save a new arrangement, compile to a new path, and compare object counts and the exact changed beat range. Export only if resolved and provided with a decodable local OGG Vorbis and valid cover. Do not open ArcViewer, the studio or a browser preview unless the user asks; the user reviews saved revisions themselves, and a rendered view the agent cannot see is not a check. Only an actual user game playtest establishes feel and replay desire. State which stages were completed and what remains unverified.

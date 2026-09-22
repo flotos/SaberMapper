@@ -6,11 +6,11 @@ SaberMapper is a local Beat Saber mapping studio. It analyzes audio, stores edit
 
 ## Agent-first product contract
 
-All map work is performed by an agent in Codex or Claude Code, never by a human operator. The agent owns audio import and analysis, reference research, composition, editing, validation, revision management, export, and launching the correct saved revision in ArcViewer. It translates the user's textual feedback into map changes and repeats the review cycle.
+All map work is performed by an agent in Codex or Claude Code, never by a human operator. The agent owns audio import and analysis, reference research, composition, editing, validation, revision management, and export. It translates the user's textual feedback into map changes. Agents do not open ArcViewer, the studio or any browser preview, and do not hand revisions over for review, unless the user explicitly asks; the agent cannot see the rendered view, so opening it is never a check.
 
-The user's mapping workflow is limited to viewing the map in ArcViewer and giving textual requests and feedback in Codex or Claude Code. Do not require the user to operate the studio, edit JSON, place notes, run commands, copy diagnostics, manage revisions, or click export/preview controls. The agent performs those operations and provides the preview for the user.
+The user's mapping workflow is limited to reviewing saved revisions in the studio and ArcViewer whenever they choose, and giving textual requests and feedback in Codex or Claude Code. Do not require the user to edit JSON, place notes, run commands, copy diagnostics, manage revisions, or click export controls. The agent performs those operations; it ends a task with the saved revision ID, export status and the checks it actually ran.
 
-Design every tool and feature agent-first and agent-facing. Expose all mapping capabilities through discoverable CLI commands or programmatic interfaces with structured inputs and outputs, actionable errors, and revision-aware writes where applicable. Give the agent enough context to inspect results, diagnose failures, and complete the workflow without manual UI steps. A feature is incomplete if its required operations are available only through a human-operated UI. ArcViewer is the user-facing visual review surface; requests, preferences, and feedback belong in the Codex or Claude Code conversation.
+Design every tool and feature agent-first and agent-facing. Expose all mapping capabilities through discoverable CLI commands or programmatic interfaces with structured inputs and outputs, actionable errors, and revision-aware writes where applicable. Give the agent enough context to inspect results, diagnose failures, and complete the workflow without manual UI steps. A feature is incomplete if its required operations are available only through a human-operated UI. ArcViewer is the user's own visual review surface; requests, preferences, and feedback belong in the Codex or Claude Code conversation.
 
 Apply this contract when implementing features, writing documentation and skills, and choosing workflows. The existing studio UI is an optional agent-operated support tool, not a required user authoring workflow.
 
@@ -43,7 +43,7 @@ The application is in `sabermapper/`; run commands from there. On this Windows w
 - Export: `.venv/Scripts/python -m sabermapper project export ID --workspace workspace`
 - Verify code changes: `.venv/Scripts/python -m unittest discover -s tests -q`
 
-Use `--help` for audio import and other commands. The studio's **3D preview** button exports the saved revision and opens local ArcViewer at the playhead; if using this control, the agent operates it and presents the preview to the user.
+Use `--help` for audio import and other commands. The studio's **3D preview** button exports the saved revision and opens local ArcViewer at the playhead. It is for the user; agents do not use it unless asked.
 
 ## Skills and project files
 

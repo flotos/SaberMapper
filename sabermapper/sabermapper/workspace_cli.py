@@ -11,7 +11,8 @@ def register_workspace(commands):
              "status": "Per project (and corpus, profile, authoring folder): files changed in the clone, whether the "
                        "real workspace changed since the clone, and conflicts",
              "publish": "Copy only the clone's changed files into the real workspace; a unit the real workspace also "
-                        "changed since the clone is held back with the fix"}
+                        "changed since the clone is held back with the fix (a project.json changed on both sides "
+                        "merges while the real arrangements are as the clone found them)"}
     for action in ("clone", "status", "publish"):
         parser = actions.add_parser(action, help=helps[action])
         parser.add_argument("--workspace", type=Path, default=Path("workspace"), help="The clone (default: workspace)")

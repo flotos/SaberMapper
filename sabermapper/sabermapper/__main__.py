@@ -142,6 +142,12 @@ def main(argv=None):
         if name == "save":
             leaf.add_argument("--arrangement", type=Path, required=True)
             leaf.add_argument("--request-id")
+        if name in ("save", "check"):
+            leaf.add_argument("--base", help="The arrangement the edits started from: a file, or a revision in the "
+                                             "project history (default: the stored revision). A placer-chosen value "
+                                             "that differs from it is pinned as an edit; one it already holds stays "
+                                             "placer-chosen. Reapplying a workspace clone's arrangement names that "
+                                             "same file")
         if name == "restore":
             leaf.add_argument("--restore-revision", required=True)
         if name == "set-album":
@@ -265,8 +271,9 @@ def main(argv=None):
             elif args.project_action == "set-album":
                 emit(store.set_album(args.project, args.album))
             elif args.project_action == "save":
+                base = store.base_arrangement(args.project, args.base) if args.base else None
                 emit(store.save(args.project, read_json(args.arrangement), args.revision, request_id=args.request_id,
-                                difficulty=args.difficulty))
+                                difficulty=args.difficulty, base=base))
             elif args.project_action == "export":
                 emit(store.export(args.project))
             elif args.project_action == "restore":
@@ -279,8 +286,11 @@ def main(argv=None):
             elif args.project_action in ("check", "critique"):
                 from .critique import DEFINITIONS, MODEL_VERSION
                 draft = read_json(args.arrangement) if getattr(args, "arrangement", None) else None
+                base = store.base_arrangement(args.project, args.base) if getattr(args, "base", None) else None
+                if base is not None and draft is None:
+                    raise ValueError("--base names what a draft's edits started from; pass --arrangement too")
                 result = store.check(args.project, args.difficulty, run=args.run, arrangement=draft,
-                                     metrics=args.project_action == "critique" or args.metrics)
+                                     metrics=args.project_action == "critique" or args.metrics, base=base)
                 if "metrics" in result:
                     result = {"model_version": MODEL_VERSION, **result, "definitions": DEFINITIONS}
                 emit(result, args.output)

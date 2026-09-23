@@ -8,7 +8,8 @@ import unittest
 
 from sabermapper.__main__ import main
 from sabermapper.projects import ProjectStore
-from sabermapper.workspace_clone import CloneError, clone, main_workspace, publish, status
+from sabermapper.storage import read_json
+from sabermapper.workspace_clone import CloneError, clone, main_workspace, merge_metadata, publish, status
 
 
 def write(path: Path, text: str):
@@ -154,6 +155,111 @@ class WorkspaceCloneTests(unittest.TestCase):
         found = main_workspace()
         self.assertEqual(found.parts[-2:], ("sabermapper", "workspace"))
         self.assertTrue((found.parent.parent / ".git").exists())
+
+
+def placed_lists(arrangement):
+    return {(s["id"], n["id"]): n.get("placed") for s in arrangement["sections"] for n in s["notes"]}
+
+
+class ClonedArrangementReachesTheRealWorkspaceTests(unittest.TestCase):
+    """Reapplying a clone's arrangement never pins a value the clone's placer chose."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        base = Path(self.temp.name)
+        self.real, self.local = base / "main" / "workspace", base / "worktree" / "workspace"
+        self.real_store = ProjectStore(self.real)
+        created = self.real_store.create(demo=True)
+        self.project = created["project"]["id"]
+        draft = created["arrangement"]
+        for section in draft["sections"]:
+            for note in section["notes"]:
+                for field in ("x", "y", "color", "direction"):
+                    note.pop(field, None)
+        self.start = self.real_store.save(self.project, draft, created["revision"])
+        clone(self.local, self.real)
+        self.unit = f"projects/{self.project}"
+        self.clone_file = self.local / self.unit / "arrangement.json"
+
+    def replace_in_clone(self):
+        """A clone save that inserts a note, so the placer re-chooses its neighbours' cuts."""
+        store = ProjectStore(self.local)
+        current = store.get(self.project)
+        edited = json.loads(json.dumps(current["arrangement"]))
+        section = next(s for s in edited["sections"] if len(s["notes"]) > 4)
+        section["notes"].insert(2, {"id": "inserted", "beat": section["notes"][1]["beat"] + 0.5})
+        saved = store.save(self.project, edited, current["revision"])["arrangement"]
+        before = {(s["id"], n["id"]): n for s in self.start["arrangement"]["sections"] for n in s["notes"]}
+        rechosen = [key for s in saved["sections"] for n in s["notes"] for key in [(s["id"], n["id"])]
+                    if key in before and any(n[f] != before[key][f] for f in n["placed"])]
+        self.assertTrue(rechosen, "the clone's placer re-chose placed values")
+        return saved
+
+    def test_publish_merges_project_json_and_keeps_placed_lists(self):
+        saved = self.replace_in_clone()
+        self.real_store.set_album(self.project, "Set in the studio")  # project.json only
+        row = next(u for u in status(self.local)["units"] if u["unit"] == self.unit)
+        self.assertEqual((row["conflicts"], row["merged"]), ([], [self.unit + "/project.json"]))
+
+        result = publish(self.local)
+        self.assertEqual(result["held_back"], [])
+        self.assertEqual(result["applied"]["merged"], 1)
+        real = self.real_store.get(self.project)
+        self.assertEqual(real["revision"], ProjectStore(self.local).get(self.project)["revision"])
+        self.assertEqual(placed_lists(real["arrangement"]), placed_lists(saved))
+        self.assertTrue(all(p == ["x", "y", "color", "direction"] for p in placed_lists(real["arrangement"]).values()))
+        meta = real["project"]
+        self.assertEqual(meta["album"], "Set in the studio")
+        self.assertFalse(meta["playtested"])
+        self.assertEqual(status(self.local)["publishable"], [])
+        self.assertEqual(read_json(self.local / self.unit / "project.json"), meta)
+
+    def test_a_held_back_arrangement_reapplies_with_its_placed_lists(self):
+        saved = self.replace_in_clone()
+        studio = self.real_store.get(self.project)
+        edited = json.loads(json.dumps(studio["arrangement"]))
+        edited["sections"][0]["intent"] = "renamed in the studio"
+        self.real_store.save(self.project, edited, studio["revision"])
+
+        held = publish(self.local)["held_back"]
+        self.assertEqual([h["unit"] for h in held], [self.unit])
+        self.assertIn(f"--arrangement {self.clone_file} --base {self.clone_file}", held[0]["fix"])
+
+        revision = self.real_store.get(self.project)["revision"]
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = main(["project", "save", self.project, "--workspace", str(self.real), "--revision", revision,
+                         "--arrangement", str(self.clone_file), "--base", str(self.clone_file)])
+        self.assertEqual(code, 0, output.getvalue())
+        real = self.real_store.get(self.project)["arrangement"]
+        self.assertEqual(placed_lists(real), placed_lists(saved))
+        self.assertEqual(real["sections"], saved["sections"])
+
+    def test_restoring_a_revision_keeps_its_placed_lists(self):
+        saved = self.replace_in_clone()
+        store = ProjectStore(self.local)
+        restored = store.restore(self.project, self.start["revision"], store.get(self.project)["revision"])
+        self.assertEqual(placed_lists(restored["arrangement"]), placed_lists(self.start["arrangement"]))
+        self.assertNotEqual(placed_lists(restored["arrangement"]), placed_lists(saved))
+
+    def test_a_base_names_a_file_or_a_revision_in_history(self):
+        with self.assertRaises(FileNotFoundError) as caught:
+            self.real_store.base_arrangement(self.project, "f" * 64)
+        self.assertIn("--base", str(caught.exception))
+        self.assertEqual(self.real_store.base_arrangement(self.project, self.start["revision"]),
+                         self.start["arrangement"])
+
+    def test_merged_metadata_keeps_real_review_claims_only_for_unchanged_arrangements(self):
+        local = {"title": "Clone title", "updated_at": "2026-09-23T10:00:00+00:00", "playtested": False,
+                 "timing_reviewed": True, "album": "old"}
+        real = {"title": "Old title", "updated_at": "2026-09-23T11:00:00+00:00", "playtested": True,
+                "timing_reviewed": True, "album": "studio", "game_build": "1.40", "review_revision": "r0"}
+        kept = merge_metadata(local, real, arrangements_published=False)
+        self.assertEqual((kept["title"], kept["updated_at"], kept["album"], kept["game_build"], kept["playtested"]),
+                         ("Clone title", real["updated_at"], "studio", "1.40", True))
+        replaced = merge_metadata(local, real, arrangements_published=True)
+        self.assertEqual((replaced["playtested"], replaced["timing_reviewed"]), (False, True))
 
 
 if __name__ == "__main__":

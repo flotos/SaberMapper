@@ -931,7 +931,8 @@ def _lead_pool(evidence, span):
 AUDIO_SUGGESTED = ("audio_unmapped", "note_without_audio", "density_exceeds_audio", "difficulty_exceeds_intensity",
                    "lead_rhythm_diluted", "lead_rhythm_unmapped", "vocal_line_unmapped", "drum_rhythm_unmapped",
                    "drum_entry_unmapped", "melody_unmapped", "ensemble_unmapped", "boundary_accent_unmapped",
-                   "density_collapse", "intensity_underplayed", "focus_on_quiet_stem", "unison_hit_unstacked")
+                   "density_collapse", "intensity_underplayed", "focus_on_quiet_stem", "unison_hit_unstacked",
+                   "stack_too_tall")
 RETIME_REACH = Fraction(1, 2)
 
 
@@ -1081,6 +1082,13 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
             add(finding, pool, "map the band's heaviest accents")
         elif code == "focus_on_quiet_stem":
             finding["suggestions"] += focus_weights(arrangement, report, context, finding.get("section_id"))
+        elif code == "stack_too_tall":
+            # Drop the stack's last note (an added partner before the note it was built on); the rest stays a pair.
+            literal = sorted((i for i in finding["object_ids"] if "/note/" in i),
+                             key=lambda i: (i.split("/")[-1].startswith(("k-", "r-")), i))
+            if len(literal) >= 3:
+                finding["suggestions"].append({"op": "remove", "object_id": literal[-1],
+                                               "reason": "a stack of two carries this hit"})
         elif code == "unison_hit_unstacked" and finding.get("targets"):
             onset, size = finding["targets"][0]
             target = grid_beat(float(onset))

@@ -363,18 +363,32 @@ shaping a longer, taller note, at most three, diagonal where the flow allows.
 
 - A unison hit is one of the song's loudest mix attacks (85th percentile) where
   the drums and at least two more stems attack within 0.05 s, in a loud bar.
-  Four or more stems make a stack of three; three stems make two. Up to three
-  per bar, a beat apart, so a run of band hits (4:37: beats 562, 563, 564)
-  becomes a run of stacks.
+  Stacks are mostly two notes. Three, the rare tall stack, need four or more
+  stems on one of the song's loudest 5% of attacks (about one every 30 s in
+  Living a Lie). Up to three stacks per bar, a beat apart, so a run of band hits
+  (4:37: beats 562, 563, 564) becomes a run of stacks.
 - Write a stack as notes at one beat marked `"stack": true`. The placer gives
   them one hand and one cut and puts their cells in an unbroken line along the
   cut: a column for up or down, a diagonal for a diagonal cut, which it prefers.
+  A stack of three runs vertically or diagonally, never sideways across a row.
+- A stack never hides what follows (user rule, 2026-09-23): a note arriving
+  within 0.4 s stays out of every stack cell, and when notes follow within
+  0.5 s the stack keeps to the outer lanes, out of their way.
+- The other hand never touches a stack: its note at that instant keeps a free
+  cell away from every stack cell, at the tip, the side or corner to corner.
+- More generally, no cut sweeps through the other color (`cut_path_blocked`,
+  blocking): a cut passes one cell before its note and one past it along its
+  direction, and a note of the other hand there at the same instant would be
+  hit by that gesture.
 - A stack takes the place of a double on the same sound. It needs one hand:
   under a held vocal arc the free hand cuts it, so the voice and the band both
   carry the moment. A stack on a unison hit never counts as filler for
   `lead_rhythm_diluted`.
 - `unison_hit_unstacked` names each loud unison hit the map cuts without a
-  stack; `stack_shape` names a same-hand chord that is no clean line.
+  stack; `stack_too_tall` a stack of three off a tall hit (its suggestion keeps
+  two); `stack_shape` a same-hand chord that is no clean line or a sideways
+  three; `stack_touch` the other hand touching a stack. The placer re-chooses
+  stored cells that break these, like any movement rule.
 
 ## Salience: who leads, bar by bar
 

@@ -91,12 +91,14 @@ ENSEMBLE_ALLOWANCE_PER_BAR = 1
 # A unison hit: the drums and at least two more separated stems attack together (each spectral_flux
 # UNISON_STEM_STRENGTH or more within UNISON_SECONDS) under a mix attack among the song's loudest
 # (UNISON_MIX_PERCENTILE of its mix attacks), in a loud bar. One hand cuts it as a stack, one longer note:
-# two notes, three when UNISON_TALL_STEMS or more stems join.
+# two notes; three, the rarer tall stack, when UNISON_TALL_STEMS or more stems join on one of the song's very
+# loudest attacks (UNISON_TALL_PERCENTILE of its mix attacks).
 UNISON_SECONDS = 0.05
 UNISON_STEM_STRENGTH = 0.4
 UNISON_MIN_STEMS = 3
 UNISON_TALL_STEMS = 4
 UNISON_MIX_PERCENTILE = 85
+UNISON_TALL_PERCENTILE = 95
 UNISON_PER_BAR = 3
 ENTRY_LAYER = "drums"
 ENTRY_WINDOW_BEATS = 4
@@ -171,10 +173,13 @@ DEFINITIONS = {
                   "more) within 0.05 s, in a bar with relative_loudness 0.9 or more that is not thin and soft; at "
                   "most the 3 strongest per 4-beat bar, a beat apart (within 0.13 beat), none while arcs or chains hold both sabers "
                   "(under one hold the free hand cuts it). "
-                  "Its stack size is 3 when 4 or more stems join, else 2.",
+                  "Its stack size is 3 when 4 or more stems join on a mix attack at or above the song's 95th percentile, "
+                  "else 2.",
     "unison_hit_unstacked": "A unison_hit whose sound (notes within 0.13 beat) carries no stack: no two notes of one "
                             "hand at one beat. Several instruments striking at once read as one heavier hit, cut by "
                             "one hand as a stack of 2 or 3 notes in a line along the cut.",
+    "stack_too_tall": "Three or more notes of one hand at one beat (a stack of three) with no unison_hit of stack "
+                      "size 3 within 0.13 beat: the tall stack stays rare, kept for the heaviest unison hits.",
     "layer_entry": "A separated stem becoming audible (within 20 dB of its own 90th-percentile level and within 30 dB of "
                    "the mix) after at least 4 s of absence and staying audible for most of the next 2 s; the entry sits on "
                    "its first strong attack.",
@@ -959,6 +964,7 @@ def unison_hits(layers, arrangement, start, stop, cache):
         found = []
         if "drums" in stems and len(stems) >= UNISON_MIN_STEMS and mix:
             floor = _percentile([strength for _, strength in mix], UNISON_MIX_PERCENTILE)
+            tall = _percentile([strength for _, strength in mix], UNISON_TALL_PERCENTILE)
             onsets = {name: sorted(float(e["seconds"]) for e in layers[name].get("events", [])
                                    if e.get("method") == "spectral_flux" and e.get("strength", 0) >= UNISON_STEM_STRENGTH)
                       for name in stems}
@@ -972,7 +978,8 @@ def unison_hits(layers, arrangement, start, stop, cache):
                         joined.append(name)
                 if "drums" in joined and len(joined) >= UNISON_MIN_STEMS:
                     found.append((seconds_to_beat(seconds, arrangement),
-                                  3 if len(joined) >= UNISON_TALL_STEMS else 2, sorted(joined), strength))
+                                  3 if len(joined) >= UNISON_TALL_STEMS and strength >= tall else 2,
+                                  sorted(joined), strength))
         cache["unison"] = found
     hits = sorted((h for h in cache["unison"] if start <= h[0] < stop), key=lambda h: (-h[3], h[0]))
     chosen = []
@@ -1013,6 +1020,22 @@ def _unison(arrangement, spans, notes, report, warn):
                  "a line along the cut, so the heavier hit reads as one longer note.",
                  section_id=section, value=0, threshold=2, object_ids=[n["id"] for n in near],
                  beats=[_round(beat, 4), _round(beat, 4)], targets=[[_round(beat, 4), size]])
+    # A stack of three is the rare tall stack: it belongs on a unison hit that earns three notes.
+    tall = [h["beat"] for h in found if h["size"] == 3]
+    groups = {}
+    for note, beat in zip(notes, beats):
+        groups.setdefault((note["beat"], note["color"]), []).append(note)
+    for (beat, _), group in sorted(groups.items(), key=lambda item: (item[0][0], item[0][1])):
+        beat = float(beat)
+        if len(group) < 3 or any(abs(t - beat) <= SALIENCE_MATCH_BEATS for t in tall):
+            continue
+        section = next((s["id"] for s in spans if s["start_beat"] <= beat < s["end_beat"]), None)
+        warn("stack_too_tall",
+             f"Beat {beat:.2f} ({beat_to_seconds(beat, arrangement):.2f} s): a stack of {len(group)} notes, but no "
+             f"unison hit here earns three (four or more instruments on one of the song's loudest "
+             f"{100 - UNISON_TALL_PERCENTILE}% of attacks). Keep two.",
+             section_id=section, value=len(group), threshold=2, object_ids=[n["id"] for n in group],
+             beats=[_round(beat, 4), _round(beat, 4)])
     return {"checked": True, "hits": found}
 
 

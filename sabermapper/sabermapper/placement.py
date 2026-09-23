@@ -9,11 +9,16 @@ blocking movement rules hold by construction:
   ``chain_note_conflict``), and its head and tail notes take the arc's hand, cut and cell;
 * ``one_hand_burst`` (three fast same-hand swings while the other hand idles);
 * ``hidden_note`` (a note arriving too soon behind another in its cell), reach (``movement.REACH_SPEED``)
-  and hand crossing.
+  and hand crossing;
+* ``cut_path_blocked``: no cut sweeps through a note of the other color at the same instant
+  (``movement.cut_path``).
 
 Notes marked ``"stack": true`` at one beat form a stack: one hand cuts all of them in one direction, and
-their cells run in an unbroken line along that cut (``movement.stack_line``), so the stack reads as one longer
-note. A diagonal cut is preferred when the flow allows it.
+their cells run in an unbroken line along that cut (``movement.stack_line``, ``stack_shape``), so the stack reads
+as one longer note; a stack of three runs vertically or diagonally, never sideways. A diagonal cut is preferred
+when the flow allows it. The other hand's note at that instant keeps a free cell away from the stack
+(``stack_touch``); a later note stays out of the stack's cells for ``movement.STACK_HIDDEN_SECONDS``; and when
+notes follow within STACK_SIDE_SECONDS the stack keeps to the outer lanes.
 
 A saved note lists the fields the placer chose in ``placed``. On the next placement those values are kept
 while they stay valid and re-chosen only when a rhythm edit makes them break a rule, so an edit in one bar
@@ -49,8 +54,8 @@ from math import hypot
 from typing import NamedTuple
 
 from .movement import (BURST_SECONDS, BURST_SWINGS, CHORD_BEATS, CHORD_SECONDS, FAST_BREAK_SECONDS, REACH_SPEED,
-                       _OPPOSITE, _VECTORS, _parity, analyze_movement, flow_break, hidden_window, is_rest, next_effective,
-                       turn_degrees)
+                       STACK_HIDDEN_SECONDS, STACK_MAX_NOTES, _OPPOSITE, _VECTORS, _parity, analyze_movement,
+                       cut_path, flow_break, hidden_window, is_rest, next_effective, turn_degrees)
 from .validation import _beat
 
 FIELDS = ("x", "y", "color", "direction")
@@ -77,10 +82,17 @@ ECHO_RELEASE_SECONDS = 2.0  # a hand's flow resets after a 2 s rest, so a broken
 # Rules the placer satisfies; each maps to the note fields that can resolve it.
 RULE_FIELDS = {"fast_direction_break": ("direction", "color"), "flow_parity_break": ("direction", "color"),
                "one_hand_burst": ("color",), "arc_note_conflict": ("color",), "chain_note_conflict": ("color",),
-               "hidden_note": ("x", "y"), "reach_proxy": ("x", "y")}
+               "hidden_note": ("x", "y"), "reach_proxy": ("x", "y"),
+               "stack_shape": ("x", "y", "direction"), "stack_touch": ("x", "y"),
+               "cut_path_blocked": ("x", "y", "direction")}
 MAX_ALTERNATIVE_ERRORS = 5
 STACK_OPTIONS = 36  # cell and cut choices kept per stack note, so a full line along the cut stays reachable
 STACK_DIAGONAL_PREFERENCE = 0.3  # stacks lie on a diagonal cut when the flow allows one
+SIDEWAYS = (2, 3, 8)  # cuts a stack of three never takes: it runs vertically or diagonally
+# When the next notes follow a stack this soon, the stack keeps to the outer lanes, off the centre where they
+# would sit behind it.
+STACK_SIDE_SECONDS = 0.5
+STACK_CENTRE_COST = 0.5
 
 
 class PlacementStyle(NamedTuple):
@@ -378,6 +390,8 @@ def _cut_options(state, notes, hand, beat, seconds, other_last, bpm, style=None)
         if len(fixed) > 1 and any("color" not in s.pinned for s in notes):
             cost += HARD
             violations += (("simultaneous_direction_conflict", ids),)
+        if direction in SIDEWAYS and sum(1 for s in notes if s.stack) >= STACK_MAX_NOTES:
+            cost += HARD  # a stack of three runs vertically or diagonally, never across a row
         if (last_s is not None and 0 <= beat_gap <= CHORD_BEATS and 0 <= gap <= CHORD_SECONDS
                 and direction == last_dir):
             options.append((direction, cost, violations, state))  # one swing with the note just before
@@ -542,9 +556,9 @@ def _place_cells(groups, slots, bpm, joint=True, style=None):
                 upcoming[slot.value["color"]] = slot
             following[slot.value["color"]] = slot
     hands = {0: _HandState(), 1: _HandState()}
-    front = {}  # cell -> (seconds, slot index) of the latest note there
+    front = {}  # cell -> (seconds, slot index, part of a stack) of the latest note there
     sequence, used = [], set()
-    for group in groups:
+    for number, group in enumerate(groups):
         beat, seconds = group[0].beat, group[0].seconds
         occupied = {(s.fixed["x"], s.fixed["y"]) for s in group if _cell_fixed(s)}
         open_slots = sorted((s for s in group if not _cell_fixed(s) or (joint and _cut_fixed(s) is None)),
@@ -552,7 +566,9 @@ def _place_cells(groups, slots, bpm, joint=True, style=None):
         context = {"recent": Counter(sequence[-VARIETY_WINDOW:]), "sequence": sequence, "used": used,
                    "style": style or DEFAULT_STYLE,
                    "top_share": sum(1 for p in sequence[-VARIETY_WINDOW:] if p[1] == 2)
-                   / max(1, min(len(sequence), VARIETY_WINDOW))}
+                   / max(1, min(len(sequence), VARIETY_WINDOW)),
+                   "tall": Counter(s.value["color"] for s in group if s.stack),
+                   "next_gap": groups[number + 1][0].seconds - seconds if number + 1 < len(groups) else None}
         options = [_cell_options(slot, occupied, hands, front, fixed_cells, next_fixed[slot.index],
                                  next_swing[slot.index], context, beat, seconds, bpm, joint)
                    for slot in open_slots]
@@ -566,7 +582,7 @@ def _place_cells(groups, slots, bpm, joint=True, style=None):
             x, y = slot.value["x"], slot.value["y"]
             sequence.append((x, y, slot.value["color"], slot.value["direction"]))
             used.add(sequence[-1])
-            front[(x, y)] = (seconds, slot.index)
+            front[(x, y)] = (seconds, slot.index, slot.stack)
             swung.setdefault(slot.value["color"], slot)
         for hand, slot in swung.items():
             hands[hand].swing(slot, beat, seconds, bpm)
@@ -652,13 +668,12 @@ def _cell_options(slot, occupied, hands, front, fixed_cells, ahead_cell, ahead_s
                     base += SOFT
                 if slot.echoes(field, hand) not in (None, value):
                     base += ECHO / 2
-            window = hidden_window(x, y)
             before = front.get((x, y))
-            if before is not None and 0 < seconds - before[0] < window:
+            if before is not None and 0 < seconds - before[0] < hidden_window(x, y, before[2]):
                 base += BLOCK
                 found.append(("hidden_note", before[1]))
             later = [t for t in fixed_cells.get((x, y), ()) if t > seconds]
-            if later and min(later) - seconds < window and not _cell_fixed(slot):
+            if later and min(later) - seconds < hidden_window(x, y, slot.stack) and not _cell_fixed(slot):
                 base += BLOCK
                 found.append(("hidden_note", None))
             gap = None if state.seconds is None else seconds - state.seconds
@@ -671,6 +686,9 @@ def _cell_options(slot, occupied, hands, front, fixed_cells, ahead_cell, ahead_s
                     base += HARD
                     found.append(("reach_proxy", None))
             base += (0.0, 0.8, 2.0)[max(0, x - 1) if hand == 0 else max(0, 2 - x)]  # lanes off the hand's side
+            if (slot.stack and x in (1, 2) and context["next_gap"] is not None
+                    and context["next_gap"] < STACK_SIDE_SECONDS):
+                base += STACK_CENTRE_COST  # quick notes follow: the stack keeps to the side, out of their way
             if other.seconds is not None and seconds - other.seconds < 0.6 and (
                     x > other.x if hand == 0 else x < other.x):
                 base += 1.5  # crossing the other hand's position
@@ -687,6 +705,8 @@ def _cell_options(slot, occupied, hands, front, fixed_cells, ahead_cell, ahead_s
                     cost += 0.4
                 if slot.stack and direction in (4, 5, 6, 7):
                     cost -= STACK_DIAGONAL_PREFERENCE
+                if slot.stack and direction in SIDEWAYS and context["tall"][hand] >= STACK_MAX_NOTES:
+                    cost += HARD
                 if gap is not None and gap > 0 and state.direction is not None:
                     _, exit_point = _entry_exit(state.x, state.y, state.direction)
                     entry, _ = _entry_exit(x, y, direction)
@@ -721,6 +741,11 @@ def _combine(open_slots, options, group):
             return BLOCK
         ca, cb = a_slot.value["color"], b_slot.value["color"]
         if ca != cb:
+            if (bx, by) in cut_path(ax, ay, ad) or (ax, ay) in cut_path(bx, by, bd):
+                return BLOCK  # one hand's cut would sweep through the other color's note
+            stacked = a_slot.stack and tall[ca] >= 2 or b_slot.stack and tall[cb] >= 2
+            if stacked and max(abs(ax - bx), abs(ay - by)) <= 1:
+                return HARD  # the other hand's note touches a stack: keep a free cell between them
             red, blue = (ax, bx) if ca == 0 else (bx, ax)
             crossed = 0.0 if red < blue else 50.0  # hands crossed on a double
             return crossed + (DOUBLE_PARITY_COST if _parity(ad, ca, 0) != _parity(bd, cb, 0) else 0.0)
@@ -1119,7 +1144,7 @@ def _alternatives(arrangement, violation, slots, unpin):
         pins = sorted(slot.pinned, key=FIELDS.index)
         relevant = [f for f in FIELDS if f in slot.pinned and f in RULE_FIELDS.get(violation["code"], FIELDS)]
         sets = [[f] for f in relevant] + [relevant, pins]
-        if violation["code"] in ("hidden_note", "reach_proxy"):
+        if violation["code"] in ("hidden_note", "reach_proxy", "stack_shape", "stack_touch", "cut_path_blocked"):
             sets = [relevant] + sets  # a cell moves as a pair of coordinates
         for fields in sets:
             if fields and fields not in [t[0].get("fields") for t in trials if t[0]["object_id"] == slot.oid]:

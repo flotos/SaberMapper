@@ -57,6 +57,8 @@ class BridgeClient:
                 payload = json.loads(error.read().decode("utf-8") or "{}").get("error") or {}
             except ValueError:
                 payload = {}
+            finally:
+                error.close()
             raise GameError(payload.get("code") or f"bridge_http_{error.code}",
                             payload.get("message") or f"Bridge answered HTTP {error.code} for {method} {path}",
                             {"status": error.code, "endpoint": f"{method} {path}", **(payload.get("details") or {})},

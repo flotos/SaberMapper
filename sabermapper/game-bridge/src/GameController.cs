@@ -35,7 +35,7 @@ namespace SaberMapperBridge
         private MenuTransitionsHelper _menu;
         private AudioTimeSyncController _audio;
         private int _audioSearchCountdown;
-        private bool _levelStartLogged;
+        private bool _markerOpen, _levelSeen;
         private string _currentLevelPath, _currentLevelId;
         private float _fps;
 
@@ -168,7 +168,6 @@ namespace SaberMapperBridge
             {
                 _audioSearchCountdown = 10;
                 _audio = FindObjectOfType<AudioTimeSyncController>();
-                if (_audio != null) _levelStartLogged = false;
             }
         }
 
@@ -177,21 +176,31 @@ namespace SaberMapperBridge
             if (_returningToMenu && _pending == null && !InLevel && !InTransition) _returningToMenu = false;
             if (InLevel)
             {
-                if (!_levelStartLogged && _audio.state == AudioTimeSyncController.State.Playing)
+                if (!_levelSeen && _audio.state == AudioTimeSyncController.State.Playing)
                 {
-                    _levelStartLogged = true;
+                    _levelSeen = true;
                     _showResults = false;
                     var setup = CurrentSetup();
                     _currentLevelId = setup?.beatmapLevel?.levelID;
                     _currentLevelPath = LevelPathFor(_currentLevelId);
-                    Plugin.Log.Info($"level_start {_currentLevelPath ?? _currentLevelId}");
+                    if (!_markerOpen) OpenMarker(_currentLevelPath ?? _currentLevelId); // started outside the bridge
                 }
             }
-            else if (_levelStartLogged)
+            else if (_markerOpen && _levelSeen && !InTransition)
             {
-                _levelStartLogged = false;
+                _markerOpen = _levelSeen = false;
                 Plugin.Log.Info("level_end");
             }
+        }
+
+        /// <summary>`level_start` is logged before the beatmap is deserialized (load or restart), so Heck/Vivify
+        /// parse errors fall inside the level's log scope for `sabermapper game logs --level`.</summary>
+        private void OpenMarker(string level)
+        {
+            if (_markerOpen) Plugin.Log.Info("level_end");
+            Plugin.Log.Info($"level_start {level}");
+            _markerOpen = true;
+            _levelSeen = false;
         }
 
         private StandardLevelScenesTransitionSetupDataSO CurrentSetup()
@@ -292,6 +301,9 @@ namespace SaberMapperBridge
             int before = _songsLoadedEvents;
             Invoke(() =>
             {
+                if (InLevel || InTransition || _pending != null)
+                    throw new BridgeException("not_in_menu", "SongCore reloads songs only in the menu; POST /menu first", 409,
+                        new JObject { ["scene"] = Scene });
                 if (SongCore.Loader.Instance == null)
                     throw new BridgeException("songs_not_ready", "SongCore has not initialized yet (the menu is still loading); retry shortly", 409);
                 SongCore.Loader.Instance.RefreshSongs(full);
@@ -431,6 +443,9 @@ namespace SaberMapperBridge
             _showResults = false;
             Plugin.Log.Info($"load {p.LevelPath ?? p.Level.levelID} {p.Characteristic.serializedName}/{p.Difficulty} at {p.StartTime:0.###}s x{p.Speed:0.###}");
             var colors = playerData.colorSchemesSettings;
+            _currentLevelPath = p.LevelPath;
+            _currentLevelId = p.Level.levelID;
+            OpenMarker(p.LevelPath ?? p.Level.levelID);
             _menu.StartStandardLevel("Solo", in key, p.Level, playerData.overrideEnvironmentSettings, colors.GetOverrideColorScheme(),
                 colors.ShouldOverrideLightshowColors(), p.Level.GetColorScheme(p.Characteristic, p.Difficulty), modifiers, playerSettings,
                 practice, environments, "Menu", false, false, null, null, OnLevelFinished, OnLevelRestarted, null);
@@ -444,8 +459,7 @@ namespace SaberMapperBridge
 
         private void OnLevelRestarted(StandardLevelScenesTransitionSetupDataSO setup, LevelCompletionResults results)
         {
-            _levelStartLogged = false;
-            Plugin.Log.Info("level_end");
+            OpenMarker(_currentLevelPath ?? setup?.beatmapLevel?.levelID);
         }
 
         private void ReturnToMenu()

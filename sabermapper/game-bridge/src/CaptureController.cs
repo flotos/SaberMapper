@@ -50,8 +50,8 @@ namespace SaberMapperBridge
             if (string.IsNullOrEmpty(outDir) || !Path.IsPathRooted(outDir))
                 throw new BridgeException("bad_request", "capture needs an absolute out_dir");
             var camera = BridgeServer.OptString(input, "camera", "player");
-            if (camera != "player" && camera != "main" && camera != "wide")
-                throw new BridgeException("bad_request", "camera must be player, main or wide");
+            if (camera != "player" && camera != "wide")
+                throw new BridgeException("bad_request", "camera must be player or wide");
             var job = new Job { Id = ++_jobCounter, OutDir = outDir, Camera = camera };
             var width = BridgeServer.OptInt(input, "width", 0);
             var height = BridgeServer.OptInt(input, "height", 0);
@@ -194,7 +194,7 @@ namespace SaberMapperBridge
             }
             else
             {
-                RenderCamera(job.Camera, source);
+                RenderWide(source);
                 flip = false;
             }
             RenderTexture readback = source;
@@ -213,18 +213,10 @@ namespace SaberMapperBridge
             });
         }
 
-        private void RenderCamera(string mode, RenderTexture target)
+        private void RenderWide(RenderTexture target)
         {
             var main = Camera.main;
             if (main == null) throw new InvalidOperationException("No main camera to render");
-            if (mode == "main")
-            {
-                var previous = main.targetTexture;
-                main.targetTexture = target;
-                try { main.Render(); }
-                finally { main.targetTexture = previous; }
-                return;
-            }
             if (_wideCamera == null)
             {
                 var go = new GameObject("SaberMapperBridge.WideCamera");

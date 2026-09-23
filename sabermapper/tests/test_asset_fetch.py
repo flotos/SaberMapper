@@ -214,6 +214,7 @@ class FetchFlowTests(unittest.TestCase):
             z.writestr("License.txt", "License: (Creative Commons Zero, CC0)")
             z.writestr("Models/GLTF format/statue.glb", make_glb(TRIANGLE, [0, 1, 2], color=(0.5, 0.5, 0.5, 1)))
             z.writestr("Previews/statue.png", b"png")
+            z.writestr("Models/GLTF format/tree_pineTallA.glb", make_glb(TRIANGLE, [0, 1, 2]))
         sky = io.BytesIO()
         with zipfile.ZipFile(sky, "w") as z:
             z.writestr("Dusk_2K_TONEMAPPED.jpg", jpeg((256, 128)))
@@ -283,6 +284,17 @@ class FetchFlowTests(unittest.TestCase):
         self.assertIn("face the player", result["next"])
         mesh = mesh_files.load_model_file(self.project / "assets" / "models" / "statue.obj")
         self.assertAlmostEqual(0.214, mesh["colors"][0][0], places=3)
+
+    def test_cached_kenney_packs_are_searched_by_model_name(self):
+        self.assertFalse([r for r in asset_fetch.search("statue", sources=["kenney"])["results"] if r.get("model")])
+        with patch.dict(asset_fetch.KENNEY_3D, {"statues": "sculpture"}):
+            asset_fetch.info("kenney:statues")
+            found = asset_fetch.search("statue", sources=["kenney"])["results"]
+        self.assertEqual(("kenney:statues", "statue"), (found[0]["ref"], found[0]["model"]))
+        self.assertIn("--model statue", found[0]["next"])
+        with patch.dict(asset_fetch.KENNEY_3D, {"statues": "sculpture"}):
+            pines = asset_fetch.search("pine", sources=["kenney"])["results"]
+        self.assertEqual("tree_pineTallA", pines[0]["model"])
 
     def test_ambientcg_sky_is_resized_into_a_texture_asset(self):
         result = asset_fetch.get("ambientcg:Dusk", self.project, "demo", kind="sky", max_size=128, add=True)

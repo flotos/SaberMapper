@@ -106,17 +106,43 @@ class SplitBurstTests(unittest.TestCase):
         self.assertEqual([(c["action"], c["beat"]) for c in result["changes"]], [("removed", 20.5)])
         self.assertNotIn("one_hand_burst", codes(result["arrangement"]))
 
-    def test_an_end_note_goes_when_dropping_the_middle_would_break_flow(self):
-        # A soft triplet down-up-down on the voice: without the up-cut the two down-cuts come 0.21 s apart.
-        notes = [note("l1", 4, 0, 1), note("r1", "23/3", 1, 1), note("r2", 8, 1, 0, y=0), note("r3", "25/3", 1, 1),
-                 note("l2", 12, 0, 0)]
+    def test_dropping_the_middle_reverses_the_cut_after_it(self):
+        # A soft triplet down-up-down on the voice: without the up-cut the two down-cuts come 0.21 s apart,
+        # so the last cut turns up and starts where the first one left the saber.
+        notes = [note("l1", 4, 0, 1), note("r1", "23/3", 1, 1), note("r2", 8, 1, 0, y=0), note("r3", "25/3", 1, 1, x=3),
+                 note("l2", 12, 0, 0), note("r4", 16, 1, 1)]
         evidence = report({"vocals": [(23 / 3, 0.8), (8, 0.8), (25 / 3, 0.8)]})
         evidence["passages"] = [{"start_seconds": 0.0, "end_seconds": seconds(32), "support_score": 0.2,
                                  "energy_ratio": 0.4}]
         result = split_bursts(arrangement(notes), evidence)
-        self.assertEqual([(c["action"], c["object_ids"]) for c in result["changes"]], [("removed", ["s/note/r1"])])
+        self.assertEqual([(c["action"], c["object_ids"]) for c in result["changes"]], [("removed", ["s/note/r2"])])
+        directions = {n["id"]: n["direction"] for n in result["arrangement"]["sections"][0]["notes"]}
+        self.assertEqual((directions["r1"], directions["r3"], directions["r4"]), (1, 0, 1))
         self.assertEqual([d for d in validate_arrangement(result["arrangement"]) if d["severity"] == "error"], [])
         self.assertNotIn("one_hand_burst", codes(result["arrangement"]))
+
+    def test_a_note_added_inside_a_phrase_reverses_the_cuts_after_it(self):
+        # Borrowed Waters: a cut added between two alternating cuts must start where the previous
+        # one left the saber, so the hand's later cuts turn over rather than repeat.
+        from sabermapper.audio_repair import _errors, _reflow
+        source = arrangement([note("l1", 4, 0, 1), note("l2", 6, 0, 0, y=0), note("l3", 8, 0, 1),
+                              note("r1", 24, 1, 1)])
+        baseline = _errors(source)
+        change = insert_note(source, Fraction(5), "new", hands=(0,))
+        self.assertEqual((change["color"], change["direction"]), (0, 0))
+        self.assertTrue(_reflow(source, baseline))
+        left = sorted((n for n in source["sections"][0]["notes"] if n["color"] == 0),
+                      key=lambda n: Fraction(str(n["beat"])))
+        self.assertEqual([(n["id"], n["direction"]) for n in left], [("l1", 1), ("new", 0), ("l2", 1), ("l3", 0)])
+        self.assertEqual([d for d in validate_arrangement(source) if d["severity"] == "error"], [])
+
+    def test_repair_audio_reports_the_reversed_cuts(self):
+        from sabermapper.audio_repair import _reversals
+        before = arrangement([note("r1", 4, 1, 1), note("r2", 5, 1, 0), note("r3", 6, 1, 1), note("r4", 7, 1, 0)])
+        after = arrangement([note("r1", 4, 1, 1), note("r3", 6, 1, 0), note("r4", 7, 1, 1)])
+        records = _reversals(before, after, [{"action": "removed", "object_ids": ["s/note/r2"]}])
+        self.assertEqual([(r["action"], r["object_ids"]) for r in records],
+                         [("reversed_phrase", ["s/note/r3", "s/note/r4"])])
 
     def test_locked_bursts_are_reported_not_changed(self):
         source = arrangement(SPEECH)

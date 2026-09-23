@@ -81,7 +81,9 @@ def main(argv=None):
                                  "of it in the same cell to a free neighbouring cell (arcs follow)",
             "repair-audio": "Fix audio findings: move notes with no sound under them onto the nearest onset "
                             "(or remove them), thin quiet passages mapped as densely as the full band, then "
-                            "add flow-safe notes on unmapped vocal, drum, accent and density-collapse onsets"}.get(name))
+                            "add flow-safe notes on unmapped vocal, drum, accent and density-collapse onsets; "
+                            "raise heavy bars that play easier than soft ones and ease soft bars that play as "
+                            "hard as the heavy passages"}.get(name))
         leaf.add_argument("--workspace", type=Path, default=Path("workspace"))
         if name != "list":
             leaf.add_argument("project")

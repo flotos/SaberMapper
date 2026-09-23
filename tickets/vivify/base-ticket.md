@@ -115,10 +115,35 @@ and a note left at 1:23 is returned by `project feedback list` with the right be
   blocking above a hard limit), note contrast against the background along the note corridor,
   palette drift from the concept palette, visual change aligned with section boundaries.
 
-Open decision: may the agent launch the game on its own for capture runs? `CLAUDE.md` forbids the
-agent from opening previews because it cannot see them; game captures are evidence it *can* read, so
-the rule needs an explicit exception, including when launches are allowed (e.g. not while the user
-is playing).
+**Decided (user, 2026-09-23): the agent may open the game itself to take screenshots, provided no
+other agent has already opened it.** Several agents run in parallel worktrees on this machine, so
+this needs a machine-wide **game lease**:
+
+- One lease file outside any worktree, `%LOCALAPPDATA%/SaberMapper/game-lease.json`, created
+  atomically (exclusive create). It records `{holder, session, worktree, project, purpose,
+  game_pid, launched_by_agent, acquired_at, heartbeat_at}`.
+- `game launch` / `game capture` acquire the lease before starting the game. Refuse with a structured
+  `game_busy` error naming the holder when:
+  - another agent holds a live lease, or
+  - `Beat Saber.exe` is already running without a lease (the user, or an agent that bypassed
+    the lease). The agent never takes over a game it did not launch.
+- The bridge enforces the lease too: `game launch` passes a lease token to the game, and bridge
+  commands without the current token are rejected. Two agents can never drive one game instance.
+- Stale leases are reclaimed only when the recorded `game_pid` is dead or the heartbeat is older than
+  a set timeout. Reclaiming a lease never kills a running game.
+- `--wait SECONDS` queues for the lease instead of failing, so a capture step can wait out another
+  agent's run.
+- The holder closes the game it launched and releases the lease when the capture run ends, including
+  on error (try/finally, plus the stale-lease rule if the agent process dies).
+- The human always wins. The studio's *Play in game* shows who holds the lease. If you continue, the
+  agent's lease is revoked and its capture fails with `game_preempted`, which the agent treats as
+  "retry later", never as a map defect.
+- `game lease` (status) and `game lease --release` (own lease only) CLI commands. Regression tests
+  cover concurrent acquisition, stale reclaim, an unleased running game and preemption.
+
+When M2 lands, add this exception to `CLAUDE.md` and `AGENTS.md`. The ban on opening ArcViewer,
+the studio or browser previews stays. The game may be opened only through the leased capture
+commands.
 
 ### M3 — Vivify compile and export
 
@@ -175,7 +200,6 @@ end by the agent, verified by the user from the studio, revised from their notes
 
 ## Decisions needed
 
-- Agent-launched game runs for capture (M2): allowed, and under which conditions?
 - Generative models (M4 tier 3, M5): run locally on the 5070 Ti or on RunPod?
 - PCVR only (Windows 2021 bundle), or Quest too?
 

@@ -1,4 +1,4 @@
-# Movement model 1.3 and implementation survey
+# Movement model 1.4 and implementation survey
 
 The shared `analyze_movement(notes, bpm, njs=..., spawn_offset_beats=...)` result contains versioned swings,
 aggregate proxies, review warnings, and an explicit unsupported-motion list.
@@ -14,7 +14,7 @@ crossover count, reaction-time estimate from NJS/spawn offset, and recovery
 time are descriptive proxies, not comfort, injury, ranked difficulty, or star
 ratings. Walls, bombs, arcs, chains and complex rotations are not inferred.
 
-Model 1.3 has two blocking flow rules, both defined once in `movement.flow_break`.
+Model 1.4 has two blocking flow rules, both defined once in `movement.flow_break`.
 They apply to consecutive same-hand swings without a reset (a reset is a gap of a
 full beat or more):
 
@@ -37,6 +37,29 @@ corner and then a down-cut from the same cell 0.24 s later. Living a Lie 1:38
 had a down-right cut followed by a right cut, 45 degrees apart. The player asked
 for a systematic fix, with half-beat 90-degree turns at 0.3 s or less blocked
 everywhere.
+
+Model 1.4 adds a blocking sight-line rule, `hidden_note`. It is defined once in
+`movement.hidden_note` and `movement.hidden_window`. Notes of either hand are
+checked in time order. A note arriving in the same cell as the note just in front
+of it is hidden until that note is cut, and its arrow reads late. It must trail
+that note by 0.35 s (`SIGHTLINE_HIDDEN_SECONDS`) in the four centre cells of the
+middle and top rows (x 1-2, y 1-2), which sit on the player's line of sight. Elsewhere
+it must trail by 0.2 s (`HIDDEN_SECONDS`). The window is in seconds rather than
+beats, because the time the back note is visible before its hit does not depend on
+NJS: a faster jump spreads the two notes further apart but brings them in faster.
+The rule followed a player report at End of You 0:24: three blue notes in cell
+(2,1) at 190 BPM, 0.158 s apart, cut right-left-right, where the front note hid the
+ones behind it. Like the flow rules, a finding is an error unless every note
+involved is in a locked section.
+
+`sabermapper.visibility_repair.repair_hidden_notes` and `project
+repair-visibility` move one note of each pair to a free cell at most two cells
+away. Timing and cut direction are unchanged. The chosen cell must leave both notes
+visible, keep the hands uncrossed and stay under the reach proxy. Among those, the
+repair prefers the fewest hidden pairs left, the shortest move, the hand's own side,
+cells off the line of sight, and the cell where the previous cut left the saber. It
+removes the note on the weaker metric position only when no cell works. Arc anchors
+move with their note. Audio repair skips hidden cells when it adds notes.
 
 `sabermapper.swing_repair.repair_fast_breaks` and `project repair-swings` fix
 findings deterministically. They drop a 16th pickup under 0.2 s that sits on a

@@ -75,6 +75,16 @@ class CorpusAnalysisTests(unittest.TestCase):
             self.assertEqual(record["source_pointer"]["pattern_id"], p["id"])
             self.assertEqual(record["review_status"], "unreviewed")
             self.assertTrue((Path(root)/"player-analysis.md").is_file())
+            # Every phrase carries its source chart's player star tier.
+            self.assertEqual((record["stars"], record["star_tier"]), (7.2, "band"))
+            listed = json.loads((Path(root)/"pattern-list.json").read_text(encoding="utf-8"))["patterns"][0]
+            self.assertEqual(listed["star_tier"], "band")
+            reference = json.loads((Path(root)/"tier-reference.json").read_text(encoding="utf-8"))
+            band = next(t for t in reference["tiers"] if t["id"] == "band")
+            self.assertEqual((band["charts"], band["windows"], band["window_nps"]["median"]), (1, 1, 1))
+            tiered = json.loads((Path(root)/"tier-pattern-shortlist.json").read_text(encoding="utf-8"))["tiers"]
+            self.assertEqual([row["id"] for row in tiered["band"]], [p["id"]])
+            self.assertEqual(tiered["challenge"], [])
             store.close()
 
 

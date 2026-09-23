@@ -18,8 +18,43 @@ from .storage import WorkspaceLock, contained, digest, now, read_json, write_jso
 from .validation import validate_arrangement
 
 
+DIFFICULTY_RANKS = {"Easy": 1, "Normal": 3, "Hard": 5, "Expert": 7, "ExpertPlus": 9}
+_history_names: dict[Path, tuple[float, str | None]] = {}
+
+
 class ConflictError(ValueError):
     pass
+
+
+def _history_difficulty(file: Path) -> str | None:
+    """Difficulty name of one content-addressed history file, cached by modification time."""
+    mtime = file.stat().st_mtime
+    cached = _history_names.get(file)
+    if cached is None or cached[0] != mtime:
+        try:
+            name = read_json(file)["difficulty"]["name"]
+        except (OSError, ValueError, KeyError, TypeError):
+            name = None
+        cached = _history_names[file] = (mtime, name)
+    return cached[1]
+
+
+def timing_mismatches(arrangements: dict[str, dict]) -> list[dict]:
+    """Difficulties whose song timing differs from the first one; they all share one audio file."""
+    items = list(arrangements.items())
+    if len(items) < 2:
+        return []
+    reference_name, reference = items[0]
+
+    def timing(arrangement):
+        song = arrangement.get("song", {})
+        return song.get("bpm"), song.get("audio_offset_seconds"), arrangement.get("tempo_events", [])
+    return [{"severity": "warning", "code": "difficulty_timing_mismatch", "section_id": None, "object_ids": [],
+             "message": f"{name} uses song timing (bpm {timing(item)[0]}, offset {timing(item)[1]} s) different from "
+                        f"{reference_name} (bpm {timing(reference)[0]}, offset {timing(reference)[1]} s). Every "
+                        "difficulty shares the audio: save matching song.bpm, audio_offset_seconds and tempo_events "
+                        "before export."}
+            for name, item in items[1:] if timing(item) != timing(reference)]
 
 
 class DuplicateProjectError(ValueError):
@@ -76,6 +111,46 @@ class ProjectStore:
             raise FileNotFoundError("Project was not found")
         return path
 
+    def difficulty_files(self, path: Path) -> dict[str, Path]:
+        """Every stored difficulty by name, primary first; arrangement.json holds the primary one."""
+        primary = path / "arrangement.json"
+        files = {read_json(primary)["difficulty"]["name"]: primary}
+        for file in sorted((path / "difficulties").glob("*.json"), key=lambda f: DIFFICULTY_RANKS.get(f.stem, 0)):
+            if file.stem in DIFFICULTY_RANKS and file.stem not in files:
+                files[file.stem] = file
+        return files
+
+    def arrangement_file(self, path: Path, difficulty: str | None = None) -> Path:
+        """The arrangement file for one difficulty; None selects the primary one."""
+        if difficulty is None:
+            return path / "arrangement.json"
+        if difficulty not in DIFFICULTY_RANKS:
+            raise ValueError(f"Unknown difficulty {difficulty!r}; use one of {', '.join(DIFFICULTY_RANKS)}")
+        files = self.difficulty_files(path)
+        if difficulty not in files:
+            raise FileNotFoundError(f"Project has no {difficulty} difficulty (it has {', '.join(files)}); "
+                                    "create it with `project add-difficulty`")
+        return files[difficulty]
+
+    def difficulties(self, project_id: str) -> list[dict]:
+        """One summary row per stored difficulty: name, revision, density and target tier."""
+        with self.lock:
+            path = self.directory(project_id)
+            duration = read_json(path / "project.json").get("duration_seconds") or 0
+            rows = []
+            for name, file in self.difficulty_files(path).items():
+                arrangement = read_json(file)
+                try:
+                    count = len(expanded_notes(arrangement))
+                except (ValueError, KeyError, TypeError):
+                    count = None
+                setting = arrangement.get("difficulty", {})
+                rows.append({"name": name, "rank": DIFFICULTY_RANKS[name], "primary": file.name == "arrangement.json",
+                             "revision": arrangement_revision(arrangement), "njs": setting.get("njs"),
+                             "target_tier": setting.get("target_tier"), "note_count": count,
+                             "nps": round(count / duration, 3) if count is not None and duration else None})
+            return rows
+
     def list(self) -> list[dict]:
         result = []
         for path in self.projects.glob("*/project.json"):
@@ -84,6 +159,7 @@ class ProjectStore:
                 entry = {k: item.get(k) for k in ("id", "title", "artist", "created_at", "updated_at", "origin", "duration_seconds")}
                 entry["album"] = item.get("album") or source_album((item.get("audio") or {}).get("source_path"),
                                                                     item.get("artist"))
+                entry["difficulties"] = list(self.difficulty_files(path.parent))
                 result.append(entry)
             except (OSError, ValueError):
                 continue
@@ -158,13 +234,16 @@ class ProjectStore:
             raise
         return self.get(project_id)
 
-    def get(self, project_id: str) -> dict:
+    def get(self, project_id: str, difficulty: str | None = None) -> dict:
         from .movement import analyze_movement
         from .musical import project_runs
         with self.lock:
             path = self.directory(project_id)
-            arrangement = read_json(path / "arrangement.json")
-            diagnostics = validate_arrangement(arrangement)
+            arrangement = read_json(self.arrangement_file(path, difficulty))
+            name = arrangement["difficulty"]["name"]
+            siblings = {name: arrangement, **{other: read_json(file) for other, file in self.difficulty_files(path).items()
+                                              if other != name}}
+            diagnostics = validate_arrangement(arrangement) + timing_mismatches(siblings)
             audio_run, audio = None, {"checked": False}
             try:
                 from .audio_grounding import audio_findings
@@ -192,7 +271,8 @@ class ProjectStore:
                     note["seconds"] = times[(note["beat"], note["x"], note["y"], note["color"])]
             except ValueError:
                 beatmap = None
-            return {"project": read_json(path / "project.json"), "arrangement": arrangement,
+            return {"project": read_json(path / "project.json"), "difficulty": name,
+                    "difficulties": self.difficulties(project_id), "arrangement": arrangement,
                     "revision": arrangement_revision(arrangement), "analysis": read_json(path / "analysis.json"),
                     "musical_runs": project_runs(path), "audio_check": {"run_id": audio_run, **audio},
                     "notes": notes, "beatmap": beatmap, "diagnostics": diagnostics,
@@ -201,23 +281,29 @@ class ProjectStore:
                                                  spawn_offset_beats=arrangement["difficulty"]["spawn_offset_beats"]) if notes else {},
                     "feedback": self.feedback(project_id),
                     "reviews": [read_json(p) for p in sorted((path / "reviews").glob("*.json"))],
-                    "history": [p.stem for p in sorted((path / "history").glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)],
+                    "history": [p.stem for p in sorted((path / "history").glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+                                if _history_difficulty(p) in (name, None)],
                     "exports": [p.name for p in sorted((path / "exports").glob("*.zip"))]}
 
-    def check_save(self, project_id: str, arrangement: dict, expected_revision: str) -> dict:
+    def check_save(self, project_id: str, arrangement: dict, expected_revision: str,
+                   difficulty: str | None = None) -> dict:
         """Raise the conflict or validation error a save would raise; write nothing.
 
         Returns the current stored arrangement so callers can continue under the lock.
         """
         with self.lock:
             path = self.directory(project_id)
-            original = read_json(path / "arrangement.json")
+            original = read_json(self.arrangement_file(path, difficulty))
             old_revision = arrangement_revision(original)
             if expected_revision != old_revision:
                 raise ConflictError("This arrangement changed since you opened it. Reload before saving.")
             errors = [d for d in validate_arrangement(arrangement) if d["severity"] == "error" and d["code"] != "unresolved_section"]
             if errors:
                 raise ValueError("; ".join(d["message"] for d in errors[:10]))
+            renamed = arrangement["difficulty"]["name"]
+            if renamed != original["difficulty"]["name"] and renamed in self.difficulty_files(path):
+                raise ConflictError(f"The project already has a {renamed} difficulty; pick another name "
+                                    "or save into that difficulty with --difficulty")
             # The map exists to follow the song: refuse long stretches of playing audio left unmapped.
             run_id, _, findings = project_audio_findings(path, arrangement)
             blocking = [d for d in findings if d["severity"] == "error"]
@@ -228,7 +314,8 @@ class ProjectStore:
             if any(s["locked"] for s in original["sections"]):
                 if (any(original["song"].get(k) != arrangement["song"].get(k) for k in ("bpm", "audio_offset_seconds"))
                         or original.get("tempo_events", []) != arrangement.get("tempo_events", [])
-                        or original["difficulty"] != arrangement["difficulty"]):
+                        or any(original["difficulty"].get(k) != arrangement["difficulty"].get(k)
+                               for k in ("njs", "spawn_offset_beats"))):
                     raise ConflictError("Global timing or jump settings would alter a locked section. Unlock it before editing.")
             for section in original["sections"]:
                 if not section["locked"]:
@@ -240,10 +327,12 @@ class ProjectStore:
                         raise ConflictError("A changed motif would alter a locked section")
             return original
 
-    def save(self, project_id: str, arrangement: dict, expected_revision: str, *, request_id=None) -> dict:
+    def save(self, project_id: str, arrangement: dict, expected_revision: str, *, request_id=None,
+             difficulty: str | None = None) -> dict:
         with self.lock:
             path = self.directory(project_id)
-            original = self.check_save(project_id, arrangement, expected_revision)
+            source = self.arrangement_file(path, difficulty)
+            original = self.check_save(project_id, arrangement, expected_revision, difficulty)
             old_revision = arrangement_revision(original)
             revision = arrangement_revision(arrangement)
             if request_id is not None:
@@ -255,11 +344,18 @@ class ProjectStore:
                 request = read_json(request_path)
                 if request["revision"] != old_revision:
                     raise ConflictError("Feedback request refers to an older arrangement")
+            name, previous_name = arrangement["difficulty"]["name"], original["difficulty"]["name"]
+            primary = source.name == "arrangement.json"
+            target = source if primary else path / "difficulties" / f"{name}.json"
             write_json(path / "history" / (old_revision + ".json"), original)
             write_json(path / "history" / (revision + ".json"), arrangement)
-            write_json(path / "arrangement.json", arrangement)
+            write_json(target, arrangement)
+            if target != source:
+                source.unlink()
             meta = read_json(path / "project.json")
-            meta.update(updated_at=now(), title=arrangement["song"]["title"], artist=arrangement["song"]["artist"])
+            meta["updated_at"] = now()
+            if primary:
+                meta.update(title=arrangement["song"]["title"], artist=arrangement["song"]["artist"])
             if original["song"] != arrangement["song"]:
                 meta["timing_reviewed"] = False
             meta["playtested"] = False
@@ -269,15 +365,72 @@ class ProjectStore:
                 write_json(request_path, request)
             write_json(path / "revisions" / (uuid.uuid4().hex + ".json"),
                        {"schema_version": "1.0", "previous": old_revision, "revision": revision,
+                        "difficulty": name, **({"previous_difficulty": previous_name} if name != previous_name else {}),
                         "request_id": request_id, "at": now(), "diagnostics": validate_arrangement(arrangement)})
+            return self.get(project_id, None if primary else name)
+
+    def add_difficulty(self, project_id: str, name: str, *, source: str | None = None, njs: float | None = None,
+                       target_tier: str | None = None) -> dict:
+        """Create a difficulty as an unlocked copy of another one, ready to be rewritten at its own level."""
+        if name not in DIFFICULTY_RANKS:
+            raise ValueError(f"Unknown difficulty {name!r}; use one of {', '.join(DIFFICULTY_RANKS)}")
+        with self.lock:
+            path = self.directory(project_id)
+            if name in self.difficulty_files(path):
+                raise ConflictError(f"The project already has a {name} difficulty")
+            original = read_json(self.arrangement_file(path, source))
+            arrangement = deepcopy(original)
+            arrangement["difficulty"].update(name=name, rank=DIFFICULTY_RANKS[name])
+            if njs is not None:
+                arrangement["difficulty"]["njs"] = njs
+            if target_tier is not None:
+                arrangement["difficulty"]["target_tier"] = target_tier
+            unlocked = [s["id"] for s in arrangement["sections"] if s.get("locked")]
+            for section in arrangement["sections"]:
+                section["locked"] = False
+            errors = [d for d in validate_arrangement(arrangement)
+                      if d["severity"] == "error" and d["code"] != "unresolved_section"]
+            if errors:
+                raise ValueError("; ".join(d["message"] for d in errors[:10]))
+            revision = arrangement_revision(arrangement)
+            write_json(path / "history" / (revision + ".json"), arrangement)
+            write_json(path / "difficulties" / f"{name}.json", arrangement)
+            meta = read_json(path / "project.json")
+            meta.update(updated_at=now(), playtested=False)
+            write_json(path / "project.json", meta)
+            write_json(path / "revisions" / (uuid.uuid4().hex + ".json"),
+                       {"schema_version": "1.0", "operation": "add_difficulty", "difficulty": name,
+                        "source_difficulty": original["difficulty"]["name"],
+                        "source_revision": arrangement_revision(original),
+                        "revision": revision, "unlocked_sections": unlocked, "at": now()})
+            return self.get(project_id, name)
+
+    def remove_difficulty(self, project_id: str, name: str, expected_revision: str) -> dict:
+        """Delete a non-primary difficulty; its content stays in history."""
+        with self.lock:
+            path = self.directory(project_id)
+            file = self.arrangement_file(path, name)
+            if file.name == "arrangement.json":
+                raise ValueError("The primary difficulty cannot be removed; rename it by saving another name instead")
+            arrangement = read_json(file)
+            revision = arrangement_revision(arrangement)
+            if revision != expected_revision:
+                raise ConflictError("This difficulty changed since you opened it. Reload before removing it.")
+            write_json(path / "history" / (revision + ".json"), arrangement)
+            file.unlink()
+            write_json(path / "revisions" / (uuid.uuid4().hex + ".json"),
+                       {"schema_version": "1.0", "operation": "remove_difficulty", "difficulty": name,
+                        "previous": revision, "at": now()})
             return self.get(project_id)
 
-    def set_lock(self, project_id: str, section_id: str, locked: bool, expected_revision: str) -> dict:
+    def set_lock(self, project_id: str, section_id: str, locked: bool, expected_revision: str,
+                 difficulty: str | None = None) -> dict:
         if type(locked) is not bool:
             raise ValueError("locked must be a boolean")
         with self.lock:
             path = self.directory(project_id)
-            arrangement = read_json(path / "arrangement.json")
+            file = self.arrangement_file(path, difficulty)
+            arrangement = read_json(file)
             if arrangement_revision(arrangement) != expected_revision:
                 raise ConflictError("Stale revision; reload the project")
             section = next((s for s in arrangement["sections"] if s["id"] == section_id), None)
@@ -287,16 +440,18 @@ class ProjectStore:
             section["locked"] = locked
             revision = arrangement_revision(arrangement)
             write_json(path / "history" / (revision + ".json"), arrangement)
-            write_json(path / "arrangement.json", arrangement)
+            write_json(file, arrangement)
             write_json(path / "revisions" / (uuid.uuid4().hex + ".json"),
                        {"schema_version": "1.0", "previous": previous, "revision": revision,
+                        "difficulty": arrangement["difficulty"]["name"],
                         "operation": "lock" if locked else "unlock", "section_id": section_id, "at": now()})
-            return self.get(project_id)
+            return self.get(project_id, difficulty)
 
-    def restore(self, project_id: str, revision: str, expected_revision: str) -> dict:
+    def restore(self, project_id: str, revision: str, expected_revision: str, difficulty: str | None = None) -> dict:
         if not re.fullmatch(r"[a-f0-9]{64}", revision):
             raise ValueError("Invalid saved revision")
-        return self.save(project_id, read_json(self.directory(project_id) / "history" / (revision + ".json")), expected_revision)
+        return self.save(project_id, read_json(self.directory(project_id) / "history" / (revision + ".json")),
+                         expected_revision, difficulty=difficulty)
 
     def feedback(self, project_id: str) -> list[dict]:
         return [read_json(p) for p in sorted((self.directory(project_id) / "feedback").glob("*.json"))]
@@ -304,7 +459,7 @@ class ProjectStore:
     def add_feedback(self, project_id: str, data: dict) -> dict:
         with self.lock:
             path = self.directory(project_id)
-            arrangement = read_json(path / "arrangement.json")
+            arrangement = read_json(self.arrangement_file(path, data.get("difficulty")))
             revision = arrangement_revision(arrangement)
             if data.get("revision") != revision:
                 raise ConflictError("Feedback refers to a stale arrangement; reload first")
@@ -317,6 +472,7 @@ class ProjectStore:
             notes = expanded_notes(arrangement)
             selected = [n["id"] for n in notes if start <= n["beat"] < end]
             result = {"schema_version": "1.0", "id": uuid.uuid4().hex[:12], "revision": revision,
+                      "difficulty": arrangement["difficulty"]["name"],
                       "start_beat": start, "end_beat": end, "object_ids": selected,
                       "text": text, "created_at": now(), "status": "recorded", "reviewer": "local user"}
             write_json(path / "feedback" / (result["id"] + ".json"), result)
@@ -325,7 +481,7 @@ class ProjectStore:
     def review(self, project_id: str, data: dict) -> dict:
         with self.lock:
             path = self.directory(project_id)
-            arrangement = read_json(path / "arrangement.json")
+            arrangement = read_json(self.arrangement_file(path, data.get("difficulty")))
             if data.get("revision") != arrangement_revision(arrangement):
                 raise ConflictError("Review is stale; reload the project")
             meta = read_json(path / "project.json")
@@ -360,20 +516,24 @@ class ProjectStore:
             meta["review_revision"] = arrangement_revision(arrangement)
             write_json(path / "project.json", meta)
             write_json(path / "reviews" / (uuid.uuid4().hex + ".json"),
-                       {**data, "schema_version": "1.0", "at": now(), "origin": "user-entered",
+                       {**data, "difficulty": arrangement["difficulty"]["name"], "schema_version": "1.0",
+                        "at": now(), "origin": "user-entered",
                         "audio_sha256": hashlib.sha256((path / "song.ogg").read_bytes()).hexdigest(),
                         "mechanical": {"diagnostics": validate_arrangement(arrangement)},
                         "scope": "One-rater qualitative observation; no population-level or automatic quality claim"})
-            return self.get(project_id)
+            return self.get(project_id, data.get("difficulty"))
 
     def export(self, project_id: str) -> dict:
-        from .export import export_arrangement
+        """Export every difficulty of the project into one map ZIP."""
+        from .export import export_arrangements
         with self.lock:
             path = self.directory(project_id)
-            arrangement = read_json(path / "arrangement.json")
-            revision = arrangement_revision(arrangement)
+            arrangements = [read_json(file) for file in self.difficulty_files(path).values()]
+            revisions = {a["difficulty"]["name"]: arrangement_revision(a) for a in arrangements}
+            revision = next(iter(revisions.values())) if len(revisions) == 1 else digest(revisions)
             filename = f"map-{revision[:10]}-{uuid.uuid4().hex[:6]}.zip"
-            report = export_arrangement(arrangement, path / "song.ogg", path / "cover.png", path / "exports" / filename)
+            report = export_arrangements(arrangements, path / "song.ogg", path / "cover.png",
+                                         path / "exports" / filename)
             report["review"] = read_json(path / "project.json")
             write_json(path / "exports" / (filename + ".json"), report)
             return {"filename": filename, "report": report, "url": f"/api/projects/{project_id}/files/exports/{filename}"}

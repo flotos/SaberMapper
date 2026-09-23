@@ -9,14 +9,23 @@ from pathlib import Path
 import statistics
 
 from .corpus import _atomic_json
+from .star_tiers import load_profile, player_tiers, tier_by_id, tier_for, tier_label
+
+TIER_WINDOW_METRICS = ("swing_rate_per_second", "peak_one_second_swing_count", "longest_quarter_second_burst",
+                       "crossover_demand_count", "maximum_grid_speed_proxy", "mean_grid_distance",
+                       "minimum_recovery_seconds")
 
 
 def positive_rating(value):
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0 else None
 
 
-def chart_records(store):
-    """Join only the requested version; never borrow ratings from another revision."""
+def chart_records(store, tiers=None):
+    """Join only the requested version; never borrow ratings from another revision.
+
+    Each chart carries the player-relative ``star_tier`` of its ScoreSaber rating.
+    """
+    tiers = tiers or player_tiers(load_profile(store.root.parent))
     charts = {}
     for hash_, provenance, updated, archive_sha in store.db.execute(
             "SELECT version_hash,provenance_json,updated_utc,archive_sha256 FROM maps WHERE status='processed'"):
@@ -35,6 +44,7 @@ def chart_records(store):
                     "map_id": metadata.get("id"), "source_url": f"https://beatsaver.com/maps/{metadata.get('id')}",
                     "exact_metadata_url": f"https://api.beatsaver.com/maps/hash/{hash_}",
                     "stars": positive_rating(diff.get("stars")), "rating_system": "ScoreSaber",
+                    "star_tier": tier_for(positive_rating(diff.get("stars")), tiers),
                     "rating_source": "saved BeatSaver exact-version diffs[].stars; not live ScoreSaber",
                     "metadata_record_updated_utc": updated,
                     "archive_sha256": archive_sha,
@@ -90,13 +100,15 @@ def pattern_tags(pattern):
     return tags
 
 
-def filter_patterns(patterns, charts, *, min_stars=None, max_stars=None, tag=None):
+def filter_patterns(patterns, charts, *, min_stars=None, max_stars=None, tag=None, tier=None):
     if min_stars is not None and max_stars is not None and min_stars > max_stars:
         raise ValueError("minimum stars exceeds maximum stars")
     out = []
     for pattern in patterns:
         chart = charts.get((pattern["version_hash"].upper(), pattern["difficulty"]), {})
         stars = chart.get("stars")
+        if tier is not None and (chart.get("star_tier") != tier or chart.get("requires_gameplay_mods")):
+            continue
         if min_stars is not None or max_stars is not None:
             if stars is None or chart.get("requires_gameplay_mods"):
                 continue
@@ -120,7 +132,8 @@ def phrase_record(pattern, chart, audio_hash=None):
         hand = [n for n in notes if n["color"] == color]
         boundary[str(color)] = {"first_note": posture(hand[0]) if hand else None,
                                 "last_note": posture(hand[-1]) if hand else None}
-    record.update({"chart": chart, "tags": pattern_tags(pattern), "audio_sha256": audio_hash,
+    record.update({"chart": chart, "stars": chart.get("stars"), "star_tier": chart.get("star_tier"),
+        "tags": pattern_tags(pattern), "audio_sha256": audio_hash,
         "source_pointer": {"catalog": "patterns.json", "pattern_id": pattern["id"], "map_file": pattern.get("source")},
         "end_beat": pattern["start_beat"]+pattern["length_beats"],
         "rhythm_intervals": pattern.get("rhythm_intervals", []),
@@ -146,7 +159,64 @@ def numeric_summary(values):
             "p10": quantile(.1), "median": quantile(.5), "p90": quantile(.9), "max": values[-1]}
 
 
-def analyze_corpus(store, *, min_stars=6.5, max_stars=8, shortlist_limit=60):
+def shortlist(target, charts, by_id, limit, *, center_stars, reason):
+    """Round-robin observable categories; at most two references per map; warnings stay visible."""
+    buckets = defaultdict(list)
+    for p in target:
+        for tag in pattern_tags(p):
+            buckets[tag].append(p)
+    for items in buckets.values():
+        items.sort(key=lambda p: (bool(p.get("unsupported_motion")),
+                                  abs(charts[(p["version_hash"], p["difficulty"])]["stars"]-center_stars), p["id"]))
+    chosen, motifs, per_map = [], set(), Counter()
+    while len(chosen) < limit:
+        advanced = False
+        for tag, items in sorted(buckets.items()):
+            pick = next((p for p in items if p["family_key"] not in motifs and per_map[p["version_hash"]] < 2), None)
+            if pick is None:
+                continue
+            row = dict(by_id[pick["id"]])
+            row["selection_category"] = tag
+            row["fit_reason"] = reason(row, tag)
+            chosen.append(row)
+            motifs.add(pick["family_key"])
+            per_map[pick["version_hash"]] += 1
+            advanced = True
+            if len(chosen) == limit:
+                break
+        if not advanced:
+            break
+    return chosen, per_map
+
+
+def tier_reference(patterns, charts, tiers):
+    """Per-tier chart and 4-beat window statistics: what each star level looks like in real maps."""
+    windows = defaultdict(list)
+    for p in patterns:
+        chart = charts.get((p["version_hash"].upper(), p["difficulty"]))
+        if chart and chart.get("star_tier") and not chart["requires_gameplay_mods"]:
+            windows[chart["star_tier"]].append(p)
+    result = []
+    for tier in tiers:
+        items = windows.get(tier["id"], [])
+        tier_charts = list({(p["version_hash"].upper(), p["difficulty"]): charts[(p["version_hash"].upper(), p["difficulty"])]
+                            for p in items}.values())
+        tags = Counter(tag for p in items for tag in pattern_tags(p))
+        result.append({**tier, "label": tier_label(tier), "charts": len(tier_charts), "windows": len(items),
+                       "chart_stars": numeric_summary([c["stars"] for c in tier_charts]),
+                       "chart_nps": numeric_summary([c["nps"] for c in tier_charts]),
+                       "chart_notes_per_beat": numeric_summary([c["nps"] * 60 / c["bpm"] for c in tier_charts
+                                                                if c.get("nps") and c.get("bpm")]),
+                       "chart_njs": numeric_summary([c["njs"] for c in tier_charts]),
+                       "window_nps": numeric_summary([p["nps"] for p in items]),
+                       "window_notes_per_beat": numeric_summary([p.get("note_count", len(p.get("notes", []))) / p["length_beats"] for p in items]),
+                       "window_movement": {field: numeric_summary([(p.get("movement_metrics") or {}).get(field) for p in items])
+                                           for field in TIER_WINDOW_METRICS},
+                       "tag_share": {tag: round(count / len(items), 4) for tag, count in sorted(tags.items())} if items else {}})
+    return result
+
+
+def analyze_corpus(store, *, min_stars=6.5, max_stars=8, shortlist_limit=60, tier_shortlist_limit=40):
     if not 0 < min_stars <= max_stars or shortlist_limit < 0:
         raise ValueError("invalid analysis bounds")
     patterns = store.catalog_patterns()
@@ -159,31 +229,22 @@ def analyze_corpus(store, *, min_stars=6.5, max_stars=8, shortlist_limit=60):
     audio = dict(store.db.execute("SELECT version_hash,json_extract(processing_json,'$.audio_sha256') FROM maps WHERE status='processed'"))
     compact = [phrase_record(p, charts.get((p["version_hash"], p["difficulty"]), {}), audio.get(p["version_hash"])) for p in patterns]
     by_id = {p["id"]: p for p in compact}
-    buckets = defaultdict(list)
-    for p in target:
-        for tag in pattern_tags(p):
-            buckets[tag].append(p)
-    # Round-robin categories and limit each map to two references; retain warnings visibly.
-    for items in buckets.values():
-        items.sort(key=lambda p: (bool(p.get("unsupported_motion")), abs(charts[(p["version_hash"], p["difficulty"])]["stars"]-7.43), p["id"]))
-    chosen, motifs, per_map = [], set(), Counter()
-    while len(chosen) < shortlist_limit:
-        advanced = False
-        for tag, items in sorted(buckets.items()):
-            pick = next((p for p in items if p["family_key"] not in motifs and per_map[p["version_hash"]] < 2), None)
-            if pick is None:
-                continue
-            row = dict(by_id[pick["id"]])
-            row["selection_category"] = tag
-            row["fit_reason"] = f"Source chart is {row['chart']['stars']:g} stars within {min_stars:g}-{max_stars:g}; illustrates {tag.replace('_', ' ')}. Local phrase difficulty and transitions still need review."
-            chosen.append(row)
-            motifs.add(pick["family_key"])
-            per_map[pick["version_hash"]] += 1
-            advanced = True
-            if len(chosen) == shortlist_limit:
-                break
-        if not advanced:
-            break
+    chosen, per_map = shortlist(target, charts, by_id, shortlist_limit, center_stars=7.43, reason=lambda row, tag: (
+        f"Source chart is {row['chart']['stars']:g} stars within {min_stars:g}-{max_stars:g}; illustrates "
+        f"{tag.replace('_', ' ')}. Local phrase difficulty and transitions still need review."))
+    tiers = player_tiers(load_profile(store.root.parent))
+    tier_rows = tier_reference(patterns, charts, tiers)
+    tier_lists = {}
+    for tier in tiers:
+        if tier["id"] in ("below_band", "beyond"):
+            continue
+        in_tier = filter_patterns(patterns, charts, tier=tier["id"])
+        stars = [charts[(p["version_hash"].upper(), p["difficulty"])]["stars"] for p in in_tier]
+        tier_lists[tier["id"]] = shortlist(in_tier, charts, by_id, tier_shortlist_limit,
+                                           center_stars=statistics.median(stars) if stars else 0,
+                                           reason=lambda row, tag, tier=tier: (
+            f"Source chart is {row['chart']['stars']:g} stars, tier {tier['id']} ({tier_label(tier)}); illustrates "
+            f"{tag.replace('_', ' ')}. The chart rating does not rate this phrase; review its transitions."))[0]
     target_tags = Counter(tag for p in target for tag in pattern_tags(p))
     groups = Counter(p["family_key"] for p in patterns)
     per_chart = Counter((p["version_hash"], p["difficulty"]) for p in patterns)
@@ -212,6 +273,7 @@ def analyze_corpus(store, *, min_stars=6.5, max_stars=8, shortlist_limit=60):
             "Entry/exit context is limited to the extraction window; inspect the full source transition.",
             "No human review, listening alignment check or VR playtest is implied.",
             "Rights to redistribute or reuse source note arrays are unknown."],
+        "star_tiers": [{k: t[k] for k in ("id", "label", "charts", "windows")} for t in tier_rows],
         "charts": list(charts.values())}
     expansion_path = store.root / "player-expansion-seeds.json"
     if expansion_path.exists():
@@ -234,6 +296,15 @@ def analyze_corpus(store, *, min_stars=6.5, max_stars=8, shortlist_limit=60):
     _atomic_json(store.root / "difficulty-analysis.json", report)
     _atomic_json(store.root / "pattern-list.json", {"schema_version": "1.0", "generated_utc": report["generated_utc"], "patterns": compact})
     _atomic_json(store.root / "player-pattern-shortlist.json", {"target_band": [min_stars, max_stars], "review_status": "unreviewed", "patterns": chosen})
+    _atomic_json(store.root / "tier-reference.json", {
+        "schema_version": "1.0", "generated_utc": report["generated_utc"], "window_beats": 4,
+        "source": "player-profile.json star tiers over exact-version ScoreSaber chart ratings",
+        "limitations": ["Chart ratings describe whole source charts, not individual windows or generated maps.",
+                        "Window statistics mix quiet and dense passages of each source chart."],
+        "tiers": tier_rows})
+    _atomic_json(store.root / "tier-pattern-shortlist.json", {
+        "schema_version": "1.0", "generated_utc": report["generated_utc"], "review_status": "unreviewed",
+        "tiers": {tier_id: rows for tier_id, rows in tier_lists.items()}})
     summary = report["usable_pattern_charts"]
     lines = ["# Player reference corpus analysis", "", f"Generated {report['generated_utc']}", "",
         f"{report['status_counts'].get('processed', 0)} processed versions; {summary['charts']} charts with usable phrase records.",
@@ -253,6 +324,13 @@ def analyze_corpus(store, *, min_stars=6.5, max_stars=8, shortlist_limit=60):
         for missing in report["expansion_unavailable_selections"]:
             reasons = sorted(set(missing["parser_failures"].values()) | {reason for values in missing["excluded_files"].values() for reason in values})
             lines.append(f"- {missing['song']} / {missing['difficulty']}: {'; '.join(reasons) or missing['error'] or missing['status']}")
+    lines += ["", "## Star tiers", "", "Player-relative tiers from player-profile.json; every phrase in pattern-list.json carries its source chart's `star_tier`.", "",
+              "| Tier | Stars | Charts | Windows | Median window NPS | Median swings/s | Median peak swings in 1 s |", "|---|---|---:|---:|---:|---:|---:|"]
+    for t in tier_rows:
+        movement = t["window_movement"]
+        lines.append(f"| {t['id']} | {t['label']} | {t['charts']} | {t['windows']:,} | {t['window_nps'].get('median', '-')} | "
+                     f"{movement['swing_rate_per_second'].get('median', '-')} | {movement['peak_one_second_swing_count'].get('median', '-')} |")
+    lines += ["", "Per-tier shortlists are in tier-pattern-shortlist.json; full per-tier statistics in tier-reference.json."]
     lines += ["", "Categories overlap. A source chart's rating is not a local phrase rating.", "", "## Reference shortlist", "",
               "All entries are unreviewed structural candidates. Exact hashes, context, metrics and caveats are in player-pattern-shortlist.json.", "",
               "| Song / mapper | Difficulty | Stars | Beats | Category |", "|---|---|---:|---|---|"]

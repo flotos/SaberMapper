@@ -18,6 +18,8 @@ Use roughly **6.5–8 ScoreSaber-star reference maps** as the provisional compar
 
 The planning record states a preference for **technical variety rather than monotonous repetition**. It does not establish specific favorite maps or a current stamina limit. A recorded pass is skill evidence, not an endorsement of the map.
 
+Player star tiers tag the reference corpus and name each difficulty's target (`difficulty.target_tier`): `below_band` <6.5, `band` 6.5–8, `challenge` 8–9, `stretch` 9–9.5 (9.5 is the hardest recorded unmodified pass, 9.47, rounded up), `beyond` above that. The player has 28 recorded unmodified passes at 8+ stars; 27 are in the local corpus as phrase references (Night sky is an unsupported format). `challenge` is the target when the user asks for a harder map than the band, and `stretch` is for peaks only unless the user asks for more.
+
 Treat **Expert / ExpertPlus as export labels**, not player calibration. If asked for “Expert,” still author for this player's evidence unless the user explicitly requests an easier or harder target. Do not assign an official predicted star rating to a generated map. Briefly state which references and difficulty assumptions guided the arrangement.
 
 Read the local profile's `overrides`, `liked`, and `disliked` fields and the project's latest actual playtest feedback before composing. New explicit instructions and feedback take priority over these historical estimates. Proceed with the provisional baseline when current feedback is absent; do not invent preferences, current scores, or VR playtest results.

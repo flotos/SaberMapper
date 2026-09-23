@@ -16,6 +16,7 @@ from statistics import median
 from .arrangement import expanded_notes
 from .audio_grounding import DEFINITIONS as AUDIO_DEFINITIONS, audio_findings
 from .movement import analyze_movement
+from .tier_fit import DEFINITIONS as TIER_DEFINITIONS, tier_fit
 
 MODEL_VERSION = "1.0"
 WINDOW_SECONDS = 4.0
@@ -142,6 +143,7 @@ DEFINITIONS = {
                              "swing_demand is below the 90th percentile of the softer bars' demand (relative_loudness "
                              "below 0.8, at least 2 mapped): the heavy passage plays easier than the quieter ones.",
     **AUDIO_DEFINITIONS,
+    **TIER_DEFINITIONS,
 }
 
 
@@ -934,8 +936,8 @@ def _movement_objects(arrangement, spans, report):
     return result
 
 
-def critique_arrangement(arrangement: dict, report: dict | None = None) -> dict:
-    """Return warning-only density, repetition, seam and movement metrics."""
+def critique_arrangement(arrangement: dict, report: dict | None = None, tier_reference: dict | None = None) -> dict:
+    """Return warning-only density, repetition, seam, movement and star-tier metrics."""
     warnings = []
 
     def warn(code, message, *, value, threshold, section_id=None, object_ids=(), beats=None):
@@ -960,6 +962,7 @@ def critique_arrangement(arrangement: dict, report: dict | None = None) -> dict:
     metrics["grid_alignment"] = _grid(arrangement, report, warn)
     metrics["focus_stems"] = _focus_stems(arrangement, spans, report, warn)
     metrics["intensity"] = _intensity(arrangement, spans, notes, report, warn)
+    metrics["tier_fit"] = tier_fit(arrangement, tier_reference, warn) if notes else {"checked": False}
     # Audio grounding: blocking spans are save errors elsewhere; here every finding stays a warning.
     metrics["audio"], findings = audio_findings(arrangement, report)
     for finding in findings:

@@ -12,7 +12,7 @@ from pathlib import Path
 import re
 import secrets
 import tempfile
-from urllib.parse import unquote, urlparse, urlencode
+from urllib.parse import parse_qs, unquote, urlparse, urlencode
 
 from .projects import ConflictError, ProjectStore
 from .storage import read_json, write_json
@@ -126,12 +126,13 @@ def make_server(workspace: str | Path, port: int = 8765) -> ThreadingHTTPServer:
                         payload[name] = read_json(file) if file.exists() else {}
                     self._json(payload)
                 elif re.fullmatch(r"/api/projects/[\w-]+", path):
-                    self._json(store.get(path.split("/")[3]))
+                    difficulty = parse_qs(urlparse(self.path).query).get("difficulty", [None])[0]
+                    self._json(store.get(path.split("/")[3], difficulty or None))
                 elif path.startswith("/api/projects/") and "/files/" in path:
                     pieces = path.split("/", 5)
                     folder = store.directory(pieces[3])
                     relative = pieces[5]
-                    if not re.fullmatch(r"(?:song\.ogg|cover\.png|arrangement\.json|analysis\.json|musical/[a-f0-9]{32}/(?:report\.json|[a-z][a-z0-9_-]{0,39}\.wav)|feedback/[a-f0-9]+\.json|exports/[a-zA-Z0-9.-]+\.(?:zip|json))", relative):
+                    if not re.fullmatch(r"(?:song\.ogg|cover\.png|arrangement\.json|difficulties/(?:Easy|Normal|Hard|Expert|ExpertPlus)\.json|analysis\.json|musical/[a-f0-9]{32}/(?:report\.json|[a-z][a-z0-9_-]{0,39}\.wav)|feedback/[a-f0-9]+\.json|exports/[a-zA-Z0-9.-]+\.(?:zip|json))", relative):
                         raise ValueError("File is not a project download")
                     self._file(folder / relative)
                 elif path in {"/", "/index.html", "/app.js", "/music.js", "/style.css"}:
@@ -197,12 +198,14 @@ def make_server(workspace: str | Path, port: int = 8765) -> ThreadingHTTPServer:
                     if len(pieces) != 5:
                         raise ValueError("Unknown project operation")
                     project_id, action = pieces[3:]
+                    difficulty = data.get("difficulty") or None
                     if action == "save":
-                        result = store.save(project_id, data["arrangement"], data["revision"], request_id=data.get("request_id"))
+                        result = store.save(project_id, data["arrangement"], data["revision"], request_id=data.get("request_id"),
+                                            difficulty=difficulty)
                     elif action == "lock":
-                        result = store.set_lock(project_id, data["section_id"], data["locked"], data["revision"])
+                        result = store.set_lock(project_id, data["section_id"], data["locked"], data["revision"], difficulty)
                     elif action == "restore":
-                        result = store.restore(project_id, data["restore_revision"], data["revision"])
+                        result = store.restore(project_id, data["restore_revision"], data["revision"], difficulty)
                     elif action == "feedback":
                         result = store.add_feedback(project_id, data)
                     elif action == "review":
@@ -216,32 +219,39 @@ def make_server(workspace: str | Path, port: int = 8765) -> ThreadingHTTPServer:
                         if not math.isfinite(start) or start < 0:
                             raise ValueError("Preview time must be a nonnegative finite number")
                         with store.lock:
-                            current = store.get(project_id)
+                            current = store.get(project_id, difficulty)
                             if data.get("revision") != current["revision"]:
                                 raise ConflictError("Project changed. Reload it before previewing.")
                             result = store.export(project_id)
                         local_url = f"http://{self.headers['Host']}{result['url']}"
                         result["viewer_url"] = "/arcviewer/?" + urlencode({
                             "url": local_url, "noProxy": "true", "t": min(start, current["project"]["duration_seconds"]),
-                            "mode": "Standard", "difficulty": current["arrangement"]["difficulty"]["name"]})
+                            "mode": "Standard", "difficulty": current["difficulty"]})
                     elif action == "analyze":
                         from .audio import analyze_audio
                         directory = store.directory(project_id)
                         bpm = float(data["bpm"])
                         offset_seconds = float(data.get("offset_seconds", 0))
+                        # Timing belongs to the audio: every difficulty is retimed together.
                         with store.lock:
-                            current = store.get(project_id)
-                            changed = current["arrangement"]
-                            changed["song"]["bpm"] = bpm
-                            changed["song"]["audio_offset_seconds"] = offset_seconds
-                            # Reject stale revisions and locked-section conflicts
-                            # before the slow audio analysis, not after it.
-                            store.check_save(project_id, changed, data["revision"])
+                            current = store.get(project_id, difficulty)
+                            if data["revision"] != current["revision"]:
+                                raise ConflictError("This arrangement changed since you opened it. Reload before saving.")
+                            changes = []
+                            for row in current["difficulties"]:
+                                changed = store.get(project_id, row["name"])["arrangement"]
+                                changed["song"]["bpm"] = bpm
+                                changed["song"]["audio_offset_seconds"] = offset_seconds
+                                # Reject stale revisions and locked-section conflicts
+                                # before the slow audio analysis, not after it.
+                                store.check_save(project_id, changed, row["revision"], row["name"])
+                                changes.append((row["name"], changed, row["revision"]))
                         report = analyze_audio(directory / "song.ogg", bpm=bpm, offset_seconds=offset_seconds)
                         with store.lock:
-                            store.save(project_id, changed, data["revision"])
+                            for name, changed, revision in changes:
+                                store.save(project_id, changed, revision, difficulty=name)
                             write_json(directory / "analysis.json", report)
-                            result = store.get(project_id)
+                            result = store.get(project_id, difficulty)
                     else:
                         raise ValueError("Unknown project operation")
                     self._json(result)

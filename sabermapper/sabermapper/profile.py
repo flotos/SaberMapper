@@ -22,6 +22,7 @@ def summarize_scores(snapshot: dict) -> dict:
     def stats(items):
         return {"count": len(items), "mean_stars": round(statistics.mean(x["stars"] for x in items), 4) if items else None,
                 "median_stars": statistics.median(x["stars"] for x in items) if items else None,
+                "max_stars": max(x["stars"] for x in items) if items else None,
                 "mean_accuracy_percent": round(statistics.mean(x["accuracy"] for x in items), 4) if items else None,
                 "min_date": min((x["date"] for x in items), default=None),
                 "max_date": max((x["date"] for x in items), default=None)}

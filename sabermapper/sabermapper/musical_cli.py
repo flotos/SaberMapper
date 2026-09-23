@@ -17,6 +17,9 @@ def register_musical(commands):
         parser = actions.add_parser(action, help=helps[action])
         parser.add_argument("project")
         parser.add_argument("--workspace", type=Path, default=Path("workspace"))
+        if action in ("inspect", "rhythm"):
+            parser.add_argument("--difficulty", choices=("Easy", "Normal", "Hard", "Expert", "ExpertPlus"),
+                                help="Difficulty whose notes are shown; default: the primary one")
         if action == "analyze":
             parser.add_argument("--backend", choices=BACKENDS, default="bands")
             parser.add_argument("--preset", choices=PRESETS, help="Default: balanced, or the source run's preset")
@@ -71,7 +74,7 @@ def dispatch_musical(args, emit):
         emit(project_runs(directory))
     elif args.music_action == "rhythm":
         with store.lock:
-            arrangement = read_json(directory / "arrangement.json")
+            arrangement = read_json(store.arrangement_file(directory, args.difficulty))
         if args.run is None:
             run_id, report = latest_run(directory)
             if report is None:
@@ -87,7 +90,7 @@ def dispatch_musical(args, emit):
         if not re.fullmatch(r"[a-f0-9]{32}", args.run):
             raise ValueError("Invalid musical evidence run ID")
         with store.lock:
-            arrangement = read_json(directory / "arrangement.json")
+            arrangement = read_json(store.arrangement_file(directory, args.difficulty))
         report = read_json(directory / "musical" / args.run / "report.json")
         from .audio import _hash
         if report["source"]["sha256"] != _hash(directory / "song.ogg"):

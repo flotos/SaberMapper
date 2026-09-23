@@ -15,6 +15,7 @@ from statistics import median
 
 from .arrangement import expanded_notes
 from .audio_grounding import DEFINITIONS as AUDIO_DEFINITIONS, audio_findings
+from .tier_fit import DEFINITIONS as TIER_DEFINITIONS, tier_fit
 
 MODEL_VERSION = "1.0"
 WINDOW_SECONDS = 4.0
@@ -109,6 +110,7 @@ DEFINITIONS = {
                              "count: the map plays a thin, quiet passage as hard as the full band.",
     "focus_on_quiet_stem": "A musical_focus phrase gives weight 0.3 or more to a separated stem whose median energy_contour level inside the phrase is at least 20 dB below that stem's own 90th-percentile level over the song: the stem is essentially absent there, so its events are separator bleed (for example vocals in an instrumental intro) or the instrument was routed to another stem (for example a soft solo piano in other while the piano stem is silent). The message names the most active stem, measured the same way.",
     **AUDIO_DEFINITIONS,
+    **TIER_DEFINITIONS,
 }
 
 
@@ -713,8 +715,8 @@ def _movement_objects(arrangement, spans, report):
     return result
 
 
-def critique_arrangement(arrangement: dict, report: dict | None = None) -> dict:
-    """Return warning-only density, repetition, seam and movement metrics."""
+def critique_arrangement(arrangement: dict, report: dict | None = None, tier_reference: dict | None = None) -> dict:
+    """Return warning-only density, repetition, seam, movement and star-tier metrics."""
     warnings = []
 
     def warn(code, message, *, value, threshold, section_id=None, object_ids=(), beats=None):
@@ -737,6 +739,7 @@ def critique_arrangement(arrangement: dict, report: dict | None = None) -> dict:
     metrics["lead_rhythm"] = _lead_rhythm(arrangement, spans, notes, report, metrics["salience"], warn)
     metrics["grid_alignment"] = _grid(arrangement, report, warn)
     metrics["focus_stems"] = _focus_stems(arrangement, spans, report, warn)
+    metrics["tier_fit"] = tier_fit(arrangement, tier_reference, warn) if notes else {"checked": False}
     # Audio grounding: blocking spans are save errors elsewhere; here every finding stays a warning.
     metrics["audio"], findings = audio_findings(arrangement, report)
     for finding in findings:

@@ -99,7 +99,7 @@ class MovementTests(unittest.TestCase):
                  {"id": "b", "beat": 0, "x": 1, "y": 0, "color": 0, "direction": 1},
                  {"id": "c", "beat": 4, "x": 2, "y": 1, "color": 0, "direction": 8}]
         result = analyze_movement(notes)
-        self.assertEqual(result["model_version"], "1.8")
+        self.assertEqual(result["model_version"], "1.9")
         self.assertEqual(len(result["swings"]), 2)
         self.assertEqual(result["swings"][0]["note_ids"], ["a", "b"])
         self.assertTrue(result["swings"][1]["reset"])

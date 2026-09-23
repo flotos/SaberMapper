@@ -5,6 +5,10 @@ optional **pins**: a field the agent writes is never changed. The placer fills e
 blocking movement rules hold by construction:
 
 * swing flow (``movement.flow_break``: ``fast_direction_break``, ``flow_parity_break``);
+* wrist roll (``movement.next_roll``: ``wrist_roll``): angled cuts that keep turning the same way off each
+  reversal faster than the wrist unwinds; a cut that turns back towards the reversal is cheaper
+  (``ROLL_COST``), and repeating the cut of the swing before last costs nothing when it unwinds the wrist, so
+  an angular style plays as a zig-zag about the reversal, never a spin round the clock;
 * held sabers: an arc or chain reserves its color from head to tail (``arc_note_conflict``,
   ``chain_note_conflict``), and its head and tail notes take the arc's hand, cut and cell;
 * ``one_hand_burst`` (three fast same-hand swings while the other hand idles);
@@ -55,7 +59,8 @@ from typing import NamedTuple
 
 from .movement import (BURST_SECONDS, BURST_SWINGS, CHORD_BEATS, CHORD_SECONDS, FAST_BREAK_SECONDS, REACH_SPEED,
                        STACK_HIDDEN_SECONDS, STACK_MAX_NOTES, _OPPOSITE, _VECTORS, _parity, analyze_movement,
-                       cut_path, flow_break, hidden_window, is_rest, next_effective, turn_degrees)
+                       ROLL_LIMIT_DEGREES, cut_path, flow_break, hidden_window, is_rest, next_effective, next_roll,
+                       turn_degrees)
 from .validation import _beat
 
 FIELDS = ("x", "y", "color", "direction")
@@ -81,6 +86,7 @@ ECHO_RETRIES = 4  # echoed placements tried, each releasing the echoes around th
 ECHO_RELEASE_SECONDS = 2.0  # a hand's flow resets after a 2 s rest, so a broken rule reaches no further
 # Rules the placer satisfies; each maps to the note fields that can resolve it.
 RULE_FIELDS = {"fast_direction_break": ("direction", "color"), "flow_parity_break": ("direction", "color"),
+               "wrist_roll": ("direction", "color"),
                "one_hand_burst": ("color",), "arc_note_conflict": ("color",), "chain_note_conflict": ("color",),
                "hidden_note": ("x", "y"), "reach_proxy": ("x", "y"),
                "stack_shape": ("x", "y", "direction"), "stack_touch": ("x", "y"),
@@ -93,6 +99,9 @@ SIDEWAYS = (2, 3, 8)  # cuts a stack of three never takes: it runs vertically or
 # would sit behind it.
 STACK_SIDE_SECONDS = 0.5
 STACK_CENTRE_COST = 2.0  # above the travel cost of reaching the outer lane
+# Comfort cost of a hand's wrist roll after a cut, per ROLL_LIMIT_DEGREES: of two equally angled cuts, the one
+# turning back towards the reversal wins.
+ROLL_COST = 0.3
 
 
 class PlacementStyle(NamedTuple):
@@ -362,9 +371,18 @@ def _free_cuts(effective, hand, fast, reset, first, style=None):
     return result
 
 
+def _roll_cost(style, repeated, roll_before, roll_after):
+    """Comfort cost of a cut leaving the wrist at ``roll_after``; a repeat of the swing before last costs
+    ``repeat_angle`` unless it unwinds the wrist (a zig-zag about the reversal returns to it)."""
+    cost = ROLL_COST * abs(roll_after) / ROLL_LIMIT_DEGREES
+    if repeated and abs(roll_after) >= abs(roll_before or 0.0):
+        cost += (style or DEFAULT_STYLE).repeat_angle  # the same cut as this hand's swing before last
+    return cost
+
+
 def _cut_options(state, notes, hand, beat, seconds, other_last, bpm, style=None, quick=False):
     """(direction, cost, violations, new hand state) for ``hand`` cutting ``notes`` at ``beat``."""
-    effective, last_s, last_b, last_dir, run_len, run_start, prev_dir = state
+    effective, last_s, last_b, last_dir, run_len, run_start, prev_dir, roll = state
     fixed = sorted({s.fixed["direction"] for s in notes if "direction" in s.fixed})
     soft = sorted({s.soft["direction"] for s in notes if "direction" in s.soft})
     gap = None if last_s is None else seconds - last_s
@@ -384,8 +402,11 @@ def _cut_options(state, notes, hand, beat, seconds, other_last, bpm, style=None,
             candidates.append((echo, 0.0))
     options = []
     for direction, cost in candidates:
-        if not fixed and direction == prev_dir:
-            cost += (style or DEFAULT_STYLE).repeat_angle  # the same cut as this hand's swing before last
+        merges = (last_s is not None and 0 <= beat_gap <= CHORD_BEATS and 0 <= gap <= CHORD_SECONDS
+                  and direction == last_dir)
+        roll_after, rolled = next_roll(roll, effective, direction, gap or 0.0, reset or not gap)
+        if not fixed and not merges:
+            cost += _roll_cost(style, direction == prev_dir, roll, roll_after)
         violations = ()
         if len(fixed) > 1 and any("color" not in s.pinned for s in notes):
             cost += HARD
@@ -397,12 +418,11 @@ def _cut_options(state, notes, hand, beat, seconds, other_last, bpm, style=None,
             # Notes follow fast: a stack spanning columns would reach the centre, where they sit behind it.
             # A vertical cut keeps it in the outer lane (pass 2 prices the cells the same way).
             cost += STACK_CENTRE_COST * (stacked - 1)
-        if (last_s is not None and 0 <= beat_gap <= CHORD_BEATS and 0 <= gap <= CHORD_SECONDS
-                and direction == last_dir):
+        if merges:
             options.append((direction, cost, violations, state))  # one swing with the note just before
             continue
         if effective is not None and gap and not reset:
-            found = flow_break(effective, direction, hand, gap, False)
+            found = flow_break(effective, direction, hand, gap, False) or rolled
             if found:
                 cost += BLOCK
                 violations += ((found[0], ids),)
@@ -420,7 +440,7 @@ def _cut_options(state, notes, hand, beat, seconds, other_last, bpm, style=None,
             violations += (("one_hand_burst", ids),)
         options.append((direction, cost, violations,
                         (next_effective(effective, direction, reset), seconds, beat, direction, length, begun,
-                         last_dir)))
+                         last_dir, round(roll_after, 1))))
     return options
 
 
@@ -459,7 +479,7 @@ def _assignments(group, busy):
 
 def _plan_cuts(groups, held, bpm, width=BEAMS[0][0], per_timing_limit=BEAMS[0][1], style=None):
     """Beam search for every swing's hand and cut; returns ({slot index: (color, direction)}, violations)."""
-    empty = (None, None, None, None, 0, None, None)
+    empty = (None, None, None, None, 0, None, None, None)
     beam = [(0.0, (empty, empty), None, None, None)]  # cost, hand states, last single hand, last beat, node
     for number, group in enumerate(groups):
         beat, seconds = float(group[0].beat), group[0].seconds
@@ -596,10 +616,10 @@ def _place_cells(groups, slots, bpm, joint=True, style=None):
 
 class _HandState:
     """One hand's position and flow while pass 2 walks the timeline."""
-    __slots__ = ("effective", "seconds", "beat", "direction", "previous", "x", "y", "index")
+    __slots__ = ("effective", "seconds", "beat", "direction", "previous", "x", "y", "index", "roll")
 
     def __init__(self):
-        self.effective = self.seconds = self.beat = self.direction = self.previous = None
+        self.effective = self.seconds = self.beat = self.direction = self.previous = self.roll = None
         self.x = self.y = self.index = None
 
     def reset(self, beat, seconds, bpm):
@@ -610,9 +630,15 @@ class _HandState:
         return (self.seconds is not None and 0 <= beat - self.beat <= CHORD_BEATS
                 and 0 <= seconds - self.seconds <= CHORD_SECONDS and direction == self.direction)
 
+    def roll_after(self, beat, seconds, bpm, direction):
+        """(roll, finding) of ``movement.next_roll`` for a new swing cutting ``direction``."""
+        gap = None if self.seconds is None else seconds - self.seconds
+        return next_roll(self.roll, self.effective, direction, gap or 0.0, self.reset(beat, seconds, bpm) or not gap)
+
     def swing(self, slot, beat, seconds, bpm):
         direction = slot.value["direction"]
         if not self.merges(beat, seconds, direction):
+            self.roll = self.roll_after(beat, seconds, bpm, direction)[0]
             self.effective = next_effective(self.effective, direction, self.reset(beat, seconds, bpm))
             self.previous, self.direction = self.direction, direction
             self.seconds, self.beat = seconds, beat
@@ -641,10 +667,12 @@ def _cut_choices(slot, state, ahead, beat, seconds, bpm, joint, style=None):
             cost += SOFT
         if echo is not None and direction != echo:
             cost += ECHO
-        if direction == state.previous and not state.merges(beat, seconds, direction):
-            cost += (style or DEFAULT_STYLE).repeat_angle  # the same cut as this hand's swing before last
-        if state.effective is not None and gap and not reset and not state.merges(beat, seconds, direction):
-            if flow_break(state.effective, direction, hand, gap, False):
+        merged = state.merges(beat, seconds, direction)
+        if not merged:
+            roll_after, rolled = state.roll_after(beat, seconds, bpm, direction)
+            cost += _roll_cost(style, direction == state.previous, state.roll, roll_after)
+        if state.effective is not None and gap and not reset and not merged:
+            if flow_break(state.effective, direction, hand, gap, False) or rolled:
                 cost += BLOCK
         if ahead is not None and _cut_fixed(ahead) is not None and direction != 8:
             later_gap = ahead.seconds - seconds

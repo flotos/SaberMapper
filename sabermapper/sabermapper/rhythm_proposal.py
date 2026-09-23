@@ -870,7 +870,7 @@ def _adjust(chosen, issues, placed, evidence, reserve, fixed, removed, critique,
             for beat in _note_beats(placed, issue.get("object_ids") or []):
                 if beat in chosen and (code == "note_without_audio" or not protected(beat)):
                     drop(beat)
-        elif code in ("one_hand_burst", "fast_direction_break", "flow_parity_break", "hidden_note",
+        elif code in ("one_hand_burst", "fast_direction_break", "flow_parity_break", "wrist_roll", "hidden_note",
                       "arc_note_conflict", "chain_note_conflict", "reach_proxy"):
             targets = sorted({b for b in _note_beats(placed, issue.get("object_ids") or []) if b in chosen})
             # Dropping any swing of a run exactly BURST_SWINGS long ends it, so the weakest sound goes; a longer

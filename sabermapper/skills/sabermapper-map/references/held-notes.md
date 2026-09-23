@@ -36,9 +36,9 @@ Notes on the other hand inside the hold, and same-color chord notes on the
 head or tail beat, are fine. While the hold lasts, give every other sound to the
 other hand. When recoloring or moving a note, check whether a hold of its new color
 spans that beat. `project repair-swings` resolves remaining conflicts. It moves
-the note to the other hand when that hand is free. Otherwise it ends the arc on
-that cut when at least a beat of hold remains, or drops the arc and keeps its notes.
-For a chain it removes the inner note.
+the note to the other hand when that hand is free. Otherwise it splits the arc
+at the cut, head to cut and cut to tail, so the held sound stays held around it.
+Pieces shorter than a beat are dropped, and the notes stay. For a chain it removes the inner note.
 
 ## Held vocals take focus
 

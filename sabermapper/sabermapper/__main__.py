@@ -74,8 +74,8 @@ def main(argv=None):
                  "repair-visibility", "repair-audio", "set-album"):
         leaf = project_commands.add_parser(name, help={
             "set-album": "Set the album that groups this project in the studio's artist/album tree",
-            "repair-swings": "Fix same-color notes inside a held arc or chain (move to the other hand, end or "
-                             "drop the arc), then blocking fast_direction_break/flow_parity_break findings: "
+            "repair-swings": "Fix same-color notes inside a held arc or chain (move to the other hand, or split "
+                             "the arc at the cut), then blocking fast_direction_break/flow_parity_break findings: "
                              "drop 16th pickups or re-angle one cut (arc directions follow)",
             "repair-visibility": "Fix blocking hidden_note findings: move a note hidden behind the note in front "
                                  "of it in the same cell to a free neighbouring cell (arcs follow)",

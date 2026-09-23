@@ -227,14 +227,15 @@ class ArrangementTests(unittest.TestCase):
         self.assertEqual(result["bpmEvents"], [{"b": 10.0, "m": 150}])
         self.assertEqual([len(result[k]) for k in ("bombNotes", "obstacles", "sliders", "burstSliders")], [1] * 4)
 
-def held_saber(inner_beat="7/2", red=((1, 1, 1, 1), (6, 0, 1, 0))):
+def held_saber(inner_beat="7/2", red=((1, 1, 1, 1), (6, 0, 1, 0)), tail=(7, 0)):
     """End of You 0:42: a blue arc held from beat 2 to 7 with a blue cut inside it.
 
-    ``red`` lists (beat, x, y, direction) left-hand notes around the hold.
+    ``red`` lists (beat, x, y, direction) left-hand notes around the hold; ``tail`` is
+    the arc's (beat, direction).
     """
     notes = [{"id": "head", "beat": 2, "x": 3, "y": 2, "color": 1, "direction": 1},
              {"id": "inner", "beat": inner_beat, "x": 2, "y": 1, "color": 1, "direction": 0},
-             {"id": "tail", "beat": 7, "x": 2, "y": 0, "color": 1, "direction": 0}]
+             {"id": "tail", "beat": tail[0], "x": 2, "y": 0, "color": 1, "direction": tail[1]}]
     notes += [{"id": f"red{i}", "beat": beat, "x": x, "y": y, "color": 0, "direction": d}
               for i, (beat, x, y, d) in enumerate(red)]
     return {"schema_version": "0.1",
@@ -243,8 +244,8 @@ def held_saber(inner_beat="7/2", red=((1, 1, 1, 1), (6, 0, 1, 0))):
             "motifs": {}, "sections": [{"id": "s", "start_beat": 0, "length_beats": 16, "intent": "hold",
                                         "locked": False, "resolved": True, "patterns": [], "notes": notes,
                                         "arcs": [{"id": "hold", "beat": 2, "x": 3, "y": 2, "color": 1, "direction": 1,
-                                                  "tail_beat": 7, "tail_x": 2, "tail_y": 0,
-                                                  "tail_direction": 0}]}]}
+                                                  "tail_beat": tail[0], "tail_x": 2, "tail_y": 0,
+                                                  "tail_direction": tail[1]}]}]}
 
 
 class HeldSaberConflictTests(unittest.TestCase):
@@ -296,16 +297,28 @@ class HeldSaberConflictTests(unittest.TestCase):
         self.assertEqual((inner["beat"], inner["color"]), ("7/2", 0))
         self.assertEqual(section["arcs"][0]["tail_beat"], 7)
 
-    def test_repair_ends_the_arc_on_the_cut_when_the_other_hand_is_busy(self):
+    def spans(self, result):
+        return [(a["beat"], a["x"], a["y"], a["direction"], a["tail_beat"], a["tail_x"], a["tail_y"],
+                 a["tail_direction"]) for a in result["arrangement"]["sections"][0]["arcs"]]
+
+    def test_repair_splits_the_arc_at_the_cut_when_the_other_hand_is_busy(self):
+        # The hold resumes after the cut, so the held sound stays held on both sides of it.
         source = held_saber(red=((1, 1, 1, 1), ("13/4", 0, 1, 0), ("15/4", 0, 0, 1), (6, 0, 1, 0)))
         result = self.repair(source)
-        self.assertEqual([c["action"] for c in result["changes"]], ["shortened_arc"])
-        arc = result["arrangement"]["sections"][0]["arcs"][0]
-        self.assertEqual((arc["tail_beat"], arc["tail_x"], arc["tail_y"], arc["tail_direction"]), ("7/2", 2, 1, 0))
+        self.assertEqual([c["action"] for c in result["changes"]], ["split_arc"])
+        self.assertEqual(result["changes"][0]["to_spans"], [[2.0, 3.5], [3.5, 7.0]])
+        self.assertEqual(self.spans(result), [(2, 3, 2, 1, "7/2", 2, 1, 0), ("7/2", 2, 1, 0, 7, 2, 0, 0)])
         self.assertEqual(len(result["arrangement"]["sections"][0]["notes"]), 7)
 
-    def test_repair_drops_an_arc_with_no_hold_left(self):
+    def test_repair_drops_a_piece_shorter_than_a_beat(self):
         source = held_saber(inner_beat="5/2", red=((1, 1, 1, 1), ("9/4", 0, 1, 0), ("11/4", 0, 0, 1), (6, 0, 1, 0)))
+        result = self.repair(source)
+        self.assertEqual([c["action"] for c in result["changes"]], ["shortened_arc"])
+        self.assertEqual(self.spans(result), [("5/2", 2, 1, 0, 7, 2, 0, 0)])
+
+    def test_repair_drops_an_arc_with_no_hold_left(self):
+        source = held_saber(inner_beat="5/2", red=((1, 1, 1, 1), ("9/4", 0, 1, 0), ("11/4", 0, 0, 1), (6, 0, 1, 0)),
+                            tail=(3, 1))
         result = self.repair(source)
         self.assertEqual([c["action"] for c in result["changes"]], ["removed_arc"])
         section = result["arrangement"]["sections"][0]

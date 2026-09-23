@@ -75,8 +75,9 @@ a warning when locked). This followed a 2026-09-23 player report at End of You
 0:42. Because a blocking error suppresses the movement model,
 `repair_held_conflicts` runs first in `repair-swings`. It moves the note to the
 other hand if that hand is free, as audio repair's flow-safe insert does.
-Otherwise it ends the arc on the note when at least one beat of hold remains,
-or drops the arc and keeps its notes. A note inside a chain is removed. A
+Otherwise it splits the arc at the note (head to note, note to tail), so the
+held sound stays held around the cut. Pieces shorter than a beat are dropped,
+and the notes stay. A note inside a chain is removed. A
 strategy is applied only if it adds no blocking finding or `reach_proxy` warning.
 
 The following primary repositories were inspected on 2026-09-22:

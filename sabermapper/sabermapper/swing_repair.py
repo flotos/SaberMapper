@@ -26,7 +26,7 @@ BLOCKING_CODES = ("fast_direction_break", "flow_parity_break")
 HELD_CODES = ("arc_note_conflict", "chain_note_conflict")
 # Only a pickup this close to the next cut is dropped rather than re-angled.
 PICKUP_SECONDS = 0.2
-# An arc ended early on a conflicting note must still hold at least this long; otherwise it is dropped.
+# A piece of an arc split at same-color cuts must hold at least this long; shorter pieces are dropped.
 MIN_ARC_BEATS = Fraction(1)
 
 
@@ -161,7 +161,7 @@ def _blocking(arrangement):
             if d["severity"] == "error" or d["code"] == "reach_proxy"}
 
 
-def _resolve_hold(trial, sid, kind, item, move, shorten):
+def _resolve_hold(trial, sid, kind, item, move, split):
     """Reattach ``item`` to ``trial`` and clear its saber; return the change records, or None."""
     from .audio_repair import insert_note
     section = next(s for s in trial["sections"] if s["id"] == sid)
@@ -196,17 +196,35 @@ def _resolve_hold(trial, sid, kind, item, move, shorten):
         return steps
     ids = [oid] + [n["id"] for n in remaining]
     if kind == "arcs":
-        first = remaining[0]
-        if shorten and first["beat"] - head >= MIN_ARC_BEATS:
-            item.update(tail_beat=_relative(first["beat"] - start), tail_x=first["x"], tail_y=first["y"],
-                        tail_direction=first["direction"])
-            steps.append({"object_ids": ids, "code": code, "beat": float(first["beat"]), "action": "shortened_arc",
-                          "object_id": oid, "from_tail_beat": float(tail), "to_tail_beat": float(first["beat"]),
-                          "reason": "the arc now ends on the first same-color cut instead of holding through it"})
-        else:
-            section["arcs"].remove(item)
+        # Split the hold at every same-color cut: head -> cut -> ... -> tail, each piece
+        # anchored on its end notes, so the held sound stays held around the cuts.
+        ends = [(head, item["x"], item["y"], item["direction"])]
+        for note in remaining:
+            if note["beat"] != ends[-1][0]:
+                ends.append((note["beat"], note["x"], note["y"], note["direction"]))
+        ends.append((tail, item["tail_x"], item["tail_y"], item["tail_direction"]))
+        pieces = [(a, b) for a, b in zip(ends, ends[1:]) if b[0] - a[0] >= MIN_ARC_BEATS] if split else []
+        section["arcs"].remove(item)
+        taken = {arc["id"] for arc in section["arcs"]}
+        for number, (a, b) in enumerate(pieces):
+            aid = item["id"] if number == 0 else f'{item["id"]}-{number + 1}'
+            while aid in taken:
+                aid += "x"
+            taken.add(aid)
+            section["arcs"].append({**item, "id": aid, "beat": _relative(a[0] - start), "x": a[1], "y": a[2],
+                                    "direction": a[3], "tail_beat": _relative(b[0] - start), "tail_x": b[1],
+                                    "tail_y": b[2], "tail_direction": b[3]})
+        spans = [[float(a[0]), float(b[0])] for a, b in pieces]
+        if not pieces:
             steps.append({"object_ids": ids, "code": code, "beat": float(head), "action": "removed_arc",
-                          "object_id": oid, "reason": "no hold is left before the same-color cut; its notes stay"})
+                          "object_id": oid, "reason": f"no piece of the hold between same-color cuts lasts "
+                                                      f"{MIN_ARC_BEATS} beat; its notes stay"})
+        else:
+            steps.append({"object_ids": ids, "code": code, "beat": float(remaining[0]["beat"]),
+                          "action": "split_arc" if len(pieces) > 1 else "shortened_arc", "object_id": oid,
+                          "from_span": [float(head), float(tail)], "to_spans": spans,
+                          "reason": "the hold now breaks at each same-color cut and resumes after it; "
+                                    f"pieces under {MIN_ARC_BEATS} beat are dropped"})
         return steps
     literal = _literal_notes(trial)
     for note in remaining:
@@ -228,8 +246,9 @@ def repair_held_conflicts(arrangement: dict) -> dict:
     diagnostic or ``reach_proxy`` warning wins:
 
     1. move each inner note to the other hand when that hand is free (a flow-safe cut
-       and reachable cell, at least half a beat from its own swings), then end an arc on
-       the first note still inside it if MIN_ARC_BEATS of hold remain, else drop the arc;
+       and reachable cell, at least half a beat from its own swings), then split an arc
+       at every note still inside it: head -> cut -> ... -> tail, keeping the pieces
+       of at least MIN_ARC_BEATS (the arc is dropped when none is that long);
     2. the same without moving notes;
     3. drop the arc (its head and tail notes stay).
 
@@ -260,11 +279,11 @@ def repair_held_conflicts(arrangement: dict) -> dict:
     baseline = _blocking(result)
     pending = []
     for oid, sid, kind, item in detached:
-        for move, shorten in ((True, True), (False, True), (False, False)):
-            if kind == "chains" and not shorten:
+        for move, split in ((True, True), (False, True), (False, False)):
+            if kind == "chains" and not split:
                 continue
             trial = copy.deepcopy(result)
-            steps = _resolve_hold(trial, sid, kind, copy.deepcopy(item), move, shorten)
+            steps = _resolve_hold(trial, sid, kind, copy.deepcopy(item), move, split)
             if steps is not None and not _blocking(trial) - baseline:
                 result = trial
                 changes += steps

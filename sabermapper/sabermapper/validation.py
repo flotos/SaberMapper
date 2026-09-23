@@ -325,7 +325,7 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
             for note in expanded:
                 if note[3] != item["color"] or not head < note[0] < tail:
                     continue
-                severity, advice = "error", (f"give the note to the other hand, end the {kind[:-1]} on or before it, "
+                severity, advice = "error", (f"give the note to the other hand, split the {kind[:-1]} at it, "
                                              "or remove it (project repair-swings does this)")
                 if sid in locked_ids and note[-2] in locked_ids:
                     severity, advice = "warning", "section is locked, unlock it to repair"

@@ -177,9 +177,13 @@ def main(argv=None):
     register_style(commands)
     from .workspace_cli import register_workspace, dispatch_workspace
     register_workspace(commands)
+    from .blender import register_blender, dispatch_blender
+    register_blender(commands)
     args = parser.parse_args(argv)
     try:
         if (code := dispatch_workspace(args, emit)) is not None:
+            return code
+        if (code := dispatch_blender(args, emit)) is not None:
             return code
         if (code := dispatch_game(args, emit)) is not None:
             return code

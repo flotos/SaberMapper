@@ -99,9 +99,11 @@ class PresentationTests(unittest.TestCase):
 
 
 class PlainExportRegressionTests(unittest.TestCase):
-    def test_0_1_export_is_byte_identical_to_the_pre_vivify_golden(self):
+    def test_0_1_export_is_byte_identical_to_the_golden(self):
+        # Digests of a plain 0.1 export; the Vivify layer must never change it. (Re-recorded on 2026-09-23 when
+        # the swing-flow parity rule made the old example chart invalid; the Vivify code is unchanged.)
         golden = read_json(fx.FIXTURES / "plain-0.1-export-golden.json")
-        arrangement = read_json(Path(__file__).resolve().parents[1] / "examples" / "synthetic-arrangement.json")
+        arrangement = fx.arrangement("0.1")
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "map.zip"
             export_arrangement(arrangement, AUDIO, COVER, output)
@@ -348,7 +350,7 @@ class ValidationRuleTests(BundleCase):
         drop = arrangement["sections"][1]
         drop["presentation"]["attention"] = {"notes": 0.3, "scene": 0.7}
         drop["notes"] = self.stream()
-        _, result = self.compile([], arrangement)
+        _, result = self.compile([], fx.alternate_swings(arrangement))
         self.assertIn("attention_over_budget", codes(result["diagnostics"]))
         self.assertTrue(errors(result["diagnostics"], "choreographed_note_jump_missing"))
         _, result = self.compile([self.primitive("float")], fx.arrangement(choreographed=True))
@@ -357,7 +359,8 @@ class ValidationRuleTests(BundleCase):
         self.assertIn("choreographed_njs_high", codes(self.compile([fast], fx.arrangement(choreographed=True))[1]["diagnostics"]))
         arrangement = fx.arrangement(choreographed=True)
         arrangement["sections"][2]["notes"] = self.stream()
-        self.assertIn("choreographed_density", codes(self.compile([self.primitive("float")], arrangement)[1]["diagnostics"]))
+        self.assertIn("choreographed_density",
+                      codes(self.compile([self.primitive("float")], fx.alternate_swings(arrangement))[1]["diagnostics"]))
         wrong = dict(self.primitive("float"), section="drop")
         self.assertTrue(errors(self.compile([wrong])[1]["diagnostics"], "path_requires_choreographed"))
         blended = dict(self.primitive("grey"), section="drop", keyframes=[])

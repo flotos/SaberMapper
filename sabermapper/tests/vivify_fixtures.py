@@ -35,7 +35,18 @@ def arrangement(version="0.2", choreographed=False):
         sections[1]["presentation"] = {"family": "scene", "attention": {"notes": 0.7, "scene": 0.3},
                                        "note_style": "plain"}
         sections[2]["presentation"] = {"family": "none", "note_style": "choreographed" if choreographed else "plain"}
-    return result
+    return alternate_swings(result)
+
+
+def alternate_swings(arrangement: dict) -> dict:
+    """Each hand alternates down and up cuts in beat order, so the chart passes the swing-flow checks."""
+    notes = sorted(((section["start_beat"] + n["beat"], n) for section in arrangement["sections"]
+                    for n in section["notes"]), key=lambda item: item[0])
+    swings = {0: 0, 1: 0}
+    for _, item in notes:
+        item["direction"] = (1, 0)[swings[item["color"]] % 2]
+        swings[item["color"]] += 1
+    return arrangement
 
 
 def report():

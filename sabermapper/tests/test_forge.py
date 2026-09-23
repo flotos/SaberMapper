@@ -328,6 +328,13 @@ class BuildDriverTests(ForgeTestCase):
         self.assertIn("assets/sabermapper/demo-song/prefabs/ring.prefab", info["prefabs"].values())
         self.assertEqual(1234567890, result["crc"])
         self.assertEqual("_windows2021", result["crc_key"])
+        # The show compiler's reader accepts the forge output as is.
+        from sabermapper.vivify import read_bundle
+        bundle_set = read_bundle(assets)
+        self.assertEqual(["_windows2021"], bundle_set["shipped"])
+        self.assertEqual({"_windows2021": 1234567890}, bundle_set["crcs"])
+        self.assertIn("assets/sabermapper/demo-song/prefabs/ring.prefab", bundle_set["prefabs"])
+        self.assertTrue(all(m["properties"]["_Strength"]["type"] == "Float" for m in bundle_set["materials"].values()))
         self.assertEqual([str(bundle)], result["bundle_paths"])
         self.assertTrue((assets / "build-report.json").is_file() and (assets / "build.log").is_file())
         self.assertTrue((assets / "builds" / result["build_id"] / "build-report.json").is_file())

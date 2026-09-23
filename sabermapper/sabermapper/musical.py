@@ -17,7 +17,7 @@ import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 import soundfile as sf
 from scipy.fft import irfft, next_fast_len, rfft
-from scipy.ndimage import median_filter
+from scipy.ndimage import median_filter, percentile_filter
 from scipy.signal import find_peaks, istft, resample_poly, stft
 
 from .audio import _decode, _hash
@@ -75,6 +75,10 @@ MELODY_MEDIAN_FRAMES = 5
 MELODY_HOLD_SECONDS = .15
 MELODY_BRIDGE_SECONDS = .5
 MELODY_FLOOR = .15
+# Strength is the new note's level against the surrounding context, so a soft intro's line
+# scores like a loud chorus's; the context never drops below MELODY_CONTEXT_FLOOR of the song.
+MELODY_CONTEXT_SECONDS = 8.0
+MELODY_CONTEXT_FLOOR = .3
 MELODY_ATTACK_BEFORE, MELODY_ATTACK_AFTER = .12, .05
 RHYTHM_DIVISIONS = (2, 3, 4, 6, 8, 12)
 RHYTHM_METHODS = ("spectral_flux", "pitch_change", "chord_change", "melody_change")
@@ -362,6 +366,8 @@ def _melody_changes(name, samples, duration, attacks=()):
     note that follows another at a different pitch within MELODY_BRIDGE_SECONDS is a
     melody_change. The long window reports the change late, so it moves onto the layer's
     own attack between MELODY_ATTACK_BEFORE s before and MELODY_ATTACK_AFTER s after it.
+    Strength compares the new note's level with the 95th percentile of the surrounding
+    MELODY_CONTEXT_SECONDS, floored at MELODY_CONTEXT_FLOOR times the song's.
     """
     if len(samples) < MELODY_WINDOW:
         return []
@@ -386,6 +392,8 @@ def _melody_changes(name, samples, duration, attacks=()):
     if ceiling <= 1e-12:
         return []
     voiced = level >= MELODY_FLOOR * ceiling
+    span = max(1, round(MELODY_CONTEXT_SECONDS * RATE / MELODY_HOP)) | 1
+    context = np.maximum(percentile_filter(level, 95, size=span, mode="nearest"), MELODY_CONTEXT_FLOOR * ceiling)
     hold = max(1, round(MELODY_HOLD_SECONDS * RATE / MELODY_HOP))
     runs, begin = [], None
     for index in range(len(best) + 1):
@@ -406,7 +414,7 @@ def _melody_changes(name, samples, duration, attacks=()):
         seconds = float(near[np.argmin(np.abs(near - seconds))]) if len(near) else seconds
         events.append({"id": f"{name}:melody_change:{int(start)}", "seconds": round(seconds, 6),
                        "method": "melody_change",
-                       "strength": round(min(1.0, float(np.mean(level[start:end + 1])) / ceiling), 5),
+                       "strength": round(min(1.0, float(np.mean(level[start:end + 1] / context[start:end + 1]))), 5),
                        "from_midi": int(best[first]), "to_midi": int(best[start]), "semitone_delta": delta,
                        "hold_seconds": round(float(times[end] - times[start]) + MELODY_HOP / RATE, 3)})
     return events
@@ -515,8 +523,9 @@ def analyze_layers(audio, output, *, backend="bands", preset="balanced", manifes
                               "separator bleed can trigger them.",
                               "melody_change events follow the predominant pitch (harmonic salience over a "
                               f"{MELODY_WINDOW / RATE:.2f} s window, MIDI {MELODY_MIDI[0]}-{MELODY_MIDI[1]}) when it settles on "
-                              f"a new note held {MELODY_HOLD_SECONDS:g} s or more; on a dense mix the line can jump "
-                              "between instruments, so read it where one pitched part leads.",
+                              f"a new note held {MELODY_HOLD_SECONDS:g} s or more; strength is relative to the surrounding "
+                              f"{MELODY_CONTEXT_SECONDS:g} s, so soft passages score like loud ones. On a dense mix the "
+                              "line can jump between instruments, so read it where one pitched part leads.",
                               "No human timing review or playtest is implied."]}
     settings = PRESETS[preset]
     report["layers"]["mix"] = _lane(samples, "mix", settings)

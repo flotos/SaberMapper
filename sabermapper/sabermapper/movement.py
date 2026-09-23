@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from math import atan2, cos, degrees, hypot, isfinite, radians, sin
 
-MODEL_VERSION = "1.7"
+MODEL_VERSION = "1.8"
 # A same-hand swing arriving sooner than this must nearly reverse the previous
 # cut; a sideways (90-degree) or repeated cut this fast forces a wrist reset.
 FAST_BREAK_SECONDS = 0.3
@@ -33,8 +33,16 @@ REACH_SPEED = 12
 CHORD_BEATS = 1 / 16
 CHORD_SECONDS = 0.06
 # A stack (same-hand notes at one instant, one cut) reads as one longer note: its cells form an unbroken
-# line along the cut (vertical for an up or down cut, diagonal for a diagonal one), two or three long.
+# line along the cut (vertical for an up or down cut, diagonal for a diagonal one), two or three long. A stack
+# of three runs vertically or diagonally, never sideways across a row.
 STACK_MAX_NOTES = 3
+# A cut sweeps the saber from one cell before its note to one cell past it along the cut. A note of the other
+# color in those cells at the same instant is hit by that gesture: the cut forces a bad cut.
+CUT_REACH_CELLS = 1
+# The other hand's notes at a stack's instant keep a free cell away from every stack cell (no touching,
+# not even at the stack's tip or corner-to-corner), so the two colors never read as one block.
+# A stack covers more of the view than one note: a later note in any of its cells stays hidden this long.
+STACK_HIDDEN_SECONDS = 0.4
 _VECTORS = {0: (0, 1), 1: (0, -1), 2: (-1, 0), 3: (1, 0),
             4: (-1, 1), 5: (1, 1), 6: (-1, -1), 7: (1, -1)}
 _OPPOSITE = {0: 1, 1: 0, 2: 3, 3: 2, 4: 7, 7: 4, 5: 6, 6: 5}
@@ -83,18 +91,55 @@ def turn_degrees(previous, direction, previous_angle=0.0, angle=0.0):
 def stack_line(cells, direction) -> bool:
     """True when ``cells`` (same-hand notes at one instant) form one unbroken line along ``direction``.
 
-    A dot stack may lie along any of the eight directions.
+    A dot stack may lie along any of the eight directions. A stack of STACK_MAX_NOTES never runs sideways (a left
+    or right cut, or a dot stack along a row).
     """
     cells = sorted(set(cells))
     if len(cells) < 2:
         return len(cells) == 1
     vectors = [_VECTORS[direction]] if direction != 8 else list(_VECTORS.values())
+    if len(cells) >= STACK_MAX_NOTES:
+        vectors = [(vx, vy) for vx, vy in vectors if vy != 0]
     for vx, vy in vectors:
         for start in cells:
             line = {(start[0] + k * vx, start[1] + k * vy) for k in range(len(cells))}
             if line == set(cells):
                 return True
     return False
+
+
+def cut_path(x, y, direction):
+    """Cells a cut through (x, y) sweeps: CUT_REACH_CELLS before the note, the note, and as many past it.
+
+    A dot has no fixed path: only its own cell.
+    """
+    if direction == 8:
+        return {(x, y)}
+    vx, vy = _VECTORS[direction]
+    cells = {(x + k * vx, y + k * vy) for k in range(-CUT_REACH_CELLS, CUT_REACH_CELLS + 1)}
+    return {(cx, cy) for cx, cy in cells if 0 <= cx <= 3 and 0 <= cy <= 2}
+
+
+def cut_path_collisions(notes: list) -> list:
+    """Blocking findings for notes whose cut sweeps through a note of the other color at the same instant."""
+    at_beat = {}
+    for note in notes:
+        at_beat.setdefault(note["beat"], []).append(note)
+    found = []
+    for beat, group in sorted(at_beat.items()):
+        for note in group:
+            path = cut_path(note["x"], note["y"], note["direction"])
+            for other in group:
+                if other["color"] != note["color"] and (other["x"], other["y"]) in path:
+                    found.append({"code": "cut_path_blocked", "note_ids": [note["id"], other["id"]], "beat": beat,
+                                  "confidence": "high", "severity": "error",
+                                  "reason": f"the {'right' if note['color'] else 'left'} hand's cut at "
+                                            f"({note['x']},{note['y']}) sweeps through the other color's note at "
+                                            f"({other['x']},{other['y']}) at the same instant, so the gesture hits "
+                                            "the wrong note. Move either note off the cut's line or re-angle the "
+                                            "cut; unpin their cells to let the placer choose (project check lists "
+                                            "edits that clear it)"})
+    return found
 
 
 def is_rest(gap_seconds):
@@ -152,8 +197,12 @@ def one_hand_bursts(swings: list) -> list:
 
 
 def stack_shapes(swings: list, notes: list) -> list:
-    """Review warnings for stacks that do not read as one longer note (see STACK_MAX_NOTES)."""
+    """Review warnings for stacks that do not read as one longer note (see STACK_MAX_NOTES), and for stacks the
+    other hand's note touches at the same instant (``stack_touch``)."""
     by_id = {n["id"]: n for n in notes}
+    at_beat = {}
+    for note in notes:
+        at_beat.setdefault(note["beat"], []).append(note)
     found = []
     for swing in swings:
         if len(swing["note_ids"]) < 2:
@@ -162,29 +211,41 @@ def stack_shapes(swings: list, notes: list) -> list:
         if len(stacked) < 2:
             continue  # notes a sixteenth apart cut in one swing are no stack
         cells = [(n["x"], n["y"]) for n in stacked]
+        touching = [n for n in at_beat[swing["beat"]] if n["color"] != swing["hand"]
+                    and any(max(abs(n["x"] - x), abs(n["y"] - y)) <= 1 for x, y in cells)]
+        if touching:
+            found.append({"code": "stack_touch", "note_ids": [n["id"] for n in stacked + touching],
+                          "beat": swing["beat"], "confidence": "medium",
+                          "reason": f"the {'right' if swing['hand'] else 'left'} hand's stack at "
+                                    f"{', '.join(f'({x},{y})' for x, y in cells)} touches the other hand's note at "
+                                    f"{', '.join(f'({n['x']},{n['y']})' for n in touching)} at the same instant, so the "
+                                    "two colors read as one block; keep a free cell between them (move the other "
+                                    "note or the stack, or unpin their cells so the placer separates them)"})
         if len(stacked) <= STACK_MAX_NOTES and stack_line(cells, swing["direction"]):
             continue
         found.append({"code": "stack_shape", "note_ids": [n["id"] for n in stacked], "beat": swing["beat"],
                       "confidence": "medium",
                       "reason": f"{'right' if swing['hand'] else 'left'} hand stacks {len(stacked)} notes at "
                                 f"{', '.join(f'({x},{y})' for x, y in cells)}; a stack reads as one longer note "
-                                f"only as {STACK_MAX_NOTES} or fewer notes in an unbroken line along their cut. "
-                                "Move a note onto the line, drop one, or unpin the cells (and cut) so the "
-                                "placer lines them up"})
+                                f"only as {STACK_MAX_NOTES} or fewer notes in an unbroken line along their cut, "
+                                f"and {STACK_MAX_NOTES} only vertically or diagonally, never sideways. Move a note "
+                                "onto the line, drop one, or unpin the cells (and cut) so the placer lines them up"})
     return found
 
 
-def hidden_window(x, y):
-    """Seconds a later note must trail the note in front of it in cell (x, y)."""
-    return SIGHTLINE_HIDDEN_SECONDS if x in (1, 2) and y >= 1 else HIDDEN_SECONDS
+def hidden_window(x, y, stacked=False):
+    """Seconds a later note must trail the note in front of it in cell (x, y) (a note of a stack when ``stacked``)."""
+    window = SIGHTLINE_HIDDEN_SECONDS if x in (1, 2) and y >= 1 else HIDDEN_SECONDS
+    return max(window, STACK_HIDDEN_SECONDS) if stacked else window
 
 
-def hidden_note(gap_seconds, x, y):
+def hidden_note(gap_seconds, x, y, stacked=False):
     """Return the blocking finding for a note ``gap_seconds`` behind another in its cell, or None."""
-    window = hidden_window(x, y)
+    window = hidden_window(x, y, stacked)
     if not 0 < gap_seconds < window:
         return None
-    where = "a centre line-of-sight cell" if window == SIGHTLINE_HIDDEN_SECONDS else "the same cell"
+    where = ("a stack's cell" if stacked else
+             "a centre line-of-sight cell" if window == SIGHTLINE_HIDDEN_SECONDS else "the same cell")
     return ("hidden_note",
             f"note at ({x},{y}) arrives {gap_seconds:.3f}s behind the note in front of it in {where}, "
             f"which hides it until that note is cut; same-cell notes need {window}s here. "
@@ -233,12 +294,13 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
     clean.sort(key=lambda n: (n["seconds"], n["color"], n["id"]))
     swings, warnings, previous, flow = [], [], {0: None, 1: None}, {0: None, 1: None}
     front = {}  # (x, y) -> latest note in that cell
+    stacked = set()  # IDs of notes cut in a stack (same hand, same beat)
     distances, speed_pairs, recovery, angular_changes = [], [], [], []
     crossover_count = 0
     for note in clean:
         cell = (note["x"], note["y"])
         ahead = front.get(cell)
-        found = ahead and hidden_note(note["seconds"] - ahead["seconds"], *cell)
+        found = ahead and hidden_note(note["seconds"] - ahead["seconds"], *cell, ahead["id"] in stacked)
         if found:
             warnings.append({"code": found[0], "note_ids": [ahead["id"], note["id"]], "beat": note["beat"],
                              "confidence": "high", "severity": "error", "reason": found[1]})
@@ -255,6 +317,8 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
             prior["y"] = (prior["y"] * count + note["y"]) / (count + 1)
             prior["simultaneous"] = True
             prior["reason"] = "same-hand chord with matching cut direction"
+            if beat_gap == 0:
+                stacked.update(prior["note_ids"])
             continue
         if prior and beat_gap == 0 and gap == 0:
             warnings.append({"code": "simultaneous_direction_conflict", "note_ids": [prior["note_ids"][-1], note["id"]],
@@ -298,6 +362,7 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
             flow[note["color"]] = ((_OPPOSITE[effective[0]], effective[1])
                                    if effective and not reset else None)
     warnings.extend(stack_shapes(swings, clean))
+    warnings.extend(cut_path_collisions(clean))
     warnings.extend(one_hand_bursts(swings))
     span = swings[-1]["seconds"] - swings[0]["seconds"] if len(swings) > 1 else 0
     longest, run = (1, 1) if swings else (0, 0)

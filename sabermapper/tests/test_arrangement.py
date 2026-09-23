@@ -20,7 +20,7 @@ def arrangement():
 def held_notes():
     """Head/tail color notes matching the shared arc and chain fixtures."""
     return [{"id": "arc-head", "beat": 1, "x": 1, "y": 0, "color": 0, "direction": 0},
-            {"id": "arc-tail", "beat": 2, "x": 2, "y": 1, "color": 0, "direction": 1},
+            {"id": "arc-tail", "beat": 2, "x": 1, "y": 1, "color": 0, "direction": 1},
             {"id": "chain-head", "beat": 2, "x": 2, "y": 0, "color": 1, "direction": 1}]
 
 
@@ -230,7 +230,7 @@ class ArrangementTests(unittest.TestCase):
         section["obstacles"] = [{"id": "wall", "beat": 1, "duration_beats": 1,
                                  "x": 0, "y": 0, "width": 1, "height": 5}]
         section["arcs"] = [{"id": "arc", "beat": 1, "x": 1, "y": 0, "color": 0,
-                            "direction": 0, "tail_beat": 2, "tail_x": 2, "tail_y": 1, "tail_direction": 1}]
+                            "direction": 0, "tail_beat": 2, "tail_x": 1, "tail_y": 1, "tail_direction": 1}]
         section["chains"] = [{"id": "chain", "beat": 2, "x": 2, "y": 0, "color": 1,
                               "direction": 1, "tail_beat": 3, "tail_x": 2, "tail_y": 1, "slice_count": 3}]
         section["notes"].extend(held_notes())
@@ -322,7 +322,7 @@ class HeldObjectConnectionTests(unittest.TestCase):
         section = source["sections"][0]
         section["notes"].extend(held_notes())
         section["arcs"] = [{"id": "arc", "beat": 1, "x": 1, "y": 0, "color": 0,
-                            "direction": 0, "tail_beat": 2, "tail_x": 2, "tail_y": 1, "tail_direction": 1}]
+                            "direction": 0, "tail_beat": 2, "tail_x": 1, "tail_y": 1, "tail_direction": 1}]
         section["chains"] = [{"id": "chain", "beat": 2, "x": 2, "y": 0, "color": 1,
                               "direction": 1, "tail_beat": 3, "tail_x": 2, "tail_y": 1, "slice_count": 3}]
         return source

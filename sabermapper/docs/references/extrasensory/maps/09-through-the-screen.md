@@ -99,6 +99,32 @@ not a public library.
   open list. Our exporter should carry through whatever the arrangement declares rather than assuming
   a fixed set.
 
+## How the idea follows from the song
+
+**Song.** RXLZQ's Through the Screen (Goost Music, 2022), electronica. The cover in the map folder
+shows a head pushing through a membrane and meeting its own reflection. Mawntee's description is a
+line about everyone being a fellow traveller. Lyric content is not verified here.
+
+**Verified in the files (Expert+).** Beat 0: scene 1, an "always enabled" prefab, two saber clones,
+HUD panels moved; the file carries 200 fake notes. Beats 52–66: the projector colour flashes red then
+white and ambient light dims; it returns at 160. Beat 190 (71 s): scene 2. Beat 194 (72.8 s): the
+pack's only mid-map possession, `Head` onto `noHead?`; over 196–223 the head moves 1.15 up and
+9.21 m back, then returns by 228. Notes per 16 beats across 176–223: 5, 2, 0. 224.5: a `ViewYoinker`
+prefab follows the head. 323–348 (121–130 s): a head-following camera and four screens that fly in
+and out, scene-3 scenery at 330; notes rise to 29 and 36 per 16 beats in 336–367. All is destroyed
+at 400.
+
+**Interpretation.** The title and the cover give the idea: the player passes through the screen and
+sees themself from outside. Motifs: screens and projection, the self-view (saber clones,
+head-following cameras), light flipping between bright and dark. Key moments: the pull-back at 194,
+prepared by an empty window, and the four screens of the last section, held for the end, which read
+as showing the player back to themself. Possession `head`, timed rather than set up at beat 0.
+
+Sources: [BeatSaver 43a5d](https://beatsaver.com/maps/43a5d) ·
+[Through the Screen (BandLink)](https://band.link/6KGba) ·
+[Through the Screen (SoundCloud)](https://soundcloud.com/rxlzq/through-the-screen) ·
+[Through the Screen (Spotify)](https://open.spotify.com/track/4sD9sIhkY0E1uqWw2vsmFP)
+
 ## Required assets
 
 Not in the BeatSaver zip (except where noted) — Vivify fetches these from LunarRepo at play

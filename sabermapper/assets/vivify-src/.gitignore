@@ -1,0 +1,13 @@
+# Unity regenerates everything below; `sabermapper assets build` copies this template to a machine-local
+# build project (%LOCALAPPDATA%/SaberMapper/forge/) so these never appear here in normal use.
+Library/
+Temp/
+Logs/
+obj/
+UserSettings/
+Build/
+*.csproj
+*.sln
+*.meta
+Assets/XR/
+Assets/SaberMapper/Staging/

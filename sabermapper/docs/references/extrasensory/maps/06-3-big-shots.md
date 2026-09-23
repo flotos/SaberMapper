@@ -95,6 +95,34 @@ Everywhere else in EXSII walls are absent.
 - A meme concept was given a full modchart treatment and shipped as map 6 of a flagship pack. Tone and
   technical ambition are independent axes.
 
+## How the idea follows from the song
+
+**Song.** Grambam36's YTPMV (2022) cuts the Kitchen Gun advert parody (Peter Serafinowicz, 2007)
+against BIG SHOT, Spamton NEO's battle theme from *Deltarune* Chapter 2 by Toby Fox. Manic and comic;
+the words are advert samples rather than song lyrics.
+
+**Verified in the files (Expert+).** No `AssignPlayerToTrack`: possession `none`. Beat 0: a TV plane,
+screens at 2 and 16.5. Beat 36 (15 s): alley, posters, field. Beat 68.5 (29 s): city, tracks, cars,
+`ralsei`, `susie`, left and right wings and eight `string` prefabs. Beat 100 (43 s): `kitchen`; at
+101–106 and 117–122 a screen texture is captured and `oldmat.mat` flashes eight times at quarter-beat
+spacing. 130.88: `world`, two `chaos` prefabs and a note-wiggle camera Blit. 172: five toilets. 196:
+the alley set again. 228 (98 s): papers and 50 screens. 260.5 (112 s): the city, wings and strings
+set is rebuilt; freeze-frame bursts return at 277–290, and 28 walls plus a `crouch.mat` Blit sit in
+288–303. Note colours: left #fe6fda, right #f1e100.
+
+**Interpretation.** The map cuts between the two source worlds the way the video does: the advert
+(TV screens, kitchen, toilets, freeze-frame "shots") and *Deltarune* (alley, Ralsei, Susie, and a
+winged figure on strings that reads as Spamton NEO). Pink and yellow notes echo Spamton's colours.
+Motifs: TV screens, freeze-frames, the puppet-string set. They develop from single screens to a
+full set, then to screens multiplied by fifty. Held for the end is the reprise at 260.5, which
+brings back the string set together with the freeze-frames and the map's only wall section.
+
+Sources: [BeatSaver 43a4a](https://beatsaver.com/maps/43a4a) ·
+[Grambam36 on Bandcamp](https://grambam36.bandcamp.com/track/3-big-shots-from-kitchen-gun) ·
+[Kitchen Gun (Know Your Meme)](https://knowyourmeme.com/memes/kitchen-gun) ·
+[BIG SHOT (Deltarune Wiki)](https://deltarune.fandom.com/wiki/BIG_SHOT) ·
+[droobix/map-source-files](https://github.com/droobix/map-source-files)
+
 ## Required assets
 
 Not in the BeatSaver zip (except where noted) — Vivify fetches these from LunarRepo at play

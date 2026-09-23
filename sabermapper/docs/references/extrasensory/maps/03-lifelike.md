@@ -93,6 +93,32 @@ remembering when reading EXSII metadata as difficulty evidence, because it is no
 - Declaring no Android bundle is a legitimate, explicit scoping decision, recorded in Info.dat. If we
   ever emit Vivify maps we should make the platform set explicit rather than implicit.
 
+## How the idea follows from the song
+
+**Song.** The instrumental opener of Porter Robinson's *Nurture* (2021): a soft, piano-led piece
+that grows, on an album about the beauty of the real world. Robinson is reported to describe it as
+the step from the cover's black void into the things worth showing (quoted in coverage of his album
+notes; the original page could not be fetched).
+
+**Verified in the files (Normal).** One `AssignPlayerToTrack` at beat 0 onto `PlayerTrack`, no
+target, with the note, arc and chain tracks parented to it: possession `player`. Beat 0: a black
+skybox and a warm camera Blit. Beat 2: two door prefabs and a scribble. Beats 16–18 (~10 s): doors
+and scribble removed, a cloud spiral, a piano and track text appear; the first note is at 17. Beat
+58 (34.6 s): black skybox and piano replaced by a day skybox, clouds and grass. Beat 72: the player
+track moves. Beat 122 (72.7 s): sunset skybox and water, and the piano and scribble return. All is
+destroyed at 153.75. Every note is coloured white or black; light events use a warm #ffa393.
+
+**Interpretation.** The map stages that description literally: the player starts in a void, doors
+open, and the world is filled in around them. Motifs: void giving way to sky, the piano as the
+visible instrument, the hand-drawn scribble, the four-plane room. They develop from void (intro)
+to daylight (main body) to sunset, where piano and scribble come back; that final section is the
+moment held for the end.
+
+Sources: [BeatSaver 43a25](https://beatsaver.com/maps/43a25) ·
+[Nurture review, The Maine Campus](https://mainecampus.com/category/culture/2022/12/porter-robinsons-nurture-meditates-on-expectations-and-creativity/) ·
+[Nurture review, Spectrum Culture](https://spectrumculture.com/2021/04/27/porter-robinson-nurture-review/) ·
+[Nurture on Apple Music](https://music.apple.com/us/album/nurture/1550626757)
+
 ## Required assets
 
 Not in the BeatSaver zip (except where noted) — Vivify fetches these from LunarRepo at play

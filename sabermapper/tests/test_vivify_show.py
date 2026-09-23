@@ -479,6 +479,29 @@ class VivifiedExportTests(BundleCase):
         self.assertNotIn("_provenance", json.dumps(report))
         self.assertIn("bundle_platform_missing", codes(report["vivify"]["warnings"]))
 
+    def test_note_colors_become_the_map_colour_scheme(self):
+        arrangement = fx.arrangement(choreographed=True)
+        arrangement["presentation"]["note_colors"] = {"left": "#4dff59", "right": [0.95, 1, 0.95]}
+        self.assertFalse(errors(validate_arrangement(arrangement), "invalid_presentation"))
+        output, _ = self.export(arrangement, show=fx.show(), bundle_dir=self.bundle_dir, evidence=EVIDENCE)
+        with ZipFile(output) as archive:
+            info = json.loads(archive.read("Info.dat"))
+        scheme = info["_colorSchemes"][0]
+        self.assertTrue(scheme["useOverride"])
+        self.assertEqual(scheme["colorScheme"]["saberAColor"], {"r": 0.302, "g": 1.0, "b": 0.349, "a": 1.0})
+        self.assertEqual(scheme["colorScheme"]["saberBColor"], {"r": 0.95, "g": 1.0, "b": 0.95, "a": 1.0})
+        entry = info["_difficultyBeatmapSets"][0]["_difficultyBeatmaps"][0]
+        self.assertEqual(entry["_beatmapColorSchemeIdx"], 0)
+        self.assertEqual(entry["_customData"]["_colorLeft"], {"r": 0.302, "g": 1.0, "b": 0.349})
+        self.assertEqual(entry["_customData"]["_requirements"], ["Vivify", "Noodle Extensions", "Chroma"])
+        with ZipFile(output.with_name("map-vanilla.zip")) as archive:
+            twin = json.loads(archive.read("Info.dat"))
+        self.assertEqual(twin["_colorSchemes"], info["_colorSchemes"])
+        self.assertNotIn("_customData", twin["_difficultyBeatmapSets"][0]["_difficultyBeatmaps"][0])
+        for bad in ({"left": "#4dff59"}, {"left": "green", "right": "#ffffff"}):
+            arrangement["presentation"]["note_colors"] = bad
+            self.assertTrue(errors(validate_arrangement(arrangement), "invalid_presentation"))
+
     def test_exporter_never_computes_crcs_and_fails_on_errors(self):
         (self.bundle_dir / "bundleAndroid2021.vivify").write_bytes(b"x")
         with self.assertRaisesRegex(ExportError, "bundle_crc_missing"):

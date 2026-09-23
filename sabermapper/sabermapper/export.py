@@ -11,6 +11,7 @@ import zlib
 from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
 
 from .arrangement import beat_fraction, compile_arrangement
+from .show import note_colors
 from .audio import inspect_audio
 from .validation import validate_arrangement
 from .revisions import arrangement_revision
@@ -263,6 +264,15 @@ def export_arrangements(arrangements: list[dict], audio: str | Path, cover: str 
             "_beatmapColorSchemeIdx": 0, "_environmentNameIdx": environments.index(_environment(arrangement)),
         } for arrangement, (_, row) in by_rank]}],
     }
+    colors = note_colors(primary) if primary.get("schema_version") == "0.2" else None
+    if colors:
+        # A map colour scheme the vanilla game applies (Info 2.1.0); Chroma/SongCore also read the
+        # per-difficulty _colorLeft/_colorRight written with the Vivify requirements.
+        dark = {"r": 0.0, "g": 0.0, "b": 0.0, "a": 1.0}
+        info["_colorSchemes"] = [{"useOverride": True, "colorScheme": {
+            "colorSchemeId": "SaberMapper", "saberAColor": colors["left"], "saberBColor": colors["right"],
+            "environmentColor0": colors["left"], "environmentColor1": colors["right"], "obstaclesColor": colors["left"],
+            "environmentColor0Boost": colors["left"], "environmentColor1Boost": colors["right"], "environmentColorW": dark}}]
     rows = [row for _, row in compiled]
     report = {
         "format": "SaberMapper SM-029 export report 0.2", "beatmap_schema": "3.3.0",

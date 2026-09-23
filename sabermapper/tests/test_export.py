@@ -163,3 +163,21 @@ class CliIntegrationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Utf8OutputTests(unittest.TestCase):
+    def test_non_latin_text_prints_through_a_legacy_code_page_stdout(self):
+        import io
+        import sys
+        from sabermapper.__main__ import emit, utf8_output
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding="cp1252")
+        original = sys.stdout
+        sys.stdout = stream
+        try:
+            utf8_output()
+            emit({"text": "בא לי בית מלון"})
+            stream.flush()
+        finally:
+            sys.stdout = original
+        self.assertIn("בא לי בית מלון", raw.getvalue().decode("utf-8"))

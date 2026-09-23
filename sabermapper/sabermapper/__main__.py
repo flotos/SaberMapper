@@ -24,7 +24,16 @@ def emit(value, output=None):
         print(text, end="")
 
 
+def utf8_output():
+    """JSON output carries lyrics and titles in any script (Hebrew, Japanese...). A Windows console or a
+    redirected stdout defaults to a legacy code page that cannot encode them, so write UTF-8."""
+    for stream in (sys.stdout, sys.stderr):
+        if (getattr(stream, "encoding", "") or "").lower().replace("-", "") != "utf8" and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
+
+
 def main(argv=None):
+    utf8_output()
     parser = argparse.ArgumentParser(prog="sabermapper", description="Local Beat Saber authoring, review and research studio")
     parser.add_argument("--version", action="version", version="SaberMapper 0.2.0")
     commands = parser.add_subparsers(dest="command", required=True)

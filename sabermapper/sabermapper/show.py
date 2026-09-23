@@ -133,6 +133,22 @@ def _color(value) -> bool:
             and all(not isinstance(v, bool) and isinstance(v, (int, float)) and 0 <= v <= 1 for v in value))
 
 
+def rgba(value) -> dict:
+    """A validated presentation colour (#rrggbb[aa] or [r, g, b(, a)] in 0..1) as Beat Saber's {r, g, b, a}."""
+    if isinstance(value, str):
+        channels = [int(value[i:i + 2], 16) / 255 for i in range(1, len(value), 2)]
+    else:
+        channels = [float(v) for v in value]
+    channels += [1.0] * (4 - len(channels))
+    return {key: round(v, 4) for key, v in zip("rgba", channels)}
+
+
+def note_colors(arrangement: dict) -> dict | None:
+    """The map-level ``presentation.note_colors`` as {"left": rgba, "right": rgba}, else None."""
+    colors = (arrangement.get("presentation") or {}).get("note_colors")
+    return {side: rgba(colors[side]) for side in ("left", "right")} if isinstance(colors, dict) else None
+
+
 def validate_presentation(arrangement: dict, add) -> None:
     """Check the optional map-level and per-section ``presentation`` blocks of arrangement 0.2."""
     def check(obj, required, optional, where, sid=None):
@@ -146,7 +162,12 @@ def validate_presentation(arrangement: dict, add) -> None:
         return not set(required) - set(obj)
 
     top = arrangement.get("presentation")
-    if top is not None and check(top, (), ("concept", "palette", "possession"), "presentation"):
+    if top is not None and check(top, (), ("concept", "palette", "possession", "note_colors"), "presentation"):
+        colors = top.get("note_colors")
+        if "note_colors" in top and not (isinstance(colors, dict) and set(colors) == {"left", "right"}
+                                         and all(_color(colors[side]) for side in ("left", "right"))):
+            add("error", "invalid_presentation", "presentation.note_colors must be {\"left\": colour, \"right\": colour} "
+                "with #rrggbb[aa] or [r, g, b(, a)] in 0..1; they colour the notes, arcs and sabers of both hands")
         if "concept" in top and (not isinstance(top["concept"], str) or not top["concept"].strip()):
             add("error", "invalid_presentation", "presentation.concept must be a nonempty sentence")
         if "palette" in top and (not isinstance(top["palette"], list) or not 1 <= len(top["palette"]) <= 12

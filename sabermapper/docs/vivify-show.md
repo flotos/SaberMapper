@@ -28,6 +28,10 @@ Map level (every key optional):
 - `palette`: 1 to 12 colors, each written as `#rrggbb[aa]` or `[r, g, b(, a)]` in 0..1.
 - `possession`: one of `none` (the default), `player`, `head`, `hands` or `right_hand`. It is a
   once-per-map decision (see below).
+- `note_colors`: `{"left": colour, "right": colour}` (same colour formats). Export writes it as the map's
+  colour scheme in Info.dat (`_colorSchemes`, `useOverride: true`; the vanilla twin keeps it) and as
+  `_colorLeft`/`_colorRight` in each difficulty's `_customData` for Chroma/SongCore, so notes, arcs and
+  sabers match the concept palette. Keep the two hands clearly distinct from each other and from the scene.
 
 Per section (`family` is required, the other keys are optional):
 

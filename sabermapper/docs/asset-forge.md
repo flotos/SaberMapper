@@ -9,7 +9,7 @@ Status (2026-09-23): the Python side is tested (tests/test_forge.py, with a stub
 Unity is not installed on this machine, so the C# builder in `assets/vivify-src/` has not been compiled by
 Unity yet. It was compiled with Roslyn (C# 9) against the game's Unity 2022.3 runtime DLLs, plus
 hand-written stubs of the UnityEditor and XR Management APIs it calls, which catches syntax and type
-errors. The first real build is the first check of the actual editor API signatures.
+errors. The first real build (2021.3.45f1, 2026-09-23) compiled the editor scripts unchanged; see Verification below.
 
 ## Which Unity to install
 
@@ -334,9 +334,12 @@ build approach were reimplemented from reading its source.
   `Info.dat _customData._assetBundle._windows2021`. Copy `<project>/assets/bundleWindows2021.vivify` into
   the map folder. Material and prefab paths in bundleinfo are the lowercase asset paths Vivify events use.
   Property names and types come from `materials.*.properties`.
-- Verification (M0/M2): the first built bundle should be checked in FPFC with a one-material Blit, to
-  confirm that single-pass-instanced variants survive the batchmode build (XR loader path) and that
-  Vivify 1.0.5 on 1.40.8 accepts a 2021.3.16f1 bundle and its CRC.
+- Verification (M0/M2), done 2026-09-23: the first real build (2021.3.45f1, `assets init` starter spec on
+  the demo project; build report `xr.stereo_rendering: SinglePassInstanced`, OpenXR loader, 77 KB bundle)
+  was exported with a four-primitive test show and captured in the game with `game capture` (FPFC,
+  1.40.8, Vivify 1.0.5). Vivify accepted the bundle and its CRC (no log errors), and every asset rendered
+  on the full desktop frame: the colour-grade and vignette Blits, the emissive ring prefab and the
+  additive particle prefab.
 
 ## Known risks
 

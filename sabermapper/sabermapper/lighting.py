@@ -871,7 +871,8 @@ def generate_lightshow(arrangement: dict, report: dict, run_id: str | None = Non
     plan = _section_plan(spans, bars, show, style)
     builder = _Builder(arrangement, evidence, style)
     first = min((s["start_beat"] for s in spans), default=0.0)
-    builder.take({"priority": 300, "lights": [(0.0, g, 0, 0.0) for g in LIGHT_TYPES]}, force=True)
+    # The song starts dark; the lowest priority lets a section entry on beat 0 set its own state.
+    builder.take({"priority": 0, "lights": [(0.0, g, 0, 0.0) for g in LIGHT_TYPES]}, force=True)
     state = {"side": 3, "leads": {}}
     boost_on = False
     for span in spans:

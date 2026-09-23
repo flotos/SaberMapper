@@ -683,6 +683,45 @@ def follow_lead(arrangement: dict, report: dict) -> dict:
     return {"arrangement": result, "changes": changes, "unresolved": unresolved}
 
 
+def reweight_focus(arrangement: dict, report: dict) -> dict:
+    """Drop stems that are absent from a focus phrase (focus_on_quiet_stem) from its weights.
+
+    A stem at least QUIET_STEM_DB below its own usual level only contributes separator bleed. When the
+    declared lead is absent, the most active stem takes its weight and becomes the lead; when every
+    stem is absent the phrase follows the mix.
+    """
+    from .critique import QUIET_STEM_DB
+    result = copy.deepcopy(arrangement)
+    measured = critique_arrangement(result, report)["metrics"]["focus_stems"]
+    levels = {(p["section_id"], p["focus_id"]): p for p in measured.get("phrases", [])}
+    changes = []
+    for section in result["sections"]:
+        if section.get("locked"):
+            continue
+        for phrase in section.get("musical_focus") or []:
+            found = levels.get((section["id"], phrase["id"]))
+            if not found:
+                continue
+            db, active = found["db_vs_own_level"], found["most_active"]
+            quiet = {name for name in phrase["weights"] if name in db and db[name] <= -QUIET_STEM_DB}
+            if not quiet:
+                continue
+            before = {"lead": phrase["lead"], "weights": dict(phrase["weights"])}
+            weights = {name: w for name, w in phrase["weights"].items() if name not in quiet and w > 0}
+            lead = phrase["lead"]
+            if lead in quiet or not weights:
+                lead = active if db[active] > -QUIET_STEM_DB else "mix"
+                weights[lead] = weights.get(lead, 0) + before["weights"].get(phrase["lead"], 0) or 1.0
+            total = sum(weights.values())
+            weights = {name: round(w / total, 4) for name, w in weights.items()}
+            weights[lead] = round(weights[lead] + 1 - sum(weights.values()), 4)
+            phrase["weights"], phrase["lead"] = weights, lead
+            phrase["intent"] = phrase["intent"].rstrip() + f" Reweighted: {', '.join(sorted(quiet))} absent here."
+            changes.append({"action": "reweight_focus", "section_id": section["id"], "focus_id": phrase["id"],
+                            "absent": sorted(quiet), "from": before, "to": {"lead": lead, "weights": weights}})
+    return {"arrangement": result, "changes": changes, "unresolved": []}
+
+
 def repair_audio(arrangement: dict, report: dict | None) -> dict:
     """Return ``{"arrangement", "changes", "unresolved", "remaining"}`` without mutating the input."""
     if not report:
@@ -691,7 +730,9 @@ def repair_audio(arrangement: dict, report: dict | None) -> dict:
     if blocking:
         raise ValueError("Fix blocking diagnostics before repairing audio findings: "
                          + "; ".join(d["message"] for d in blocking[:5]))
-    grounded = ground_notes(arrangement, report)
+    focus = reweight_focus(arrangement, report)
+    grounded = ground_notes(focus["arrangement"], report)
+    grounded["changes"] = focus["changes"] + grounded["changes"]
     thinned = thin_quiet(grounded["arrangement"], report)
     grounded = {"arrangement": thinned["arrangement"], "changes": grounded["changes"] + thinned["changes"],
                 "unresolved": grounded["unresolved"] + thinned["unresolved"]}

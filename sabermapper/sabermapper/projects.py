@@ -133,8 +133,14 @@ class ProjectStore:
             diagnostics = validate_arrangement(arrangement)
             audio_run, audio = None, {"checked": False}
             try:
-                audio_run, audio, findings = project_audio_findings(path, arrangement)
-                diagnostics += findings
+                from .audio_grounding import audio_findings
+                from .critique import focus_findings
+                from .musical import latest_run
+                audio_run, report = latest_run(path)
+                if report is not None:
+                    audio, findings = audio_findings(arrangement, report)
+                    # Focus and salience warnings travel with every read and save: never blocking, never silent.
+                    diagnostics += findings + focus_findings(arrangement, report)
             except (ValueError, KeyError, TypeError, ZeroDivisionError):
                 pass  # structurally invalid arrangements already carry their own errors
             notes = []

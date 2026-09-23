@@ -246,6 +246,8 @@ played a strong pattern, and the notes sat between the drum hits.
   ([held notes](held-notes.md)).
 - A busy riff or loud guitar never outranks singing. "Drive" or "chorus" labels
   do not change the lead.
+- `focus_on_quiet_stem` checks every focus phrase's weighted stems against their
+  own usual level; `repair-audio` drops absent stems from the weights.
 - Separator bleed can put vocal or drum events into intros and instrumental
   passages. Confirm with the stem energy before trusting a quiet passage's
   "vocal" onsets. Demucs `htdemucs_6s` often routes a soft solo piano to `other`

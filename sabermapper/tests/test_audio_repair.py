@@ -7,7 +7,7 @@ from contextlib import redirect_stdout
 from fractions import Fraction
 
 from sabermapper.audio_grounding import note_support
-from sabermapper.audio_repair import _grid_beat, ground_notes, insert_note, repair_audio, thin_quiet
+from sabermapper.audio_repair import _grid_beat, ground_notes, insert_note, repair_audio, reweight_focus, thin_quiet
 from sabermapper.critique import critique_arrangement
 from sabermapper.validation import validate_arrangement
 
@@ -273,6 +273,32 @@ class RepairAudioCommandTests(unittest.TestCase):
                 saved = json.loads(out.getvalue())
                 self.assertTrue(saved["saved"])
                 self.assertEqual(store.get(project)["revision"], saved["revision"])
+
+
+class ReweightFocusTests(unittest.TestCase):
+    def fixture(self, lead, weights):
+        arr = arrangement([0, 2, 4, 6], length=32)
+        arr["sections"][0]["musical_focus"] = [{"id": "intro", "start_beat": 0, "end_beat": 16, "lead": lead,
+                                                 "weights": weights, "intent": "fixture"}]
+        contour = lambda quiet: [{"seconds": i / 10, "energy": (0.0005 if quiet and i < 80 else 1.0)}
+                                 for i in range(160)]
+        rep = {"layers": {"other": {"events": [], "energy_contour": contour(False)},
+                          "vocals": {"events": [], "energy_contour": contour(True)}}}
+        return arr, rep
+
+    def test_absent_stem_is_dropped_from_the_weights(self):
+        arr, rep = self.fixture("other", {"other": 0.6, "vocals": 0.4})
+        result = reweight_focus(arr, rep)
+        phrase = result["arrangement"]["sections"][0]["musical_focus"][0]
+        self.assertEqual((phrase["lead"], phrase["weights"]), ("other", {"other": 1.0}))
+        self.assertEqual(result["changes"][0]["absent"], ["vocals"])
+        self.assertEqual(arr["sections"][0]["musical_focus"][0]["weights"], {"other": 0.6, "vocals": 0.4})
+
+    def test_an_absent_lead_hands_over_to_the_most_active_stem(self):
+        arr, rep = self.fixture("vocals", {"vocals": 1.0})
+        phrase = reweight_focus(arr, rep)["arrangement"]["sections"][0]["musical_focus"][0]
+        self.assertEqual((phrase["lead"], phrase["weights"]), ("other", {"other": 1.0}))
+        self.assertIn("absent here", phrase["intent"])
 
 
 if __name__ == "__main__":

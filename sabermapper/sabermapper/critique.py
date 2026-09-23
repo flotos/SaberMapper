@@ -66,6 +66,11 @@ QUIET_ENERGY = 0.75
 FULL_SUPPORT = 0.9
 QUIET_DENSITY_TOLERANCE = 1.5
 QUIET_MIN_NOTES = 6
+QUIET_STEM_DB = 20.0
+STEM_REFERENCE_PERCENTILE = 90
+FOCUS_STEM_WEIGHT = 0.3
+FOCUS_CODES = ("vocal_line_unmapped", "drum_rhythm_unmapped", "lead_rhythm_unmapped",
+               "lead_rhythm_diluted", "focus_on_quiet_stem")
 
 DEFINITIONS = {
     "rolling_nps": "Notes per second inside 4-second windows hopped every 1 second from the first note to the last.",
@@ -102,6 +107,7 @@ DEFINITIONS = {
                              "times support_score x the reference density, the median notes per second of windows "
                              "with support 0.9 or more, counting only notes that are not on a vocal or drum onset the salience checks "
                              "count: the map plays a thin, quiet passage as hard as the full band.",
+    "focus_on_quiet_stem": "A musical_focus phrase gives weight 0.3 or more to a separated stem whose median energy_contour level inside the phrase is at least 20 dB below that stem's own 90th-percentile level over the song: the stem is essentially absent there, so its events are separator bleed (for example vocals in an instrumental intro) or the instrument was routed to another stem (for example a soft solo piano in other while the piano stem is silent). The message names the most active stem, measured the same way.",
     **AUDIO_DEFINITIONS,
 }
 
@@ -614,6 +620,54 @@ def grid_alignment(arrangement, report):
     return {"checked": bool(rows), "layer": name, "median_offset_ms": _round(overall * 1000, 2), "windows": rows}
 
 
+def _focus_stems(arrangement, spans, report, warn):
+    """Flag focus phrases that weight a stem far quieter than the loudest stem in the same span."""
+    layers = {name: layer for name, layer in ((report or {}).get("layers") or {}).items()
+              if name != "mix" and isinstance(layer, dict) and layer.get("kind") != "frequency_band"
+              and layer.get("energy_contour")}
+    if len(layers) < 2:
+        return {"checked": False, "phrases": []}
+    # Each stem is measured against its own typical level: stems differ in spectral level (bass reads loud).
+    reference = {}
+    for name, layer in layers.items():
+        values = sorted(p["energy"] for p in layer["energy_contour"])
+        reference[name] = values[min(len(values) - 1, int(len(values) * STEM_REFERENCE_PERCENTILE / 100))]
+    phrases = []
+    for span in spans:
+        for phrase in span["section"].get("musical_focus") or []:
+            first = beat_to_seconds(span["start_beat"] + float(Fraction(str(phrase["start_beat"]))), arrangement)
+            last = beat_to_seconds(span["start_beat"] + float(Fraction(str(phrase["end_beat"]))), arrangement)
+            db = {}
+            for name, layer in layers.items():
+                inside = [p["energy"] for p in layer["energy_contour"] if first <= p["seconds"] < last]
+                if inside and reference[name] > 1e-12:
+                    db[name] = _round(20 * math.log10(max(median(inside), 1e-12) / reference[name]), 2)
+            if not db:
+                continue
+            active = max(db, key=db.get)
+            phrases.append({"section_id": span["id"], "focus_id": phrase["id"], "most_active": active,
+                            "db_vs_own_level": db})
+            for name, weight in phrase["weights"].items():
+                if name in db and weight >= FOCUS_STEM_WEIGHT and db[name] <= -QUIET_STEM_DB:
+                    warn("focus_on_quiet_stem",
+                         f'Focus "{phrase["id"]}" in "{span["id"]}" (source {first:.1f}-{last:.1f} s) weights '
+                         f'{name} at {weight:g}, but {name} sits {-db[name]:.1f} dB below its usual level there, so '
+                         f'its events are separator bleed or the instrument was routed to another stem. The most '
+                         f'active stem there is {active} ({db[active]:+.1f} dB vs its usual level).',
+                         section_id=span["id"], value=db[name], threshold=-QUIET_STEM_DB,
+                         beats=[span["start_beat"] + float(Fraction(str(phrase["start_beat"]))),
+                                span["start_beat"] + float(Fraction(str(phrase["end_beat"])))])
+    return {"checked": True, "phrases": phrases}
+
+
+def focus_findings(arrangement: dict, report: dict | None) -> list[dict]:
+    """The focus and salience warnings, as project diagnostics (never blocking)."""
+    if not report:
+        return []
+    return [{**w, "model_version": MODEL_VERSION} for w in critique_arrangement(arrangement, report)["warnings"]
+            if w["code"] in FOCUS_CODES]
+
+
 def _grid(arrangement, report, warn):
     alignment = grid_alignment(arrangement, report)
     drifting = [w for w in alignment["windows"]
@@ -682,6 +736,7 @@ def critique_arrangement(arrangement: dict, report: dict | None = None) -> dict:
                "quiet_density": _quiet_density(arrangement, spans, notes, times, report, warn)}
     metrics["lead_rhythm"] = _lead_rhythm(arrangement, spans, notes, report, metrics["salience"], warn)
     metrics["grid_alignment"] = _grid(arrangement, report, warn)
+    metrics["focus_stems"] = _focus_stems(arrangement, spans, report, warn)
     # Audio grounding: blocking spans are save errors elsewhere; here every finding stays a warning.
     metrics["audio"], findings = audio_findings(arrangement, report)
     for finding in findings:

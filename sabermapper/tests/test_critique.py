@@ -253,6 +253,43 @@ class SalienceTests(unittest.TestCase):
         self.assertFalse(result["metrics"]["salience"]["checked"])
 
 
+class FocusStemTests(unittest.TestCase):
+    """A focus weighted on a stem that is absent there follows separator bleed or a mislabeled instrument."""
+
+    @staticmethod
+    def contour(level_at):
+        return [{"seconds": i / 10, "energy": level_at(i / 10)} for i in range(160)]
+
+    def report(self):
+        # 120 BPM: beats 0-16 are seconds 0-8. Vocals only sing from 8 s; bass always reads 100x drums.
+        return {"layers": {
+            "other": {"events": [], "energy_contour": self.contour(lambda t: 1.0)},
+            "vocals": {"events": [], "energy_contour": self.contour(lambda t: 0.0005 if t < 8 else 1.0)},
+            "bass": {"events": [], "energy_contour": self.contour(lambda t: 100.0)},
+            "drums": {"events": [], "energy_contour": self.contour(lambda t: 1.0)}}}
+
+    def critique(self, focus):
+        body = section("s", 0, 32, [note(0, 0, (0, 0, 0, 1))])
+        body["musical_focus"] = focus
+        return critique_arrangement(arrangement([body]), self.report())
+
+    def test_bleed_weighted_in_an_instrumental_intro_is_flagged(self):
+        result = self.critique([{"id": "intro", "start_beat": 0, "end_beat": 16, "lead": "other",
+                                 "weights": {"other": 0.6, "vocals": 0.4}, "intent": "fixture"}])
+        flagged = [w for w in result["warnings"] if w["code"] == "focus_on_quiet_stem"]
+        self.assertEqual(len(flagged), 1)
+        self.assertIn("vocals", flagged[0]["message"])
+        self.assertEqual(flagged[0]["beats"], [0.0, 16.0])
+        self.assertLessEqual(flagged[0]["value"], -20)
+
+    def test_active_stems_pass_even_beside_a_louder_stem(self):
+        result = self.critique([{"id": "verse", "start_beat": 16, "end_beat": 32, "lead": "vocals",
+                                 "weights": {"vocals": 0.7, "drums": 0.3}, "intent": "fixture"}])
+        self.assertNotIn("focus_on_quiet_stem", codes(result))
+        phrase = result["metrics"]["focus_stems"]["phrases"][0]
+        self.assertEqual(phrase["db_vs_own_level"]["drums"], 0.0)
+
+
 class CritiqueCommandTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

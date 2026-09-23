@@ -98,7 +98,6 @@ class PlacementTests(unittest.TestCase):
         stack = stacks_of(place_arrangement(arrangement(notes), strict=False)["arrangement"])[2]
         self.assertTrue(stack_line([(n["x"], n["y"]) for n in stack], stack[0]["direction"]), stack)
 
-
     def test_a_stack_of_three_never_runs_sideways(self):
         """After a left cut a quick reversal would be a right cut; a stack of three takes a diagonal instead."""
         notes = [{"id": "left", "beat": 0, "x": 1, "y": 1, "color": 0, "direction": 2}]
@@ -121,7 +120,6 @@ class PlacementTests(unittest.TestCase):
         self.assertFalse([n for n in after if (n["x"], n["y"]) in cells], after)
         self.assertNotIn("hidden_note", {d["code"] for d in validate_arrangement(placed)})
 
-
     def test_a_double_beside_a_stack_keeps_a_free_cell(self):
         for size in (2, 3):
             notes = rhythm([0, 1, 3]) + [{"id": "other", "beat": 2, "color": 1}]
@@ -133,6 +131,16 @@ class PlacementTests(unittest.TestCase):
             self.assertTrue(all(max(abs(n["x"] - blue["x"]), abs(n["y"] - blue["y"])) >= 2 for n in red), at)
             self.assertNotIn("stack_touch", {d["code"] for d in validate_arrangement(placed)})
 
+    def test_before_quick_notes_a_stack_takes_a_vertical_cut_in_the_outer_lane(self):
+        """After an up-right cut the natural reversal is a diagonal, which would put a stack of three across the
+        centre; with notes 0.125 s later the stack cuts straight down in the outer lane instead."""
+        notes = [{"id": "up", "beat": 0, "x": 3, "y": 0, "color": 1, "direction": 5}]
+        notes += [{"id": f"s{i}", "beat": "1/2", "stack": True, "color": 1} for i in range(3)]
+        notes += [{"id": "other", "beat": "1/2", "color": 0}]  # a double: the first pass settles both cuts
+        notes += rhythm(["3/4", 1, "5/4", 2, 3])
+        stack = stacks_of(place_arrangement(arrangement(notes), strict=False)["arrangement"])[Fraction(1, 2)]
+        self.assertEqual({n["direction"] for n in stack}, {1}, stack)
+        self.assertEqual({n["x"] for n in stack}, {3}, stack)
 
     def test_the_placer_keeps_the_other_hand_off_a_cut(self):
         notes = rhythm([0, 1, 3]) + [{"id": "red", "beat": 2, "x": 1, "y": 1, "color": 0, "direction": 3},

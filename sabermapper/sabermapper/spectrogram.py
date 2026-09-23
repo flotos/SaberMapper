@@ -301,7 +301,7 @@ def render_overview(report, run_directory, song, arrangement=None):
 
 
 def project_view(directory, arrangement, report, run_id, *, start_beat=None, end_beat=None, layers=None,
-                 output=None):
+                 output=None, difficulty=None):
     """A beat range (or the whole song) of a project's evidence run with its current notes."""
     from .critique import beat_to_seconds
     directory = Path(directory)
@@ -313,7 +313,8 @@ def project_view(directory, arrangement, report, run_id, *, start_beat=None, end
     start = None if start_beat is None else beat_to_seconds(start_beat, arrangement)
     end = None if end_beat is None else beat_to_seconds(end_beat, arrangement)
     label = "song" if start_beat is None else f"b{start_beat:g}-{end_beat:g}"
-    output = Path(output) if output else directory / "views" / f"spectrogram-{run_id[:8]}-{label}.png"
+    suffix = f"-{difficulty}" if difficulty else ""
+    output = Path(output) if output else directory / "views" / f"spectrogram-{run_id[:8]}-{label}{suffix}.png"
     title = (f'{arrangement["song"].get("title", "")} - beats {label[1:] if start_beat is not None else "all"}, '
              f"run {run_id[:8]}")
     geometry = render(report, directory / "musical" / run_id, directory / "song.ogg", output,

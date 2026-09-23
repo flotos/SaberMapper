@@ -24,6 +24,22 @@ note. The validator errors otherwise: `arc_head_without_note`,
 `*_direction_mismatch` codes when the note exists but its direction differs.
 A dangling arc is a cosmetic curve, not a held note.
 
+## A held saber cuts nothing else
+
+An arc or chain occupies its saber from head to tail. A note of the same color
+strictly between them is impossible: following the hold misses the note, and
+cutting the note breaks the hold. This is a standing player rule, set on
+2026-09-23 after a report at End of You 0:42: a blue up-cut sat inside a held
+blue arc. The validator blocks it with `arc_note_conflict` or
+`chain_note_conflict`; the finding is a warning when the section is locked.
+Notes on the other hand inside the hold, and same-color chord notes on the
+head or tail beat, are fine. While the hold lasts, give every other sound to the
+other hand. When recoloring or moving a note, check whether a hold of its new color
+spans that beat. `project repair-swings` resolves remaining conflicts. It moves
+the note to the other hand when that hand is free. Otherwise it splits the arc
+at the cut, head to cut and cut to tail, so the held sound stays held around it.
+Pieces shorter than a beat are dropped, and the notes stay. For a chain it removes the inner note.
+
 ## Held vocals take focus
 
 Standing user rule (2026-09-22): held singing notes, or intense singing, should

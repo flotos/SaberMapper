@@ -18,6 +18,9 @@ def register_musical(commands):
         parser = actions.add_parser(action, help=helps[action])
         parser.add_argument("project")
         parser.add_argument("--workspace", type=Path, default=Path("workspace"))
+        if action in ("inspect", "rhythm", "spectrogram"):
+            parser.add_argument("--difficulty", choices=("Easy", "Normal", "Hard", "Expert", "ExpertPlus"),
+                                help="Difficulty whose notes are shown; default: the primary one")
         if action == "analyze":
             parser.add_argument("--backend", choices=BACKENDS, default="bands")
             parser.add_argument("--preset", choices=PRESETS, help="Default: balanced, or the source run's preset")
@@ -83,14 +86,14 @@ def dispatch_musical(args, emit):
     elif args.music_action == "spectrogram":
         from .spectrogram import project_view
         with store.lock:
-            arrangement = read_json(directory / "arrangement.json")
+            arrangement = read_json(store.arrangement_file(directory, args.difficulty))
         run_id, report = _run(directory, args.run)
         layers = [name.strip() for name in args.layers.split(",") if name.strip()] if args.layers else None
         emit(project_view(directory, arrangement, report, run_id, start_beat=args.start, end_beat=args.end,
-                          layers=layers, output=args.output))
+                          layers=layers, output=args.output, difficulty=args.difficulty))
     elif args.music_action == "rhythm":
         with store.lock:
-            arrangement = read_json(directory / "arrangement.json")
+            arrangement = read_json(store.arrangement_file(directory, args.difficulty))
         run_id, report = _run(directory, args.run)
         layers = [name.strip() for name in args.layers.split(",") if name.strip()] if args.layers else None
         emit({"run_id": run_id, **rhythm_grid(report, arrangement, args.start, args.end,
@@ -99,7 +102,7 @@ def dispatch_musical(args, emit):
         if not re.fullmatch(r"[a-f0-9]{32}", args.run):
             raise ValueError("Invalid musical evidence run ID")
         with store.lock:
-            arrangement = read_json(directory / "arrangement.json")
+            arrangement = read_json(store.arrangement_file(directory, args.difficulty))
         report = read_json(directory / "musical" / args.run / "report.json")
         from .audio import _hash
         if report["source"]["sha256"] != _hash(directory / "song.ogg"):

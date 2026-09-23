@@ -4,7 +4,10 @@ The real workspace (``sabermapper/workspace/`` in the main checkout) is user dat
 agent. A worktree clones it once, runs every project command against the clone without touching the shared
 ``.project.lock``, and after its code is merged into ``main`` publishes only the files it changed back to the real
 workspace. A file the real workspace also changed since the clone is never overwritten: its unit (one project, one
-authoring folder, or a top-level entry such as the corpus) is held back as a conflict.
+authoring folder, or a top-level entry such as the corpus) is held back as a conflict. The one exception is a
+project's ``project.json`` while the real workspace left the project's arrangement files as the clone found them:
+publish merges it key by key (see :func:`merge_metadata`), so a studio or show save there does not send the clone's
+arrangements through a second ``project save``.
 
 Audio and content-addressed files are written once and never rewritten in place, so the clone hardlinks them (no
 extra disk space); every other file is copied, so in-place writers such as SQLite or append-only logs only ever
@@ -31,6 +34,10 @@ WRITE_ONCE_SUFFIXES = {".wav", ".ogg", ".egg", ".flac", ".mp3", ".m4a", ".opus"}
 CONTENT_ADDRESSED = re.compile(r"[a-f0-9]{64}")
 GROUPED_TOP = {"projects", "authoring", "retired-projects"}
 CORPUS_FILES_FOR_MAPS = ("tier-reference.json", "splits.json")
+# project.json keys the studio and reviews set in the real workspace; a merge keeps the real values.
+REAL_METADATA = ("album", "game_build", "mods", "review_revision")
+# Claims about the current revision; a merge keeps a real claim while the arrangements it was made on stay.
+REVIEW_CLAIMS = ("playtested", "timing_reviewed")
 
 
 class CloneError(ValueError):
@@ -219,6 +226,58 @@ def _plan(target: Path, source: Path, files: dict) -> dict[str, list[dict]]:
     return units
 
 
+def _arrangement_file(relative: str) -> bool:
+    parts = relative.split("/")
+    return parts[0] == "projects" and (parts[2:] == ["arrangement.json"]
+                                       or (len(parts) == 4 and parts[2] == "difficulties" and parts[3].endswith(".json")))
+
+
+def _arrangements_unchanged(unit: str, source: Path, files: dict) -> bool:
+    """Whether the real workspace's arrangement files of project ``unit`` are the ones the clone started from."""
+    recorded = {r: stamp for r, stamp in files.items() if r.startswith(unit + "/") and _arrangement_file(r)}
+    real = {unit + "/arrangement.json"} | {f"{unit}/difficulties/{f.name}"
+                                          for f in (source / unit / "difficulties").glob("*.json")}
+    real = {r for r in real if (source / r).is_file()}
+    return real == set(recorded) and all(_stamp(source / r) == stamp for r, stamp in recorded.items())
+
+
+def merge_metadata(local: dict, real: dict, *, arrangements_published: bool) -> dict:
+    """The project.json both workspaces hold after publishing the clone's changes.
+
+    The clone's values win (its saves wrote title and artist from the arrangement being published), except the
+    keys the studio and reviews set in the real workspace and the newer ``updated_at``. A real playtest or timing
+    review stands while the arrangements it was recorded on stay; when the clone publishes an arrangement, the
+    claim stays only where the clone kept it too (a save records ``playtested: false`` for the new revision).
+    """
+    merged = {**real, **{k: v for k, v in local.items() if k not in REAL_METADATA + REVIEW_CLAIMS}}
+    stamps = [t for t in (local.get("updated_at"), real.get("updated_at")) if t]
+    if stamps:
+        merged["updated_at"] = max(stamps)
+    for key in REVIEW_CLAIMS:
+        if key in real and arrangements_published:
+            merged[key] = bool(real[key]) and bool(local.get(key))
+    return merged
+
+
+def _resolve(unit: str, changes: list[dict], source: Path, files: dict) -> tuple[list[str], list[str]]:
+    """(conflicting paths, paths publish merges): project.json merges while the real arrangements are unchanged."""
+    conflicts = [c["path"] for c in changes if c["conflict"]]
+    metadata = unit + "/project.json"
+    if (unit.startswith("projects/") and metadata in conflicts and (source / metadata).is_file()
+            and _arrangements_unchanged(unit, source, files)):
+        return [p for p in conflicts if p != metadata], [metadata]
+    return conflicts, []
+
+
+def _merge_file(target: Path, source: Path, relative: str, changes: list[dict]):
+    """Write the merged project.json into both workspaces, so the clone has nothing left to publish."""
+    published = any(_arrangement_file(c["path"]) and c["action"] != "delete" for c in changes)
+    merged = merge_metadata(read_json(target / relative), read_json(source / relative),
+                            arrangements_published=published)
+    write_json(source / relative, merged)
+    write_json(target / relative, merged)
+
+
 def _behind(source: Path, files: dict) -> set[str]:
     """Units the real workspace changed since the clone (any recorded file modified or removed)."""
     changed = set()
@@ -241,26 +300,41 @@ def status(target: str | Path) -> dict:
     rows = []
     for unit in sorted(set(plan) | behind):
         changes = plan.get(unit, [])
-        conflicts = [c["path"] for c in changes if c["conflict"]]
+        conflicts, merges = _resolve(unit, changes, source, manifest["files"])
         rows.append({"unit": unit, "local_changes": len(changes),
                      "added": sum(c["action"] == "add" for c in changes),
                      "updated": sum(c["action"] == "update" for c in changes),
                      "deleted": sum(c["action"] == "delete" for c in changes),
-                     "real_workspace_changed": unit in behind, "conflicts": conflicts})
+                     "real_workspace_changed": unit in behind, "conflicts": conflicts,
+                     **({"merged": merges} if merges else {})})
     return {"clone": str(target), "source": str(source), "cloned_at": manifest["cloned_at"],
             "publishable": [r["unit"] for r in rows if r["local_changes"] and not r["conflicts"]],
             "conflicted": [r["unit"] for r in rows if r["conflicts"]], "units": rows}
 
 
-def _conflict_fix(unit: str, source: Path) -> str:
-    if unit.startswith("projects/"):
-        project = unit.split("/")[1]
-        return (f"The real workspace changed {unit} since the clone. Save the clone's arrangement onto its current "
-                f"revision: `project get {project} --workspace {source}`, then `project save {project} --workspace "
-                f"{source} --revision REV --arrangement workspace/{unit}/arrangement.json` (add --difficulty for "
-                "others), then `workspace clone --replace`")
-    return (f"The real workspace changed {unit} since the clone. Redo the change against it with --workspace "
-            f"{source}, then `workspace clone --replace`")
+def _conflict_fix(unit: str, source: Path, target: Path, conflicts: list[str]) -> str:
+    if not unit.startswith("projects/"):
+        return (f"The real workspace changed {unit} since the clone. Redo the change against it with --workspace "
+                f"{source}, then `workspace clone --replace`")
+    project = unit.split("/")[1]
+    saves, others = [], []
+    for relative in conflicts:
+        if not _arrangement_file(relative):
+            others.append(relative.split("/", 2)[2])
+            continue
+        file = target / relative
+        difficulty = "" if relative.endswith("/arrangement.json") else f" --difficulty {file.stem}"
+        # --base names the clone's arrangement itself, so every value the clone's placer chose stays placer-chosen.
+        saves.append(f"`project save {project} --workspace {source}{difficulty} --revision REV "
+                     f"--arrangement {file} --base {file}`")
+    steps = []
+    if saves:
+        steps.append(f"save the clone's arrangement onto the real revision REV (`project get {project} --workspace "
+                     f"{source}`, with the same --difficulty): " + "; ".join(saves))
+    if others:
+        steps.append(f"redo the clone's change to {', '.join(others)} against --workspace {source}")
+    return (f"The real workspace changed {unit} since the clone. " + ", then ".join(steps)
+            + ", then run `workspace clone --replace`")
 
 
 def publish(target: str | Path, *, units: list[str] | None = None, dry_run: bool = False) -> dict:
@@ -280,17 +354,23 @@ def publish(target: str | Path, *, units: list[str] | None = None, dry_run: bool
                                  "Run `workspace status` to list the units with changes")
             plan = {names[w]: plan[names[w]] for w in wanted}
         for unit, changes in sorted(plan.items()):
-            conflicts = [c["path"] for c in changes if c["conflict"]]
+            conflicts, merges = _resolve(unit, changes, source, files)
             if conflicts:
-                held.append({"unit": unit, "conflicts": conflicts, "fix": _conflict_fix(unit, source)})
+                held.append({"unit": unit, "conflicts": conflicts,
+                             "fix": _conflict_fix(unit, source, target, conflicts)})
                 continue
-            published.append({"unit": unit, "changes": changes})
+            published.append({"unit": unit, "changes": changes, "merged": merges})
             if dry_run:
                 continue
             # Deepest files first (history, evidence runs) and the project's own arrangement and metadata last,
             # so a reader never sees an arrangement whose history or evidence is missing; deletions come last.
             for change in sorted(changes, key=lambda c: (c["action"] == "delete", -c["path"].count("/"))):
                 relative = change["path"]
+                if relative in merges:
+                    _merge_file(target, source, relative, changes)
+                    files[relative] = _stamp(source / relative)
+                    applied["merged"] = applied.get("merged", 0) + 1
+                    continue
                 if change["action"] == "delete":
                     (source / relative).unlink(missing_ok=True)
                     files.pop(relative, None)
@@ -302,5 +382,6 @@ def publish(target: str | Path, *, units: list[str] | None = None, dry_run: bool
         if not dry_run and published:
             write_json(target / MANIFEST, manifest)
     return {"clone": str(target), "source": str(source), "dry_run": dry_run,
-            "published": [{"unit": p["unit"], "files": len(p["changes"])} for p in published],
+            "published": [{"unit": p["unit"], "files": len(p["changes"]), **({"merged": p["merged"]} if p["merged"] else {})}
+                          for p in published],
             "held_back": held, **({} if dry_run else {"applied": applied})}

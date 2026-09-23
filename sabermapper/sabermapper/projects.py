@@ -349,19 +349,21 @@ class ProjectStore:
         return show_record(path, arrangements)
 
     def check_save(self, project_id: str, arrangement: dict, expected_revision: str,
-                   difficulty: str | None = None) -> dict:
+                   difficulty: str | None = None, *, base: dict | None = None) -> dict:
         """Raise the conflict or blocking finding a save would raise; write nothing.
 
         Returns the current stored arrangement so callers can continue under the lock.
         """
-        return self.prepare_save(project_id, arrangement, expected_revision, difficulty)[0]
+        return self.prepare_save(project_id, arrangement, expected_revision, difficulty, base=base)[0]
 
     def prepare_save(self, project_id: str, arrangement: dict, expected_revision: str,
-                     difficulty: str | None = None) -> tuple[dict, dict, dict]:
+                     difficulty: str | None = None, *, base: dict | None = None) -> tuple[dict, dict, dict]:
         """Place ``arrangement`` and apply the save gate; write nothing.
 
         Returns (stored arrangement, placed arrangement, placement report). A save refuses exactly the
-        findings ``project check`` marks ``blocking`` (both go through :func:`check.gate`).
+        findings ``project check`` marks ``blocking`` (both go through :func:`check.gate`). ``base`` is the
+        arrangement the edits started from (default: the stored one): a placer-chosen value that differs from
+        ``base`` is the agent's edit and is pinned; one ``base`` already holds stays placer-chosen.
         """
         from .check import gate, placed_for_check
         from .placement import pin_edits
@@ -374,7 +376,8 @@ class ProjectStore:
         old_revision = arrangement_revision(original)
         if expected_revision != old_revision:
             raise ConflictError("This arrangement changed since you opened it. Reload before saving.")
-        arrangement, placement, placement_errors = placed_for_check(pin_edits(original, arrangement))
+        arrangement, placement, placement_errors = placed_for_check(
+            pin_edits(original if base is None else base, arrangement))
         errors = gate(placement_errors, validate_arrangement(arrangement), [])
         if errors:
             raise ValueError(("Placement is infeasible (`project check ID --arrangement FILE` lists the "
@@ -396,11 +399,11 @@ class ProjectStore:
         return original, arrangement, placement
 
     def check(self, project_id: str, difficulty: str | None = None, *, run: str | None = None,
-              arrangement: dict | None = None, metrics: bool = False) -> dict:
+              arrangement: dict | None = None, metrics: bool = False, base: dict | None = None) -> dict:
         """The read-only ``project check`` report for the stored arrangement, or for a draft of it.
 
-        A draft is placed and checked exactly as ``project save`` would, with nothing written. ``run`` picks a
-        musical evidence run; the default is the newest run of the current audio.
+        A draft is placed and checked exactly as ``project save`` would (with the same ``base``), with nothing
+        written. ``run`` picks a musical evidence run; the default is the newest run of the current audio.
         """
         from .check import check_arrangement
         from .placement import pin_edits
@@ -415,7 +418,7 @@ class ProjectStore:
             others = {other: read_json(file) for other, file in self.difficulty_files(path).items() if other != name}
             reference_path = self.root / "corpus" / "tier-reference.json"
             reference = read_json(reference_path) if reference_path.exists() else None
-        subject = stored if arrangement is None else pin_edits(stored, arrangement)
+        subject = stored if arrangement is None else pin_edits(stored if base is None else base, arrangement)
         extra = timing_mismatches({name: subject, **others})
         missing = None if reference else missing_reference_warning(subject)
         extra += [missing] if missing else []
@@ -460,11 +463,12 @@ class ProjectStore:
         return run, report
 
     def save(self, project_id: str, arrangement: dict, expected_revision: str, *, request_id=None,
-             difficulty: str | None = None) -> dict:
+             difficulty: str | None = None, base: dict | None = None) -> dict:
         # Placement and lights are computed outside the lock (see prepare_save); the lock covers the writes,
         # after confirming no other save changed this difficulty in the meantime.
         path = self.directory(project_id)
-        original, arrangement, placement = self.prepare_save(project_id, arrangement, expected_revision, difficulty)
+        original, arrangement, placement = self.prepare_save(project_id, arrangement, expected_revision, difficulty,
+                                                             base=base)
         arrangement, lighting = self.refresh_lights(path, arrangement, original)
         old_revision = arrangement_revision(original)
         revision = arrangement_revision(arrangement)
@@ -605,8 +609,22 @@ class ProjectStore:
     def restore(self, project_id: str, revision: str, expected_revision: str, difficulty: str | None = None) -> dict:
         if not re.fullmatch(r"[a-f0-9]{64}", revision):
             raise ValueError("Invalid saved revision")
-        return self.save(project_id, read_json(self.directory(project_id) / "history" / (revision + ".json")),
-                         expected_revision, difficulty=difficulty)
+        restored = read_json(self.directory(project_id) / "history" / (revision + ".json"))
+        # The restored revision is its own base: the values its placer chose stay placer-chosen.
+        return self.save(project_id, restored, expected_revision, difficulty=difficulty, base=restored)
+
+    def base_arrangement(self, project_id: str, base: str | Path) -> dict:
+        """The arrangement edits started from: an arrangement JSON file, or a revision in the project's history."""
+        file = Path(base)
+        if file.is_file():
+            return read_json(file)
+        if isinstance(base, str) and re.fullmatch(r"[a-f0-9]{64}", base):
+            stored = self.directory(project_id) / "history" / (base + ".json")
+            if stored.is_file():
+                return read_json(stored)
+        raise FileNotFoundError(f"--base {base} is neither an arrangement file nor a revision in the history of "
+                                f"{project_id}; pass the file the edited arrangement was copied from (for a "
+                                "workspace clone's arrangement, that arrangement file itself)")
 
     def feedback(self, project_id: str) -> list[dict]:
         """Every feedback record: beat ranges (kind "range") and timestamped notes (kind "note")."""

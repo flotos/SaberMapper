@@ -426,3 +426,16 @@ class HeldObjectConnectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExampleArrangementTests(unittest.TestCase):
+    def test_shipped_examples_pass_validation(self):
+        # docs/experiment-workflow.md validates and compiles these; a rule change must update them too.
+        import json
+        from pathlib import Path
+        examples = sorted((Path(__file__).resolve().parents[1] / "examples").glob("*arrangement*.json"))
+        self.assertTrue(examples)
+        for path in examples:
+            with self.subTest(path.name):
+                source = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual([d["code"] for d in validate_arrangement(source) if d["severity"] == "error"], [])

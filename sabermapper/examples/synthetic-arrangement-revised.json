@@ -46,7 +46,7 @@
                                             "x":  3,
                                             "y":  1,
                                             "color":  1,
-                                            "direction":  2
+                                            "direction":  3
                                         }
                                     ]
                },
@@ -94,7 +94,7 @@
                                            "x":  0,
                                            "y":  2,
                                            "color":  0,
-                                           "direction":  1
+                                           "direction":  0
                                        },
                                        {
                                            "id":  "drive-accent-blue",

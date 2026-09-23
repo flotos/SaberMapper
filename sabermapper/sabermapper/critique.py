@@ -64,7 +64,7 @@ DEFINITIONS = {
     "arc_vertical_travel": "Histogram of each arc's tail_y minus y, that is how many rows the arc travels.",
     "long_vocal_sustains": "Sustains of at least 0.7 s reported for a vocals layer, present only when the musical evidence run provides sustains.",
     "sustains_covered_by_arcs": "How many of those long vocal sustains start within 0.5 beat of an arc head.",
-    "density_collapse": "At a section boundary S to T, the sparsest 2 s window (hopped 0.5 s) inside the last 8 s of S runs below 0.6 times the median rolling window fully inside S while the first 8 s of T runs above that median, and S holds at least 8 notes.",
+    "density_collapse": "At a section boundary S to T, the sparsest 2 s window (hopped 0.5 s) inside the last 8 s of S, ignoring windows an arc is held through, runs below 0.6 times the median rolling window fully inside S while the first 8 s of T runs above that median, and S holds at least 8 notes.",
     "repetitive_cycle": "The best cycle coverage over periods 2..16 reaches 0.6 or more, meaning most notes repeat the placement of a fixed number of notes earlier.",
     "low_placement_variety": "The median 64-note window placement entropy falls below 2.5 bits.",
     "top_row_starved": "Fewer than 5% of the notes sit on the top row in a map of at least 100 notes.",
@@ -156,6 +156,10 @@ def _density(arrangement, notes, times, spans, warn):
                             "seconds": _round(seconds),
                             "nps": _round(counts.get(span["id"], 0) / seconds) if seconds > 0 else 0.0})
     span_seconds = times[-1] - times[0]
+    # A hand holding an arc through a window is playing the held sound, not resting.
+    holds = [(beat_to_seconds(span["start_beat"] + float(Fraction(str(arc["beat"]))), arrangement),
+              beat_to_seconds(span["start_beat"] + float(Fraction(str(arc["tail_beat"]))), arrangement))
+             for span in spans for arc in span["section"].get("arcs") or []]
     for left, right in zip(spans, spans[1:]):
         inside = [w["nps"] for w in rolling if w["start_seconds"] >= left["start_seconds"] - 1e-9
                   and w["end_seconds"] <= left["end_seconds"] + 1e-9]
@@ -170,7 +174,9 @@ def _density(arrangement, notes, times, spans, warn):
         start = max(left["start_seconds"], left["end_seconds"] - TAIL_SECONDS)
         cursor = start
         while cursor + PROBE_SECONDS <= left["end_seconds"] + 1e-9:
-            probes.append((cursor, _count_between(times, cursor, cursor + PROBE_SECONDS) / PROBE_SECONDS))
+            held = any(head < cursor + PROBE_SECONDS and tail > cursor for head, tail in holds)
+            if not held:
+                probes.append((cursor, _count_between(times, cursor, cursor + PROBE_SECONDS) / PROBE_SECONDS))
             cursor += PROBE_HOP_SECONDS
         if not probes:
             continue

@@ -101,6 +101,23 @@ class CritiqueMetricTests(unittest.TestCase):
         self.assertTrue(all(i.startswith("S/") for i in collapse[0]["object_ids"]))
         self.assertIn("sparsest 2 s window", collapse[0]["message"])
 
+    def test_an_arc_held_through_the_sparse_window_is_not_a_collapse(self):
+        rng = random.Random(3)
+        placement = lambda: (rng.randrange(4), rng.randrange(3), rng.randrange(2), rng.randrange(9))
+        dense = [note(i, i * 0.5, placement()) for i in range(112)]  # beats 0..55.5
+        dense.append(note(900, 56, (1, 0, 0, 0)))
+        dense.append(note(901, 63, (1, 2, 0, 1)))
+        tail = [note(1000 + i, i * 0.25, placement()) for i in range(120)]
+        body = section("S", 0, 64, dense)
+        # The held sound from beat 56 to 63 is played as an arc: the hand is busy, not resting.
+        body["arcs"] = [{"id": "hold", "beat": 56, "x": 1, "y": 0, "color": 0, "direction": 0,
+                         "tail_beat": 63, "tail_x": 1, "tail_y": 2, "tail_direction": 1}]
+        result = critique_arrangement(arrangement([body, section("T", 64, 32, tail)]))
+        self.assertNotIn("density_collapse", {w["code"] for w in result["warnings"]})
+        body["arcs"] = []
+        result = critique_arrangement(arrangement([body, section("T", 64, 32, tail)]))
+        self.assertIn("density_collapse", {w["code"] for w in result["warnings"]}, "without the arc it empties")
+
     def seam_fixture(self, note_on_seam):
         rng = random.Random(11)
         placement = lambda: (rng.randrange(4), rng.randrange(3), rng.randrange(2), rng.randrange(9))

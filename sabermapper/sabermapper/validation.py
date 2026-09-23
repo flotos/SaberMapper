@@ -98,13 +98,19 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
             notes_ok[0] = False
 
     def _note_check(note, where, sid, origin, base):
-        if not keys(note, {"id", "beat", "x", "y", "color", "direction"}, where, sid):
+        if not keys(note, {"id", "beat", "x", "y", "color", "direction"}, where, sid, optional={"placed"}):
             return
         nid = note["id"]
         if not isinstance(nid, str) or not nid or "/" in nid:
             add("error", "invalid_id", f"{where}.id must be nonempty and contain no slash", sid)
             return
         oid = f"{origin}/{nid}"
+        placed = note.get("placed", [])
+        if (not isinstance(placed, list) or any(field not in ("x", "y", "color", "direction") for field in placed)
+                or len(set(placed)) != len(placed)):
+            add("error", "invalid_placed", f"{oid}.placed must list distinct fields among x, y, color and "
+                                           "direction (the ones the placer chose)", sid, [oid])
+            return
         try:
             beat = _beat(note["beat"])
         except (ValueError, TypeError, ZeroDivisionError, OverflowError):

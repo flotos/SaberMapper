@@ -22,6 +22,11 @@ BURST_SWINGS = 3
 # sit on the player's line of sight, where the hidden stretch lasts longest.
 HIDDEN_SECONDS = 0.2
 SIGHTLINE_HIDDEN_SECONDS = 0.35
+# Grid cells per second a hand may travel between consecutive cuts before reach_proxy reports it.
+REACH_SPEED = 12
+# Same-hand notes this close (in beats and seconds) with one cut direction are cut in one swing.
+CHORD_BEATS = 1 / 16
+CHORD_SECONDS = 0.06
 _VECTORS = {0: (0, 1), 1: (0, -1), 2: (-1, 0), 3: (1, 0),
             4: (-1, 1), 5: (1, 1), 6: (-1, -1), 7: (1, -1)}
 _OPPOSITE = {0: 1, 1: 0, 2: 3, 3: 2, 4: 7, 7: 4, 5: 6, 6: 5}
@@ -52,6 +57,18 @@ def _parity(direction, hand, angle):
     if direction in (0, 4, 5):
         return "backhand"
     return ("forehand" if direction == 3 else "backhand") if hand == 0 else ("forehand" if direction == 2 else "backhand")
+
+
+def is_reset(beat_gap, gap_seconds, bpm):
+    """True when a hand rests long enough (a full beat) to start its next swing unconstrained."""
+    return beat_gap >= 1 or gap_seconds >= 60 / bpm
+
+
+def next_effective(effective, direction, reset):
+    """The direction a hand's next swing must flow from: a dot is cut as the reverse of the swing before it."""
+    if direction != 8:
+        return direction
+    return _OPPOSITE[effective] if effective is not None and effective != 8 and not reset else None
 
 
 def turn_degrees(previous, direction, previous_angle=0.0, angle=0.0):
@@ -179,7 +196,7 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
         prior = previous[note["color"]]
         beat_gap = note["beat"] - prior["beat"] if prior else None
         gap = note["seconds"] - prior["seconds"] if prior else None
-        compatible = (prior and 0 <= beat_gap <= 1 / 16 and 0 <= gap <= 0.06
+        compatible = (prior and 0 <= beat_gap <= CHORD_BEATS and 0 <= gap <= CHORD_SECONDS
                       and note["direction"] == prior["direction"] and note["angle"] == prior["angle"])
         if compatible:
             count = len(prior["note_ids"])
@@ -194,7 +211,7 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
                              "beat": note["beat"], "confidence": "high",
                              "reason": "same-hand simultaneous notes have incompatible cut directions"})
         parity = _parity(note["direction"], note["color"], note["angle"])
-        reset = bool(prior and (beat_gap >= 1 or gap >= 60 / bpm))
+        reset = bool(prior and is_reset(beat_gap, gap, bpm))
         swing = {"id": f"swing:{len(swings)}", "note_ids": [note["id"]],
                  "beat": note["beat"], "seconds": note["seconds"], "hand": note["color"],
                  "x": float(note["x"]), "y": float(note["y"]), "direction": note["direction"],
@@ -219,7 +236,7 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
             if found:
                 warnings.append({"code": found[0], "note_ids": [prior["note_ids"][-1], note["id"]],
                                  "beat": note["beat"], "confidence": "high", "severity": "error", "reason": found[1]})
-            if gap and distance / gap > 12:
+            if gap and distance / gap > REACH_SPEED:
                 warnings.append({"code": "reach_proxy", "note_ids": [prior["note_ids"][-1], note["id"]],
                                  "beat": note["beat"], "confidence": "low", "reason": "large grid displacement in short time"})
         swings.append(swing)

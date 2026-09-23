@@ -176,6 +176,11 @@ def export_arrangements(arrangements: list[dict], audio: str | Path, cover: str 
     """
     if not arrangements:
         raise ExportError("no difficulty to export")
+    from .placement import PlacementError, place_arrangement
+    try:
+        arrangements = [place_arrangement(a)["arrangement"] if isinstance(a, dict) else a for a in arrangements]
+    except PlacementError as exc:
+        raise ExportError(str(exc)) from exc
     for arrangement in arrangements:
         diagnostics = validate_arrangement(arrangement)
         errors = [item for item in diagnostics if item.get("severity") == "error"]

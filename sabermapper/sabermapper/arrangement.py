@@ -50,7 +50,13 @@ def expanded_notes(arrangement: dict) -> list[dict]:
 
 
 def compile_arrangement(arrangement: dict) -> dict:
-    """Compile a checked arrangement into a deterministic Beat Saber v3.3 map."""
+    """Compile a checked arrangement into a deterministic Beat Saber v3.3 map.
+
+    Notes with open fields are placed first (see :mod:`placement`); a fully specified arrangement compiles
+    exactly as written.
+    """
+    from .placement import place_arrangement
+    arrangement = place_arrangement(arrangement)["arrangement"]
     errors = [d for d in validate_arrangement(arrangement) if d["severity"] == "error"]
     if errors:
         raise ValueError("Arrangement validation failed: " + "; ".join(

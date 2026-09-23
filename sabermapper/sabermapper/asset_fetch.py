@@ -40,7 +40,7 @@ TEXTURE_MAPS = {"color": ("Color", "Diffuse", "diff"), "normal": ("NormalGL", "n
 
 # Kenney has no API; these 3D packs were checked on 2026-09-23. Recent releases also come from its RSS feed.
 KENNEY_3D = {
-    "nature-kit": "trees rocks plants grass flowers cliffs bridges camp nature forest",
+    "nature-kit": "trees pine oak palm rocks stones plants grass flowers mushrooms cliffs bridges camp tents fences statues nature forest",
     "space-kit": "space rockets planets craters satellites aliens sci-fi",
     "space-station-kit": "space station corridors modules sci-fi interior",
     "modular-space-kit": "space modular walls corridors sci-fi",
@@ -248,6 +248,22 @@ def _kenney_search(query, kind, limit):
                 "authors": ["Kenney"], "pack": True, "tags": pack["description"].split()[:10],
                 "page_url": f"https://kenney.nl/assets/{slug}",
                 "next": f"assets fetch info kenney:{slug} lists the pack's models with preview images"}))
+        # Packs already in the cache are searched model by model (names such as tree_pineTallA).
+        cached_zip = next((cache_dir() / "kenney" / _safe(slug)).glob("*.zip"), None)             if (cache_dir() / "kenney" / _safe(slug)).is_dir() else None
+        if cached_zip is None:
+            continue
+        try:
+            names = _kenney_models(zipfile.ZipFile(cached_zip))
+        except zipfile.BadZipFile:
+            continue
+        for name in names:
+            words = "".join(" " + ch if ch.isupper() else ch for ch in name).replace("_", " ")
+            model_score = _score(query, words)
+            if model_score > 0:
+                rows.append((model_score + 0.01, 0, {
+                    "ref": f"kenney:{slug}", "model": name, "source": "kenney", "kind": "model", "name": f"{pack['title']}: {name}",
+                    "license": LICENSE, "authors": ["Kenney"], "page_url": f"https://kenney.nl/assets/{slug}",
+                    "next": f"assets fetch get kenney:{slug} PROJECT --model {name}"}))
     return rows
 
 

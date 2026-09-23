@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import re
+import time
 
 from .errors import GameError
 
@@ -222,7 +223,33 @@ def read_log(path: str | Path) -> str:
         raise GameError("game_not_found", f"Game log not found: {path}", {"log": str(path)},
                         "Pass --log PATH or --game-dir DIR (or set SABERMAPPER_GAME_DIR); start the game once "
                         "so BSIPA writes Logs/_latest.log")
-    with open(path, "r", encoding="utf-8", errors="replace") as stream:
+    for attempt in range(5):
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as stream:
+                return stream.read()
+        except PermissionError:
+            # The running game sometimes holds the log with delete access; share-all opens still succeed.
+            if os.name == "nt":
+                try:
+                    return _read_shared(path).decode("utf-8", errors="replace")
+                except OSError:
+                    pass
+            time.sleep(0.2 * (attempt + 1))
+    raise GameError("log_unreadable", f"Game log is locked: {path}", {"log": str(path)},
+                    "Retry `sabermapper game logs` in a moment")
+
+
+def _read_shared(path: Path) -> bytes:
+    """Read a file opened with FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE (Windows)."""
+    import ctypes
+    import msvcrt
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateFileW.restype = ctypes.c_void_p
+    handle = kernel32.CreateFileW(str(path), 0x80000000, 0x7, None, 3, 0x80, None)
+    if handle in (None, ctypes.c_void_p(-1).value):
+        raise ctypes.WinError(ctypes.get_last_error())
+    fd = msvcrt.open_osfhandle(handle, os.O_RDONLY)
+    with os.fdopen(fd, "rb") as stream:
         return stream.read()
 
 

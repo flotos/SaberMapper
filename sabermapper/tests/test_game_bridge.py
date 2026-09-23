@@ -38,6 +38,7 @@ class FakeBridge:
                       "songs_ready": True, "last_error": None, "version": 1}
         self.calls, self.job = [], None
         self.loaded_at = None
+        self.hides_notes = True
         bridge = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -124,17 +125,23 @@ class FakeBridge:
             out = Path(body["out_dir"])
             out.mkdir(parents=True, exist_ok=True)
             frames = []
-            requests = [dict(f, reason=f.get("reason")) for f in body.get("frames", [])]
+            # A bridge before 0.2.0 ignores hide_notes and reports no notes_hidden field.
+            hide_all = bool(body.get("hide_notes")) and self.hides_notes
+            requests = [dict(f, reason=f.get("reason"), hide=hide_all) for f in body.get("frames", [])]
             probe = body.get("probe")
             if probe:
                 count = int((probe["end"] - probe["start"]) * probe["fps"]) + 1
-                requests += [{"time": probe["start"] + i / probe["fps"], "name": f"probe-{i:05d}.png", "reason": "probe"}
-                             for i in range(count)]
+                hide_probe = hide_all or (bool(probe.get("hide_notes")) and self.hides_notes)
+                requests += [{"time": probe["start"] + i / probe["fps"], "name": f"probe-{i:05d}.png", "reason": "probe",
+                              "hide": hide_probe} for i in range(count)]
             for request in requests:
                 Image.new("RGB", (64, 36), (10, 20, 30)).save(out / request["name"])
-                frames.append({"name": request["name"], "file": str(out / request["name"]),
-                               "requested_time": request["time"], "song_time": round(request["time"] + 0.004, 4),
-                               "frame": 1, "reason": request["reason"], "written": True})
+                result = {"name": request["name"], "file": str(out / request["name"]),
+                          "requested_time": request["time"], "song_time": round(request["time"] + 0.004, 4),
+                          "frame": 1, "reason": request["reason"], "written": True}
+                if self.hides_notes:
+                    result["notes_hidden"] = request["hide"]
+                frames.append(result)
             self.job = {"job_id": 1, "status": "done", "captured": len(frames), "written": len(frames),
                         "dropped": 0, "frames": frames}
             st["capture"] = {k: v for k, v in self.job.items() if k != "frames"}
@@ -446,6 +453,55 @@ class ApiTests(Fixture):
         self.assertEqual(self.pids, [4242])
         self.assertEqual(self.manager.own_lease("agent-a")["game_pid"], 4242)
 
+    def _capture_body(self):
+        return next(body for method, path, body in self.bridge.calls if (method, path) == ("POST", "/capture"))
+
+    def test_probe_frames_hide_notes_and_regular_frames_keep_them(self):
+        out = Path(self.tmp.name) / "hidden"
+        report = capture.run_capture(self.store, self.project_id, times=[2.0, 5.0], probe={"start": 3, "end": 3.2, "fps": 10},
+                                     out=out, game=self.game())
+        body = self._capture_body()
+        self.assertTrue(body["probe"]["hide_notes"])
+        self.assertNotIn("hide_notes", body)  # the job itself keeps notes on regular frames
+        manifest = json.loads((out / "capture.json").read_text(encoding="utf-8"))
+        probe_frames = [f for f in manifest["frames"] if f["reason"] == "probe"]
+        regular = [f for f in manifest["frames"] if f["reason"] != "probe"]
+        self.assertEqual(len(probe_frames), 3)
+        self.assertTrue(all(f["notes_hidden"] is True for f in probe_frames))
+        self.assertTrue(all("notes_hidden" not in f for f in regular))
+        self.assertEqual(set(regular[0]), {"file", "requested_time", "song_time", "beat", "section_id", "reason"})
+        self.assertTrue(manifest["probe"]["hide_notes"])
+        self.assertEqual(report["probe_notes_hidden"], {"requested": True, "frames": 3, "notes_hidden": 3})
+        self.assertNotIn("warnings", report)
+
+    def test_probe_with_notes_keeps_notes_on_every_frame(self):
+        out = Path(self.tmp.name) / "visible"
+        report = capture.run_capture(self.store, self.project_id, times=[2.0], probe={"start": 3, "end": 3.2, "fps": 10},
+                                     probe_with_notes=True, out=out, game=self.game())
+        self.assertFalse(self._capture_body()["probe"]["hide_notes"])
+        manifest = json.loads((out / "capture.json").read_text(encoding="utf-8"))
+        self.assertTrue(all("notes_hidden" not in f for f in manifest["frames"]))
+        self.assertEqual(report["probe_notes_hidden"]["notes_hidden"], 0)
+        self.assertNotIn("warnings", report)
+
+    def test_bridge_that_ignores_hide_notes_is_reported(self):
+        self.bridge.hides_notes = False
+        out = Path(self.tmp.name) / "old"
+        report = capture.run_capture(self.store, self.project_id, times=[2.0], probe={"start": 3, "end": 3.2, "fps": 10},
+                                     out=out, game=self.game())
+        manifest = json.loads((out / "capture.json").read_text(encoding="utf-8"))
+        self.assertTrue(all("notes_hidden" not in f for f in manifest["frames"]))
+        self.assertEqual([w["code"] for w in report["warnings"]], ["probe_notes_visible"])
+
+    def test_bridge_client_sends_job_level_hide_notes_only_when_set(self):
+        sent = []
+        client = BridgeClient.__new__(BridgeClient)
+        client.request = lambda method, path, body=None: sent.append(body) or {}
+        client.capture(out_dir="C:/x", frames=[])
+        client.capture(out_dir="C:/x", frames=[], hide_notes=True)
+        self.assertNotIn("hide_notes", sent[0])
+        self.assertTrue(sent[1]["hide_notes"])
+
 
 class BuildTests(unittest.TestCase):
     def test_command_embeds_manifest_and_references(self):
@@ -516,6 +572,14 @@ class CliTests(Fixture):
                                     "--probe", "9-3", "--lease-dir", str(self.lease_root))
         self.assertEqual(code, 2)
         self.assertEqual(output["error"]["code"], "capture_invalid")
+
+    def test_capture_cli_passes_probe_with_notes(self):
+        seen = {}
+        with unittest.mock.patch("sabermapper.game.capture.run_capture", lambda *a, **k: seen.update(k) or {"ok": True}):
+            self.run_cli("game", "capture", self.project_id, "--workspace", str(self.store.root), "--probe-with-notes")
+            self.assertTrue(seen["probe_with_notes"])
+            self.run_cli("game", "capture", self.project_id, "--workspace", str(self.store.root))
+            self.assertFalse(seen["probe_with_notes"])
 
     def test_build_bridge_reports_missing_compiler(self):
         code, output = self.run_cli("game", "build-bridge", "--csc", str(Path(self.tmp.name) / "csc.exe"))

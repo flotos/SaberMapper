@@ -12,7 +12,13 @@ namespace SaberMapperBridge
 {
     /// <summary>PNG frame capture at requested song times. Frames are grabbed at end of frame (after every camera and
     /// image effect, so Vivify post-processing on the player camera is included), read back asynchronously from the
-    /// GPU and encoded on worker threads so gameplay keeps its frame rate.</summary>
+    /// GPU and encoded on worker threads so gameplay keeps its frame rate.
+    ///
+    /// Requests due in a frame are taken in LateUpdate, when the song time is final. A request with hide_notes (the
+    /// whole job, or only the probe) turns rendering off for every renderer under active notes, bombs, chains and arcs
+    /// at the first camera cull of that frame, and turns exactly those renderers back on after the end-of-frame grab.
+    /// Nobody cuts notes during a capture, so uncut notes fly through the camera and fill the frame; the flash probe
+    /// measures the scene the player sees, not notes hitting the lens. Walls, sabers and the scene stay visible.</summary>
     internal class CaptureController
     {
         private const int MaxPendingWrites = 48;
@@ -22,14 +28,22 @@ namespace SaberMapperBridge
         private int _jobCounter;
         private Camera _wideCamera;
 
-        private class FrameRequest { public float Time; public string Name; public string Reason; }
+        // Requests taken in LateUpdate and grabbed at the end of the same frame (main thread only).
+        private List<FrameRequest> _scheduled;
+        private float _scheduledTime;
+        private int _hideFrame = -1, _hiddenFrame = -1;
+        private readonly List<Renderer> _hidden = new List<Renderer>();
 
-        private class Probe { public float Start, End, Fps; public int NextIndex; public bool Finished; }
+        private class FrameRequest { public float Time; public string Name; public string Reason; public bool HideNotes; }
+
+        private class Probe { public float Start, End, Fps; public int NextIndex; public bool Finished, HideNotes; }
 
         private class Job
         {
             public int Id;
             public string Status = "running", OutDir, Camera, Error;
+            public bool HideNotes;
+            public int NotesHiddenFrames;
             public int? Width, Height;
             public List<FrameRequest> Frames = new List<FrameRequest>();
             public int Next, Pending, Dropped, Written, Captured;
@@ -39,7 +53,11 @@ namespace SaberMapperBridge
             public bool AllScheduled => Next >= Frames.Count && (Probe == null || Probe.Finished);
         }
 
-        public CaptureController(GameController game) { _game = game; }
+        public CaptureController(GameController game)
+        {
+            _game = game;
+            Camera.onPreCull += OnPreCull;
+        }
 
         public JToken Start(JObject input)
         {
@@ -52,7 +70,7 @@ namespace SaberMapperBridge
             var camera = BridgeServer.OptString(input, "camera", "player");
             if (camera != "player" && camera != "wide")
                 throw new BridgeException("bad_request", "camera must be player or wide");
-            var job = new Job { Id = ++_jobCounter, OutDir = outDir, Camera = camera };
+            var job = new Job { Id = ++_jobCounter, OutDir = outDir, Camera = camera, HideNotes = BridgeServer.OptBool(input, "hide_notes", false) };
             var width = BridgeServer.OptInt(input, "width", 0);
             var height = BridgeServer.OptInt(input, "height", 0);
             if (width < 0 || height < 0 || width > 8192 || height > 8192) throw new BridgeException("bad_request", "width/height must be within 1..8192");
@@ -65,7 +83,7 @@ namespace SaberMapperBridge
                     if (!(token is JObject f)) throw new BridgeException("bad_request", "frames must be objects {time, name}");
                     var time = BridgeServer.OptNullableFloat(f, "time") ?? throw new BridgeException("bad_request", "every frame needs a time");
                     var name = SafeName(BridgeServer.OptString(f, "name", $"t{time:0000.000}.png"));
-                    job.Frames.Add(new FrameRequest { Time = time, Name = name, Reason = BridgeServer.OptString(f, "reason") });
+                    job.Frames.Add(new FrameRequest { Time = time, Name = name, Reason = BridgeServer.OptString(f, "reason"), HideNotes = job.HideNotes });
                 }
                 job.Frames = job.Frames.OrderBy(f => f.Time).ToList();
             }
@@ -75,13 +93,13 @@ namespace SaberMapperBridge
                 var end = BridgeServer.OptNullableFloat(probe, "end") ?? throw new BridgeException("bad_request", "probe needs end");
                 var fps = BridgeServer.OptFloat(probe, "fps", 30f);
                 if (end <= start || fps <= 0 || fps > 120) throw new BridgeException("bad_request", "probe needs end > start and 0 < fps <= 120");
-                job.Probe = new Probe { Start = start, End = end, Fps = fps };
+                job.Probe = new Probe { Start = start, End = end, Fps = fps, HideNotes = job.HideNotes || BridgeServer.OptBool(probe, "hide_notes", false) };
             }
             if (job.Frames.Count == 0 && job.Probe == null) throw new BridgeException("bad_request", "capture needs frames [{time, name}] or probe {start, end, fps}");
             try { Directory.CreateDirectory(outDir); }
             catch (Exception e) { throw new BridgeException("bad_request", $"Cannot create out_dir: {e.Message}"); }
             lock (_lock) _job = job;
-            Plugin.Log.Info($"capture job {job.Id}: {job.Frames.Count} frames{(job.Probe != null ? $", probe {job.Probe.Start}-{job.Probe.End}@{job.Probe.Fps}" : "")}, camera {camera}, out {outDir}");
+            Plugin.Log.Info($"capture job {job.Id}: {job.Frames.Count} frames{(job.Probe != null ? $", probe {job.Probe.Start}-{job.Probe.End}@{job.Probe.Fps}{(job.Probe.HideNotes ? " notes hidden" : "")}" : "")}, camera {camera}{(job.HideNotes ? ", notes hidden" : "")}, out {outDir}");
             return Status(false);
         }
 
@@ -118,9 +136,11 @@ namespace SaberMapperBridge
                     ["job_id"] = _job.Id, ["status"] = _job.Status, ["out_dir"] = _job.OutDir, ["camera"] = _job.Camera,
                     ["requested"] = _job.Frames.Count, ["next"] = _job.Next, ["captured"] = _job.Captured, ["written"] = _job.Written,
                     ["pending"] = _job.Pending, ["dropped"] = _job.Dropped, ["error"] = _job.Error,
+                    ["hide_notes"] = _job.HideNotes, ["notes_hidden_frames"] = _job.NotesHiddenFrames,
                     ["probe"] = _job.Probe == null ? null : new JObject
                     {
                         ["start"] = _job.Probe.Start, ["end"] = _job.Probe.End, ["fps"] = _job.Probe.Fps, ["finished"] = _job.Probe.Finished,
+                        ["hide_notes"] = _job.Probe.HideNotes,
                     },
                     ["started_at"] = _job.StartedAt.ToString("o"),
                 };
@@ -129,51 +149,112 @@ namespace SaberMapperBridge
             }
         }
 
-        public void OnEndOfFrame(bool playing, float songTime)
+        /// <summary>LateUpdate: takes the requests due at this frame's song time. A due probe frame decides whether the
+        /// frame hides notes; a regular request whose hide_notes differs waits for the next frame, so frames that keep
+        /// notes never share a render with a notes-hidden probe frame.</summary>
+        public void Schedule(bool playing, float songTime)
         {
+            _scheduled = null;
             Job job;
             lock (_lock) job = _job;
-            if (job == null || job.Status != "running") return;
-            if (playing)
+            if (job == null || job.Status != "running" || !playing) return;
+            var due = new List<FrameRequest>();
+            var probe = job.Probe;
+            if (probe != null && !probe.Finished && songTime >= probe.Start)
             {
-                var due = new List<FrameRequest>();
-                while (job.Next < job.Frames.Count && job.Frames[job.Next].Time <= songTime) due.Add(job.Frames[job.Next++]);
-                var probe = job.Probe;
-                if (probe != null && !probe.Finished && songTime >= probe.Start)
+                if (songTime > probe.End + 0.5f / probe.Fps) probe.Finished = true;
+                else
                 {
-                    if (songTime > probe.End + 0.5f / probe.Fps) probe.Finished = true;
-                    else
+                    int index = Mathf.FloorToInt((songTime - probe.Start) * probe.Fps + 1e-4f);
+                    if (index >= probe.NextIndex)
                     {
-                        int index = Mathf.FloorToInt((songTime - probe.Start) * probe.Fps + 1e-4f);
-                        if (index >= probe.NextIndex)
-                        {
-                            due.Add(new FrameRequest { Time = probe.Start + index / probe.Fps, Name = $"probe-{index:D5}.png", Reason = "probe" });
-                            probe.NextIndex = index + 1;
-                        }
+                        due.Add(new FrameRequest { Time = probe.Start + index / probe.Fps, Name = $"probe-{index:D5}.png", Reason = "probe", HideNotes = probe.HideNotes });
+                        probe.NextIndex = index + 1;
                     }
                 }
-                if (due.Count > 0) Grab(job, due, songTime);
             }
+            while (job.Next < job.Frames.Count && job.Frames[job.Next].Time <= songTime)
+            {
+                var request = job.Frames[job.Next];
+                if (due.Count > 0 && request.HideNotes != due[0].HideNotes) break;
+                due.Add(request);
+                job.Next++;
+            }
+            if (due.Count == 0) return;
+            _scheduled = due;
+            _scheduledTime = songTime;
+            if (due[0].HideNotes) _hideFrame = Time.frameCount;
+        }
+
+        /// <summary>First camera cull of a notes-hidden frame. It runs after every LateUpdate, so notes spawned or moved
+        /// this frame are covered; Vivify note prefabs are parented under the note object, so its children cover them.</summary>
+        private void OnPreCull(Camera camera)
+        {
+            int frame = Time.frameCount;
+            if (_hideFrame != frame || _hiddenFrame == frame) return;
+            _hiddenFrame = frame;
+            try
+            {
+                foreach (var note in UnityEngine.Object.FindObjectsOfType<NoteController>()) HideUnder(note);
+                foreach (var slider in UnityEngine.Object.FindObjectsOfType<SliderController>()) HideUnder(slider);
+            }
+            catch (Exception e) { Plugin.Log.Error($"hiding notes failed: {e}"); }
+        }
+
+        private void HideUnder(Component root)
+        {
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+                if (renderer != null && !renderer.forceRenderingOff)
+                {
+                    renderer.forceRenderingOff = true;
+                    _hidden.Add(renderer);
+                }
+        }
+
+        private void RestoreNotes()
+        {
+            foreach (var renderer in _hidden)
+                if (renderer != null) renderer.forceRenderingOff = false;
+            _hidden.Clear();
+        }
+
+        public void OnEndOfFrame()
+        {
+            var due = _scheduled;
+            float songTime = _scheduledTime;
+            bool notesHidden = _hiddenFrame == Time.frameCount;
+            int hiddenRenderers = _hidden.Count;
+            _scheduled = null;
+            Job job;
+            lock (_lock) job = _job;
+            try
+            {
+                if (job != null && job.Status == "running" && due != null) Grab(job, due, songTime, notesHidden, hiddenRenderers);
+            }
+            finally { RestoreNotes(); }
+            if (job == null) return;
             lock (_lock)
                 if (job.Status == "running" && job.AllScheduled && job.Pending == 0)
                 {
                     job.Status = "done";
-                    Plugin.Log.Info($"capture job {job.Id} done: {job.Written} written, {job.Dropped} dropped");
+                    Plugin.Log.Info($"capture job {job.Id} done: {job.Written} written, {job.Dropped} dropped, {job.NotesHiddenFrames} with notes hidden");
                 }
         }
 
-        private void Grab(Job job, List<FrameRequest> due, float songTime)
+        private void Grab(Job job, List<FrameRequest> due, float songTime, bool notesHidden, int hiddenRenderers)
         {
             int frame = Time.frameCount;
             var results = due.Select(r => new JObject
             {
                 ["name"] = r.Name, ["file"] = Path.Combine(job.OutDir, r.Name), ["requested_time"] = r.Time, ["song_time"] = Math.Round(songTime, 4),
-                ["frame"] = frame, ["reason"] = r.Reason, ["written"] = false,
+                ["frame"] = frame, ["reason"] = r.Reason, ["written"] = false, ["notes_hidden"] = notesHidden,
+                ["hidden_renderers"] = notesHidden ? (JToken)hiddenRenderers : null,
             }).ToList();
             lock (_lock)
             {
                 job.Results.AddRange(results);
                 job.Captured += due.Count;
+                if (notesHidden) job.NotesHiddenFrames += due.Count;
                 if (job.Pending >= MaxPendingWrites)
                 {
                     job.Dropped += due.Count;

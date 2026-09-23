@@ -127,9 +127,17 @@ namespace SaberMapperBridge
             while (true)
             {
                 yield return wait;
-                try { Capture.OnEndOfFrame(InLevel && _audio.state == AudioTimeSyncController.State.Playing, InLevel ? _audio.songTime : -1f); }
+                try { Capture.OnEndOfFrame(); }
                 catch (Exception e) { Capture.Fail(e); Plugin.Log.Error($"capture failed: {e}"); }
             }
+        }
+
+        /// <summary>Takes this frame's capture requests once every Update has set the song time. Notes of a
+        /// notes-hidden frame are hidden later, at the first camera cull, after every LateUpdate.</summary>
+        private void LateUpdate()
+        {
+            try { Capture.Schedule(InLevel && _audio.state == AudioTimeSyncController.State.Playing, InLevel ? _audio.songTime : -1f); }
+            catch (Exception e) { Capture.Fail(e); Plugin.Log.Error($"capture failed: {e}"); }
         }
 
         // ---------------------------------------------------------------- state

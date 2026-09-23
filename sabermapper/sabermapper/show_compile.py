@@ -20,6 +20,17 @@ _TRACK_DIMS = {"dissolve": 1, "dissolveArrow": 1, "interactable": 1, "time": 1, 
 _TYPE_DIMS = {"Float": 1, "Color": 4, "Vector": 4}
 
 
+
+def _final_point_value(points):
+    """The value a point definition ends on ([..values, time, easing?] rows), or None if it is not one."""
+    if not isinstance(points, list) or not points or not isinstance(points[-1], list):
+        return None
+    numbers = [v for v in points[-1] if isinstance(v, (int, float)) and not isinstance(v, bool)]
+    if len(numbers) < 2:
+        return None
+    values = numbers[:-1]
+    return values[0] if len(values) == 1 else values
+
 def _num(value: Fraction | float) -> float:
     number = round(float(value), 6)
     return int(number) if number == int(number) else number
@@ -103,7 +114,12 @@ def compile_show(show: dict, arrangement: dict, beatmap: dict, *, bundle: dict |
             value = deepcopy(frame["points"])
             if "easing" in frame:
                 data["easing"] = frame["easing"]
-            state.pop(key, None)
+            # The next keyframe on this property starts where these points end, not at the bundle default.
+            final = _final_point_value(value)
+            if final is None:
+                state.pop(key, None)
+            else:
+                state[key] = final
         else:
             target, previous = frame["value"], state.get(key, default(material, frame["property"]))
             if duration and previous is not None and kind in _TYPE_DIMS:

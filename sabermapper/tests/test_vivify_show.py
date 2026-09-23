@@ -152,6 +152,15 @@ class PrimitiveCompileTests(BundleCase):
         self.assertEqual(result["provenance"][1]["evidence"]["id"], "drums:spectral_flux:2")
         self.assertEqual(result["requirements"], ["Vivify"])
 
+    def test_keyframe_after_points_starts_where_the_points_end(self):
+        # Ko Phangan: an animal ran in with points [-40 -> 0]; its exit keyframe restarted from -40.
+        look = dict(self.primitive("grey"), keyframes=[
+            {"beat": 1, "property": "_Amount", "points": [[0.9, 0], [0.4, 1, "easeOutQuad"]], "duration_beats": 1},
+            {"beat": 4, "property": "_Amount", "value": 0.6, "duration_beats": 2}])
+        beatmap, _ = self.compile([look])
+        events = [e for e in beatmap["customData"]["customEvents"] if e["t"] == "SetMaterialProperty"]
+        self.assertEqual(events[1]["d"]["properties"][0]["value"], [[0.4, 0], [0.6, 1]])
+
     def test_scene_pairs_spawn_with_destroy(self):
         beatmap, result = self.compile([self.primitive("ring")])
         self.assertEqual(beatmap["customData"]["customEvents"], [

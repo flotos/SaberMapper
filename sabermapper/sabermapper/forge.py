@@ -442,17 +442,27 @@ def _provenance(asset, tier, add, base_dir):
             if not prov.get(key):
                 add("error", "provenance_incomplete", f"Tier 2 provenance lacks {key!r}", f"Add provenance.{key}")
         return
-    gen = prov.get("generator")
-    if not isinstance(gen, dict):
-        return add("error", "provenance_incomplete", "Tier 3 provenance lacks the generator record",
-                   'Add provenance.generator {kind, model, model_version, backend, prompt, seed}')
-    for key in ("kind", "model", "model_version", "backend", "prompt", "seed"):
-        if gen.get(key) in (None, ""):
-            add("error", "provenance_incomplete", f"Tier 3 provenance.generator lacks {key!r}", f"Record provenance.generator.{key}")
-    for key in ("created_at", "license", "output_sha256"):
+    gen, fetched = prov.get("generator"), prov.get("fetched")
+    if isinstance(fetched, dict):
+        # Downloaded media (`assets fetch`): where it came from, who made it, under which licence.
+        for key in ("source", "asset", "url", "authors", "retrieved_at"):
+            if fetched.get(key) in (None, ""):
+                add("error", "provenance_incomplete", f"Tier 3 provenance.fetched lacks {key!r}",
+                    f"Record provenance.fetched.{key} (`assets fetch get` writes it)")
+        required = ("license", "output_sha256")
+    elif isinstance(gen, dict):
+        for key in ("kind", "model", "model_version", "backend", "prompt", "seed"):
+            if gen.get(key) in (None, ""):
+                add("error", "provenance_incomplete", f"Tier 3 provenance.generator lacks {key!r}",
+                    f"Record provenance.generator.{key}")
+        required = ("created_at", "license", "output_sha256")
+    else:
+        return add("error", "provenance_incomplete", "Tier 3 provenance needs a generator or a fetched record",
+                   'Generated: provenance.generator {kind, model, ...}; downloaded: use `assets fetch get`')
+    for key in required:
         if not prov.get(key):
             add("error", "provenance_incomplete", f"Tier 3 provenance lacks {key!r}", f"Record provenance.{key}")
-    source = asset.get("source")
+    source = asset.get("source") or ((asset.get("mesh") or {}).get("file") if isinstance(asset.get("mesh"), dict) else None)
     if source and prov.get("output_sha256") and (base_dir / source).is_file():
         actual = hashlib.sha256((base_dir / source).read_bytes()).hexdigest()
         if actual != prov["output_sha256"]:
@@ -640,6 +650,28 @@ def _validate_mesh(mesh, tier, base_dir, library, budgets, add):
         return None
     if "asset" in mesh:
         return None
+    if "file" in mesh:
+        # A model file (OBJ from `assets fetch get`, or any triangulated OBJ): right-handed, +Y up, metres.
+        from .mesh_files import obj_triangle_count
+        path = base_dir / str(mesh["file"])
+        if Path(str(mesh["file"])).suffix.lower() != ".obj":
+            add("error", "mesh_file_format", f"{mesh['file']} is not an .obj file",
+                "Convert models with `assets fetch get` (glTF/GLB/OBJ in, a normalised OBJ out)")
+            return None
+        if not path.is_file():
+            add("error", "mesh_file_missing", f"Model file {mesh['file']} was not found next to assets.json",
+                "Fetch it with `assets fetch get REF PROJECT` or fix the relative path")
+            return None
+        if tier == 1:
+            add("error", "tier_mismatch", "Model files are tier 2 (agent-made) or tier 3 (fetched or generated)", "Set tier 3")
+        tris = obj_triangle_count(path)
+        if tris == 0:
+            add("error", "mesh_file_empty", f"{mesh['file']} has no faces", "Fetch or export the model again")
+        limit = budgets["max_triangles_per_mesh"]
+        if tris > limit:
+            add("error", "mesh_budget_exceeded", f"{mesh['file']} has {tris} triangles; the limit is {limit}",
+                "Fetch it again with a lower --max-triangles")
+        return tris
     if "generator" in mesh:
         if mesh["generator"] not in library["meshes"]:
             add("error", "mesh_generator_unknown", f"Unknown built-in generator {mesh['generator']!r}",
@@ -682,7 +714,8 @@ def _validate_mesh(mesh, tier, base_dir, library, budgets, add):
             add("error", "mesh_budget_exceeded", f"max_triangles {mesh['max_triangles']} exceeds budgets.max_triangles_per_mesh",
                 "Lower it or raise the budget deliberately")
         return int(mesh.get("max_triangles") or 0)
-    add("error", "mesh_missing", "Mesh spec needs generator, asset, or source+class", 'Use {"generator": "quad"}')
+    add("error", "mesh_missing", "Mesh spec needs generator, asset, file, or source+class",
+        'Use {"generator": "quad"}, or a fetched model {"file": "models/x.obj"}')
     return None
 
 
@@ -782,6 +815,10 @@ def _validate_prefab(asset, kind, tier, base_dir, library, budgets, by_id, add, 
                 continue
             # The mesh asset reports its own problems; here only its triangle count is needed.
             tris = _validate_mesh(target.get("mesh"), target.get("tier"), base_dir, library, budgets, lambda *a, **k: None)
+        elif isinstance(mesh, dict) and "file" in mesh:
+            add("error", "mesh_file_inline", f"{where}.mesh names a model file inline",
+                'Declare the model as a mesh asset with its provenance (`assets fetch get --add` does) and use {"asset": id}')
+            continue
         else:
             tris = _validate_mesh(mesh, tier, base_dir, library, budgets, add)
         summary["triangles"] += tris or 0
@@ -1004,6 +1041,21 @@ def stage(spec: dict, base_dir: Path, unity_project: Path, library: dict, target
 
     shader_paths: dict[str, Path] = {}
 
+    def copy_includes(source: Path, unity_dir: str, seen: set | None = None):
+        """Stage the shader's relative #include files next to it, so shared .cginc code compiles in Unity."""
+        seen = set() if seen is None else seen
+        text = source.read_text(encoding="utf-8-sig", errors="replace")
+        for include in re.findall(r'#include\s+"([^"]+)"', _strip_comments(text)):
+            if include.lower().split("/")[-1] in BUILTIN_SHADER_INCLUDES or include.startswith("Packages/"):
+                continue
+            candidate = (source.parent / include).resolve()
+            if not candidate.is_file() or candidate in seen or ".." in Path(include).parts:
+                continue
+            seen.add(candidate)
+            inc_rel = f"{unity_dir}/{include}"
+            copy(candidate, inc_rel)
+            copy_includes(candidate, inc_rel.rsplit("/", 1)[0], seen)
+
     def shader_unity(asset):
         shader = asset["shader"]
         if "library" in shader:
@@ -1015,6 +1067,7 @@ def stage(spec: dict, base_dir: Path, unity_project: Path, library: dict, target
         if rel not in shader_paths:
             copy(source, rel)
             shader_paths[rel] = source
+            copy_includes(source, rel.rsplit("/", 1)[0])
             parsed = parse_shader(source.read_text(encoding="utf-8-sig", errors="replace"))
             if parsed["name"]:
                 source_map["shaders"][parsed["name"]] = str(source)
@@ -1026,6 +1079,15 @@ def stage(spec: dict, base_dir: Path, unity_project: Path, library: dict, target
             source = (base_dir / mesh["source"]).resolve()
             copy(source, f"Assets/SaberMapper/Staging/Editor/{slug}_{source.name}")
             entry["mesh"].pop("source")
+        if "file" in mesh:
+            from .mesh_files import load_model_file, unity_mesh_data
+            source = (base_dir / mesh["file"]).resolve()
+            rel = f"Assets/SaberMapper/Staging/Meshes/{mesh_id}.json"
+            dest = unity_project / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(json.dumps(unity_mesh_data(load_model_file(source))), encoding="utf-8")
+            source_map["files"][rel.lower()] = str(source)
+            entry["mesh"] = {"data_unity_path": rel}
         return entry
 
     textures, meshes, rest = [], [], []
@@ -1276,14 +1338,19 @@ def _build_locked(spec, spec_path, dest, target, editor, version, unity_project,
     bundleinfo["bundleFiles"] = [final_bundle.resolve().as_posix()]
     report.update({"source_spec": str(spec_path), "spec_sha256": hashlib.sha256(spec_path.read_bytes()).hexdigest(),
                    "bundle_header": header, "bundle_mb": round(size_mb, 3), "build_id": build_id})
+    from .asset_credits import CREDITS_FILE, credits_for_spec
+    credits = credits_for_spec(spec, spec_path)
     for folder in (dest, history):
         write_json(folder / "bundleinfo.json", bundleinfo)
         write_json(folder / "build-report.json", report)
+        write_json(folder / CREDITS_FILE, credits)
     if log_path.is_file():
         shutil.copy2(log_path, dest / "build.log")
     shutil.rmtree(work, ignore_errors=True)
     return {"ok": True, **context, "log": str(dest / "build.log"), "bundle_paths": [str(final_bundle)],
             "bundleinfo": bundleinfo, "crc": crc, "crc_key": info["crc_key"], "build_report": report,
+            "credits": {"file": str(dest / CREDITS_FILE), "third_party": len(credits["third_party"]),
+                        "generated_media": len(credits["generated_media"]), "attribution_text": credits["attribution_text"]},
             "warnings": editor["warnings"] + report.get("warnings", []) +
             [d for d in lint["diagnostics"] if d["severity"] == "warning"]}
 
@@ -1410,7 +1477,9 @@ def generate(kind: str, prompt: str, *, backend: str = "local", seed: int | None
                          "Generative models run locally on the RTX 5070 Ti (user decision 2026-09-23)")
     raise ForgeError(
         "generator_unavailable", f"No local {kind} generator is installed (needs a {GENERATOR_KINDS[kind]})",
-        "Ask the user to approve installing a local model; until then use tier-1 library assets or tier-2 procedural code",
+        "Fetch a free CC0 model, texture or sky panorama instead (`assets fetch search QUERY --kind "
+        f"{'model' if kind == 'mesh' else 'sky' if kind == 'skybox' else 'texture'}`), or use tier-1 library assets or "
+        "tier-2 procedural code; installing a local generative model needs the user's approval",
         kind=kind, backend=backend,
         provenance_template={"generator": {"kind": kind, "model": "", "model_version": "", "backend": backend,
                                            "device": "cuda:0", "prompt": prompt, "negative_prompt": "", "seed": seed,

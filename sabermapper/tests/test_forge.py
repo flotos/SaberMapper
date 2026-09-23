@@ -273,6 +273,28 @@ class SpecValidationTests(ForgeTestCase):
         self.assertEqual("grade", hit["asset"])
 
 
+    def test_relative_includes_are_staged_next_to_the_shader(self):
+        shaders = self.root / "shaders"
+        (shaders / "common").mkdir(parents=True)
+        body = GOOD_SHADER.replace('#include "UnityCG.cginc"', '#include "UnityCG.cginc"\n#include "common/glass.cginc"')
+        self.assertIn("common/glass.cginc", body)
+        (shaders / "fx.shader").write_text(body, encoding="utf-8")
+        (shaders / "common" / "glass.cginc").write_text('#include "leads.cginc"\nfloat glassPattern(float2 p) { return p.x; }\n',
+                                                        encoding="utf-8")
+        (shaders / "common" / "leads.cginc").write_text("float leadLine(float d) { return d; }\n", encoding="utf-8")
+        spec = forge.starter_spec("demo-song")
+        spec["assets"][0].update({"tier": 2, "shader": {"source": "shaders/fx.shader"}, "properties": {"_Strength": 0.2},
+                                  "provenance": {"author": "agent", "description": "custom vignette"}})
+        project = self.root / "unity"
+        _, source_map = forge.stage(spec, self.root, project, self.library, "windows2021")
+        staged = project / "Assets" / "SaberMapper" / "demo-song" / "shaders"
+        self.assertTrue((staged / "fx.shader").is_file())
+        self.assertEqual("float leadLine(float d) { return d; }\n",
+                         (staged / "common" / "leads.cginc").read_text(encoding="utf-8"))
+        self.assertIn("glassPattern", (staged / "common" / "glass.cginc").read_text(encoding="utf-8"))
+        self.assertIn("assets/sabermapper/demo-song/shaders/common/glass.cginc", source_map["files"])
+
+
 class UnityLocationTests(ForgeTestCase):
     def fake_editor(self, version):
         exe = self.hub / version / "Editor" / "Unity.exe"
@@ -342,6 +364,10 @@ class BuildDriverTests(ForgeTestCase):
         self.assertEqual([str(bundle)], result["bundle_paths"])
         self.assertTrue((assets / "build-report.json").is_file() and (assets / "build.log").is_file())
         self.assertTrue((assets / "builds" / result["build_id"] / "build-report.json").is_file())
+        credits = json.loads((assets / "credits.json").read_text(encoding="utf-8"))
+        self.assertEqual("sabermapper-credits/1", credits["format"])
+        self.assertEqual(credits["attribution_text"], result["credits"]["attribution_text"])
+        self.assertTrue((assets / "builds" / result["build_id"] / "credits.json").is_file())
         argv = json.loads((self.root / "argv.json").read_text())
         for flag in ("-batchmode", "-quit", "-nographics", "-projectPath"):
             self.assertIn(flag, argv)

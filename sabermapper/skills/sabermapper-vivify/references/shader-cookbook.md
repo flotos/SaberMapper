@@ -14,7 +14,7 @@ Start from a template rather than from scratch:
 | `templates/sky_sphere.shader` | skybox, or material on a large `uv_sphere` | procedural skies |
 | `templates/world_blit.shader` | post_process | full-screen effects anchored to world directions |
 | `templates/custom_note.shader` | material in a note or debris prefab (`skin`) | notes, arrows, debris |
-| `templates/stage_surface.shader` | material on scene meshes | restyling generator or fetched geometry |
+| `templates/stage_surface.shader` | material on scene meshes | restyling generator or fetched geometry (`_VertexColor 1` shows a fetched model's own colours) |
 
 Copy the template into `<project>/assets/shaders/`, rename the `Shader "..."` path, and reference it with
 `"shader": {"source": "shaders/x.shader"}`, `"tier": 2` and a provenance description.

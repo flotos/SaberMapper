@@ -49,4 +49,6 @@ Claude skills are installed at the workspace root:
 - `/sabermapper-research` — research and retrieve reference patterns.
 - `/sabermapper-vivify` — build, verify in the game and refine a vivified (Vivify) map.
 
+Vivify maps can use custom models built in Blender through the `blender` MCP server in `.mcp.json`. Start Blender headless with `sabermapper blender start` and close it with `blender stop`; see `sabermapper/docs/blender-mcp.md`.
+
 Run application commands from `sabermapper/` using `.venv/Scripts/python`. Read the current project and revision before editing; preserve locks and save with `project save`. Finish work by saving and exporting, then report the project, revision and the checks actually run; do not launch ArcViewer or the studio preview. Canonical skill sources are in `sabermapper/skills/`; refresh both agent copies with `.venv/Scripts/python scripts/install_skills.py --update` from that directory.

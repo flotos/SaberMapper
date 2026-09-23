@@ -116,6 +116,10 @@ All output is JSON. Failures print `{"error": {"code", "message", "fix", ...}}` 
 | `assets build PROJECT \| --spec FILE [--out DIR] [--target windows2021] [--unity PATH] [--unity-version V] [--unity-project DIR] [--timeout S] [--allow-no-xr] [--graphics]` | Lint, stage, run Unity, verify, copy outputs |
 | `assets promote PROJECT ASSET_ID [--library-id sm_x] [--library DIR]` | Move a tier-2 shader into the library |
 | `assets generate PROJECT --kind image\|skybox\|mesh --prompt TEXT [--seed N]` | Tier-3 interface; `generator_unavailable` for now |
+| `assets fetch search [QUERY] [--kind model\|texture\|sky] [--source S] [--limit N]` | Free CC0 candidates from Poly Haven, ambientCG and Kenney with licence, triangles, size and preview URL |
+| `assets fetch info REF` | Caches one candidate and lists its mesh nodes, pack models (with local preview PNGs) or maps and resolutions |
+| `assets fetch get REF PROJECT [--model M] [--node N] [--height M] [--max-triangles N] [--kind K] [--maps color,normal] [--add]` | Converts it into `<project>/assets/` as tier-3 assets with provenance (see Fetched media) |
+| `assets credits PROJECT \| --spec FILE [--write]` | Sources, authors, licences and changes of every tier-3 asset, grouped per source work, with `attribution_text` for the map description |
 | `assets doctor [--target] [--unity] [--unity-version]` | Config, installed editors, targets, the resolved Unity or `unity_missing` |
 | `assets config [--unity PATH] [--unity-version V] [--unity-project DIR]` | Persist machine settings (`''` clears) |
 
@@ -190,7 +194,8 @@ resolution, and `executeMethod … could not be found` (the scripts did not comp
   match (Float number, Color `[r,g,b(,a)]`, Vector 2–4 numbers, Texture `{"texture": "<texture id>"}`) and
   the value must lie inside `Range()`. Library safe ranges give warnings.
 - `mesh`: one of `{"generator": NAME, "params": {…}}` (built-in, triangles computed from library.json),
-  `{"asset": "<mesh id>"}`, or tier 2 `{"source": "generators/X.cs", "class": "Ns.X", "params": {…},
+  `{"asset": "<mesh id>"}`, `{"file": "models/x.obj"}` (a model file, only on a standalone `mesh` asset; see
+  Fetched media), or tier 2 `{"source": "generators/X.cs", "class": "Ns.X", "params": {…},
   "max_triangles": N}`. Inline prefab-child meshes become mesh assets named
   `meshes/<prefab>__<child>.asset`.
 - `particles`: `max_particles, duration, looping, prewarm, start_lifetime|start_speed|start_size|start_rotation`
@@ -240,7 +245,10 @@ reads the alpha channel.
 every stereo macro) and put the new file next to assets.json. Reference it with
 `"shader": {"source": "shaders/x.shader"}`, `"tier": 2` and
 `"provenance": {"author": "agent", "description": "…"}`. Blits keep `_MainTex` as the screen and sample it
-only through `UNITY_SAMPLE_SCREENSPACE_TEXTURE`. Checks, in order:
+only through `UNITY_SAMPLE_SCREENSPACE_TEXTURE`. Shaders that share code `#include` it with a path relative
+to the shader (`#include "common.cginc"`, subfolders allowed, no `..`): lint reads the included code, and
+the build stages every relative include (and the includes it pulls in) next to the shader in the Unity
+project, so several materials can share one pattern or one set of layout constants. Checks, in order:
 
 1. `assets lint`: macros, cost, property values.
 2. `assets build`: Unity compiles the shader. Errors come back with the line in your file. A shader error
@@ -271,6 +279,58 @@ count is checked against `max_triangles` and the budget. Unity winding is clockw
 
 **Particles.** These are pure data (the `particles` block). Use the `sm_particle_additive` material or
 your own tier-2 particle shader.
+
+## Tier 3: fetched media (`assets fetch`)
+
+Free CC0 assets from three sources, reached only over https on an allowlist of hosts (the three sites and
+their download and thumbnail hosts), size-capped (`--max-download-mb`, default 200) and cached per machine in
+`%LOCALAPPDATA%/SaberMapper/fetch-cache` (`SABERMAPPER_FETCH_CACHE` overrides). Zip members are read in
+memory, never extracted by their own paths.
+
+| Source | Kinds | Notes |
+|---|---|---|
+| Poly Haven (`polyhaven:ID`) | model, texture, sky | About 520 scanned models (median 11k triangles), PBR textures, HDRI skies (the tonemapped JPG is used). Authors are recorded per asset. |
+| ambientCG (`ambientcg:ID`) | texture, sky | PBR materials, decals, atlases and HDRI skies (the `_TONEMAPPED.jpg` in the zip). No models. |
+| Kenney (`kenney:SLUG`) | model | Low-poly packs (a curated list of 35 3D packs plus the site's feed); each pack holds tens to hundreds of models with preview PNGs. |
+
+Flow: `search` → `info` (read the preview PNGs it returns) → `get … --add`. `get` writes:
+
+- **Models:** `<project>/assets/models/<id>.obj`, a normalised OBJ (right-handed, +Y up, metres) with vertex
+  colours from the material base colours. `--origin base` (default) puts the footprint centre at the lowest
+  point, `--height` scales uniformly, `--node` keeps chosen mesh nodes of a Poly Haven set, `--model` picks a
+  model from a Kenney pack. Models above `--max-triangles` (default `budgets.max_triangles_per_mesh`) are
+  reduced by vertex clustering, which keeps the silhouette and averages colours but not UV detail, so restyle
+  them with object- or world-space shaders. The entry is a standalone `mesh` asset,
+  `{"kind": "mesh", "tier": 3, "mesh": {"file": "models/<id>.obj"}}`, that prefab children reference with
+  `{"asset": "<id>"}`. At build time the forge converts the OBJ to Unity space (x negated, winding reversed,
+  as Unity's own importers do) and builds the mesh from that data; lint counts its triangles.
+- **Textures and skies:** `<project>/assets/textures/<id>.jpg` (resized to `--max-size`, default 2048, or
+  4096 for skies) with texture import settings. Skies use the library shader `sm_sky_panorama` on a skybox
+  material (`"_Tex": {"texture": "<id>"}`); the show's setup needs `camera_properties`
+  `{"clearFlags": "Skybox"}`.
+
+Colour and orientation, verified in game captures on 2026-09-23: Kenney writes display (sRGB) values into
+glTF base colours (they equal its MTL `Kd` values and its preview renders show them as sRGB), so the fetch
+converts them to linear; other glTF files are read as linear, as the format defines. Kenney models face the
+player with rotation `[0, 0, 0]`. Other sources keep their own orientation; rotate the prefab child
+`[0, 180, 0]` if a capture shows a model's back.
+
+Provenance (lint checks every key and that `output_sha256` matches the file actually used):
+
+```json
+"provenance": {"fetched": {"source": "polyhaven", "asset": "rock_moss_set_01", "url": "https://polyhaven.com/a/rock_moss_set_01",
+                           "files": ["https://dl.polyhaven.org/…gltf", "…bin"], "authors": ["Kless Gyzen"],
+                           "retrieved_at": "2026-09-23T17:00:00Z"},
+               "license": "CC0-1.0", "output_sha256": "<sha256 of models/x.obj>",
+               "postprocess": [{"op": "normalise", "origin": "base", "height_m": 1.2},
+                               {"op": "decimate", "method": "vertex_clustering", "triangles_before": 63127, "triangles_after": 4900}]}
+```
+
+Credits: `assets build` writes `<project>/assets/credits.json` (format `sabermapper-credits/1`) from the tier-3 provenance records: per source work its title, source, page URL, authors, licence and licence URL, download URLs, retrieval time, and every asset made from it with the changes applied (extraction, normalisation, reduction, resizing); generated media list their model and licence. Library and agent-written assets are SaberMapper's own and are not listed. `project export` puts `credits.json` in the map ZIP, writes `<zip>.credits.json` beside it and reports `attribution_text`. BeatSaver removes ZIP files that Info.dat does not reference, so the text goes into the map description when publishing.
+
+Model-file lint rules: `mesh_file_missing`, `mesh_file_format` (OBJ only; convert with `assets fetch get`),
+`mesh_file_empty`, `mesh_file_inline` (declare the model as a mesh asset), `mesh_budget_exceeded`,
+`tier_mismatch` (model files are tier 2 or 3).
 
 ## Tier 3: generative media (interface only)
 

@@ -128,6 +128,7 @@ the capture; a steep power curve on a per-star hash gives a few bright stars and
 | Render state per material | `Blend [_SrcBlend] [_DstBlend]`, `ZWrite [_ZWrite]`, `Cull [_Cull]`, `[Enum(...)]` float properties | Set them as Float values in assets.json. `render_queue` overrides the queue. |
 | Variants | Float uniforms and coherent branches | assets.json cannot switch material keywords on at build time. A runtime keyword needs `#pragma multi_compile _ KW` and a show `SetMaterialProperty` with `type: "Keyword"`. |
 | Textures | `texture` assets: 2D or cube (equirectangular panorama) | No 3D textures, so volumes use procedural noise with few octaves. |
+| Models, textures, photo skies | `assets fetch` (Poly Haven, ambientCG, Kenney; CC0) | Models arrive as OBJ with vertex colours, within the triangle budget; see section 5, fetched geometry. |
 | Screen copies | Blit `source`/`destination` with `setup.screen_textures` | A named GrabPass lints as a warning; prefer a Blit. |
 | Second camera | `setup.cameras` (culling by track, own texture) | Every camera renders the scene again; destroy it when its section ends. |
 | Animation | `SetMaterialProperty` (Float, Color, Vector, Texture, Keyword), `SetGlobalProperty`, `AnimateTrack` | Point definitions with easings, including `easeStep` for hard cuts inside one event. |
@@ -305,6 +306,60 @@ per hit. Hide a flare behind geometry by sampling the depth texture at its centr
   as a mask (Breezer's static notes, 3 BIG SHOTS' wiggle). Destroy the camera with the section.
 - Cost: every Blit reads and writes the whole stereo frame. Fold effects into one shader, stack at most two
   to four, and add an early return when the effect's strength is 0.
+
+### Fetched geometry and photo skies
+
+EXSII restyles every real model it uses (cel shading, fog, glitch), and so should we. `assets fetch` brings in
+CC0 geometry and panoramas (workflow in the skill, step 3). What makes them belong to the map:
+
+- **Restyle, never stock.** Put fetched models on `stage_surface` (banded fake light, rim on silhouettes,
+  distance fog to the palette, far dissolve). `_VertexColor 1` with grey `_Base`/`_Lit` shows a Kenney
+  model's own palette; tint `_Base`/`_Lit` towards the concept to pull it into the map's colours.
+- **Silhouettes over detail.** Low-poly packs (Kenney) read clearly at headset resolution. Scanned models
+  (Poly Haven) are reduced by vertex clustering to the budget: the shape survives, the UV detail does not,
+  so shade them in object or world space.
+- **Placement:** keep models out of the note corridor (x ±1.2 m) and use them for the mid layer (10-60 m),
+  where they carry motion on hits (the travelling `_Wave`/`_Pulse` bulge).
+- **Photo skies** (`sm_sky_panorama`): lower `_Exposure` (about -0.5 to -2) and use `_LaneDim` so the photo
+  never competes with the notes; a slow `_Rotation` drift gives life without motion sickness. A photo sky
+  with stylised low-poly scenery makes a strong, cheap contrast; keep the palette consistent with `_Tint`.
+
+Verified in the game (2026-09-23): a Poly Haven panorama as skybox, Kenney pines, cliffs and statues with
+their own colours (after the sRGB correction), and decimated Poly Haven rocks all render, and Kenney models
+face the player unrotated.
+
+### Architecture and glass (captured 2026-09-23, Living a Lie cathedral)
+
+A gothic nave (procedural OBJ meshes from a Python generator, about 500k triangles, 41 renderers) with
+four tier-2 shaders sharing one include. What held up in the game captures:
+
+- **One include for shared code, one generated include for layout.** The stone, glass, shaft and flame
+  shaders include `cathedral.cginc` (noise, palette, tracery, glass), which includes
+  `cathedral_layout.cginc`, written by the mesh generator (window positions, candle positions, rose
+  centre). Geometry and lighting cannot drift apart when the generator is rerun.
+- **Stained glass as tracery over recessed glass.** The window mesh is the opening; the shader draws the
+  stone bars as signed distances and puts the glass a few centimetres behind them. Four samples along each
+  eye's view ray through the bar depth find the bar sides, which catch the glass colour. Pieces come from
+  Voronoi cells folded into the window's symmetry (12- and 24-fold for a rose), leads from the cell-edge
+  distance, and antique texture (density, streaks, seeds, grisaille) is computed in metres, not window units.
+- **Anti-alias outside the branches.** Compute the pixel footprint once (`fwidth` of the pattern
+  coordinate) before any per-region branch and pass it down; a gradient inside a branch makes the compiler
+  flatten every branch, so all regions' Voronoi run on every pixel.
+- **Project the windows onto the stone.** For a surface point, follow the direction to the light back to
+  the window plane and evaluate the glass there: coloured window patterns land on floors and piers, with
+  pier shadows from a cheap test against the pier row. Follow the reflected view ray to the same plane for a
+  mirror image of the rose in a polished floor; both are per eye and stereo-correct.
+- **Light shafts through the glass.** Sweep each window outline along its light into a prism; draw the back
+  faces with `ZTest Always`, march from the nearer of the back face and the scene depth towards the eye,
+  and add the glass colour each sample came through. Needs `depthTextureMode: ["Depth"]` and a ShadowCaster
+  pass on the opaque scenery. Fade shafts below about 5 m so the note lane stays clear.
+- **Candle flames on crossed quads.** Two vertical quads at 90° instead of billboards: both eyes see the same
+  flame and nothing swims when the head rolls.
+- **Fog glow belongs close to the light.** A wide scatter lobe (`pow(cos, 6)`) turned the far half of the
+  nave into flat orange soup; a tight lobe (`pow(cos, 30-40)`) keeps a halo around the rose and the stone
+  dark. Neutral dark ambient makes the coloured light read as colour.
+- **Floors at grazing angles sparkle.** Fine bump noise and a sharp gloss shimmered on the floor; weaker
+  bump on floors, joints widened to the pixel footprint and faded with distance fixed it.
 
 ### Stencil portals
 

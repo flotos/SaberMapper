@@ -42,6 +42,37 @@ namespace SaberMapper
             return mesh;
         }
 
+        /// <summary>A mesh from model data staged by `sabermapper assets build` (a fetched or exported OBJ, already in
+        /// Unity space): flat vertices, triangles and optional uvs and linear RGBA vertex colours.</summary>
+        public static Mesh FromData(string projectRelativePath, string name)
+        {
+            string full = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..", projectRelativePath));
+            var data = new ForgeParams(ForgeJson.Parse(System.IO.File.ReadAllText(full)));
+            float[] p = data.Floats("vertices", new float[0]);
+            float[] t = data.Floats("triangles", new float[0]);
+            float[] uv = data.Floats("uvs", null);
+            float[] c = data.Floats("colors", null);
+            int count = p.Length / 3;
+            var v = new List<Vector3>(count);
+            for (int i = 0; i < count; i++) v.Add(new Vector3(p[3 * i], p[3 * i + 1], p[3 * i + 2]));
+            List<Vector2> uvs = null;
+            if (uv != null && uv.Length == count * 2)
+            {
+                uvs = new List<Vector2>(count);
+                for (int i = 0; i < count; i++) uvs.Add(new Vector2(uv[2 * i], uv[2 * i + 1]));
+            }
+            var tris = new List<int>(t.Length);
+            foreach (float index in t) tris.Add((int)index);
+            Mesh mesh = Build(name, v, uvs, tris);
+            if (c != null && c.Length == count * 4)
+            {
+                var colors = new List<Color>(count);
+                for (int i = 0; i < count; i++) colors.Add(new Color(c[4 * i], c[4 * i + 1], c[4 * i + 2], c[4 * i + 3]));
+                mesh.SetColors(colors);
+            }
+            return mesh;
+        }
+
         public static int TriangleCount(Mesh mesh)
         {
             long total = 0;

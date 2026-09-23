@@ -15,16 +15,20 @@ def register_forge(commands):
              "build": "Lint, then build the bundle with Unity batchmode; outputs go to <project>/assets/",
              "promote": "Copy a project's agent-written shader into the library (needs intent, properties, safe ranges, description)",
              "generate": "Tier-3 generative media (textures, skyboxes, meshes); returns generator_unavailable until a local model is installed",
+             "credits": "Sources, authors and licences of every fetched or generated (tier-3) asset, with the "
+                        "attribution text to paste into the map description; --write saves <project>/assets/credits.json",
              "doctor": "Where Unity is looked for, what is installed, targets and config",
              "config": "Persist the Unity path, version or build project directory for this machine"}
     for action, text in helps.items():
         parser = actions.add_parser(action, help=text)
-        if action in ("init", "lint", "build", "promote", "generate"):
-            parser.add_argument("project", nargs="?" if action in ("lint", "build") else None,
+        if action in ("init", "lint", "build", "promote", "generate", "credits"):
+            parser.add_argument("project", nargs="?" if action in ("lint", "build", "credits") else None,
                                 help="Project ID; its spec is <project>/assets/assets.json")
             parser.add_argument("--workspace", type=Path, default=Path("workspace"))
-        if action in ("lint", "build"):
-            parser.add_argument("--spec", type=Path, help="Build or lint this assets.json instead of a project's")
+        if action in ("lint", "build", "credits"):
+            parser.add_argument("--spec", type=Path, help="Use this assets.json instead of a project's")
+        if action == "credits":
+            parser.add_argument("--write", action="store_true", help="Also write credits.json next to assets.json")
         if action in ("build", "doctor"):
             parser.add_argument("--target", choices=sorted(TARGETS) + sorted(UNSUPPORTED_TARGETS),
                                 help=f"Bundle target; default: the spec's, else {DEFAULT_TARGET}")
@@ -57,6 +61,46 @@ def register_forge(commands):
             parser.add_argument("--unity", help="Unity.exe path ('' clears)")
             parser.add_argument("--unity-version", dest="unity_version", help="Editor version ('' clears)")
             parser.add_argument("--unity-project", dest="unity_project", help="Build project directory ('' clears)")
+    _register_fetch(actions)
+
+
+def _register_fetch(actions):
+    fetch = actions.add_parser(
+        "fetch", help="Free CC0 models, textures and sky panoramas from Poly Haven, ambientCG and Kenney: "
+                      "search, inspect with previews, then convert into a project as tier-3 assets")
+    steps = fetch.add_subparsers(dest="fetch_action", required=True)
+    search = steps.add_parser("search", help="Candidates with licence, triangle count, size and preview URL")
+    search.add_argument("query", nargs="?", default="", help="Words to match (name, tags, categories)")
+    search.add_argument("--kind", choices=["model", "texture", "sky"], default="model")
+    search.add_argument("--source", action="append", choices=["polyhaven", "ambientcg", "kenney"],
+                        help="Repeat to combine; default: every source that offers the kind")
+    search.add_argument("--limit", type=int, default=20)
+    search.add_argument("--max-triangles", dest="max_triangles", type=int, default=20000,
+                        help="Budget used to mark fits_budget (models above it are decimated by get)")
+    info = steps.add_parser("info", help="Download a candidate into the machine cache and list its mesh nodes, pack "
+                                         "models or maps, with local preview images to read before choosing")
+    info.add_argument("ref", help="SOURCE:ID from search, e.g. polyhaven:rock_moss_set_01 or kenney:nature-kit")
+    info.add_argument("--max-download-mb", dest="max_download_mb", type=float, default=200)
+    get = steps.add_parser("get", help="Convert a candidate into <project>/assets/ (models/*.obj or textures/*.jpg) with "
+                                       "provenance; prints the assets.json entries, or appends them with --add")
+    get.add_argument("ref")
+    get.add_argument("project", help="Project ID")
+    get.add_argument("--workspace", type=Path, default=Path("workspace"))
+    get.add_argument("--kind", choices=["model", "texture", "sky"], help="Default: the candidate's own kind")
+    get.add_argument("--model", help="Kenney: the model name inside the pack (from info)")
+    get.add_argument("--node", action="append", dest="nodes", help="Poly Haven: keep only these mesh nodes (repeatable)")
+    get.add_argument("--id", dest="asset_id", help="Asset id in assets.json (default: from the model or asset name)")
+    get.add_argument("--height", type=float, help="Scale the model to this height in metres (default: native size)")
+    get.add_argument("--origin", choices=["base", "center", "keep"], default="base",
+                     help="base: footprint centre at the lowest point (default); center: bounding-box centre")
+    get.add_argument("--max-triangles", dest="max_triangles", type=int,
+                     help="Decimate above this (default: budgets.max_triangles_per_mesh)")
+    get.add_argument("--resolution", help="Texture or sky resolution (Poly Haven 1k/2k/4k; ambientCG 1K-JPG, 2K, ...)")
+    get.add_argument("--maps", help="Texture maps, comma-separated: color,normal,roughness,ao,height (default color)")
+    get.add_argument("--max-size", dest="max_size", type=int, help="Downscale images to this many pixels on the long side")
+    get.add_argument("--add", action="store_true", help="Append the entries to <project>/assets/assets.json")
+    get.add_argument("--force", action="store_true", help="Replace existing files or entries with the same id")
+    get.add_argument("--max-download-mb", dest="max_download_mb", type=float, default=200)
 
 
 def _project(args):
@@ -79,10 +123,14 @@ def dispatch_forge(args, emit):
     """Returns the exit code when this was an `assets` command, else None."""
     if args.command != "assets":
         return None
+    from .mesh_files import MeshFileError
     try:
         return _dispatch(args, emit)
     except ForgeError as exc:
         emit(exc.as_dict())
+        return 1
+    except MeshFileError as exc:
+        emit(ForgeError(exc.code, exc.message, exc.fix).as_dict())
         return 1
 
 
@@ -126,6 +174,35 @@ def _dispatch(args, emit):
     if action == "generate":
         _project(args)
         emit(generate(args.kind, args.prompt, backend=args.backend, seed=args.seed))
+        return 0
+    if action == "credits":
+        from .asset_credits import CREDITS_FILE, credits_for_file
+        spec, _, _ = _spec_and_dest(args)
+        if not spec.is_file():
+            raise ForgeError("spec_missing", f"{spec} does not exist", "Run `assets init PROJECT` or pass --spec FILE")
+        credits = credits_for_file(spec)
+        if args.write:
+            from .storage import write_json
+            write_json(spec.parent / CREDITS_FILE, credits)
+            credits["written"] = str(spec.parent / CREDITS_FILE)
+        emit(credits)
+        return 0
+    if action == "fetch":
+        from . import asset_fetch
+        if args.fetch_action == "search":
+            sources = args.source or [s for s in asset_fetch.SOURCES
+                                      if not (args.kind == "model" and s == "ambientcg") and not (args.kind != "model" and s == "kenney")]
+            emit(asset_fetch.search(args.query, kind=args.kind, sources=sources, limit=args.limit,
+                                    max_triangles=args.max_triangles))
+        elif args.fetch_action == "info":
+            emit(asset_fetch.info(args.ref, max_download_mb=args.max_download_mb))
+        else:
+            directory, _ = _project(args)
+            emit(asset_fetch.get(args.ref, directory, args.project, kind=args.kind, model=args.model, nodes=args.nodes,
+                                 asset_id=args.asset_id, height=args.height, origin=args.origin,
+                                 max_triangles=args.max_triangles, resolution=args.resolution,
+                                 maps=args.maps.split(",") if args.maps else None, max_size=args.max_size,
+                                 add=args.add, force=args.force, max_download_mb=args.max_download_mb))
         return 0
     if action == "config":
         emit(save_config({"unity_path": args.unity, "unity_version": args.unity_version,

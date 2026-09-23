@@ -4,14 +4,19 @@ from __future__ import annotations
 
 from math import atan2, cos, degrees, hypot, isfinite, radians, sin
 
-MODEL_VERSION = "1.5"
+MODEL_VERSION = "1.6"
 # A same-hand swing arriving sooner than this must nearly reverse the previous
 # cut; a sideways (90-degree) or repeated cut this fast forces a wrist reset.
 FAST_BREAK_SECONDS = 0.3
 REVERSAL_DEGREES = 135
-# Without a reset (a full beat), consecutive same-hand swings must alternate
-# forehand/backhand and turn at least this much.
+# Unless the hand rested, consecutive same-hand swings must alternate
+# forehand/backhand and turn at least this much: each cut starts where the
+# previous one left the saber.
 MIN_TURN_DEGREES = 90
+# Only a hand idle this long returns to neutral and may start a fresh swing in any
+# direction. Measured in seconds, never beats: one beat at 180 BPM is 0.33 s,
+# far too short to raise the saber back without swinging.
+REST_SECONDS = 2.0
 # Three or more same-hand swings each less than this after the previous, while the other hand has
 # nothing to cut, stream on one hand: alternating hands or fewer notes carry the same sound.
 BURST_SECONDS = 0.2
@@ -60,6 +65,11 @@ def turn_degrees(previous, direction, previous_angle=0.0, angle=0.0):
     return abs((degrees(atan2(b[1], b[0])) - degrees(atan2(a[1], a[0])) + 180) % 360 - 180)
 
 
+def is_rest(gap_seconds):
+    """True when a hand idle for ``gap_seconds`` has returned to neutral (a legitimate reset)."""
+    return gap_seconds >= REST_SECONDS
+
+
 def flow_break(previous, direction, hand, gap_seconds, reset, previous_angle=0.0, angle=0.0):
     """Return the blocking flow finding for a consecutive same-hand swing pair, or None.
 
@@ -79,9 +89,9 @@ def flow_break(previous, direction, hand, gap_seconds, reset, previous_angle=0.0
     if change < MIN_TURN_DEGREES or (same_parity and change < REVERSAL_DEGREES):
         return ("flow_parity_break",
                 f"same-hand cut {gap_seconds:.3f}s after the previous one turns {change:.0f} degrees"
-                f"{' on the same forehand/backhand' if same_parity else ''} without a full-beat reset; "
-                f"alternate parity and turn at least {MIN_TURN_DEGREES} degrees "
-                "(see project repair-swings)")
+                f"{' on the same forehand/backhand' if same_parity else ''}; each cut must start where "
+                f"the previous one left the saber: alternate parity and turn at least {MIN_TURN_DEGREES} "
+                f"degrees unless the hand rests {REST_SECONDS:g} s or more (see project repair-swings)")
     return None
 
 
@@ -194,7 +204,7 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
                              "beat": note["beat"], "confidence": "high",
                              "reason": "same-hand simultaneous notes have incompatible cut directions"})
         parity = _parity(note["direction"], note["color"], note["angle"])
-        reset = bool(prior and (beat_gap >= 1 or gap >= 60 / bpm))
+        reset = bool(prior and is_rest(gap))
         swing = {"id": f"swing:{len(swings)}", "note_ids": [note["id"]],
                  "beat": note["beat"], "seconds": note["seconds"], "hand": note["color"],
                  "x": float(note["x"]), "y": float(note["y"]), "direction": note["direction"],

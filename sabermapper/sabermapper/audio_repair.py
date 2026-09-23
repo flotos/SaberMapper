@@ -80,7 +80,7 @@ from .critique import (ACCENT_STRENGTH, DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT
                        beat_to_seconds, critique_arrangement, focus_lead, intensity_bars, lead_onsets, on_onset,
                        quiet_bar, quiet_windows, salient_onsets, strongest_per_slot, underplayed_runs)
 from .movement import BURST_SECONDS, BURST_SWINGS, hidden_window, turn_degrees, _OPPOSITE
-from .swing_repair import _count_breaks, _hand_swings
+from .swing_repair import BLOCKING_CODES as FLOW_CODES, _count_breaks, _hand_swings, reverse_phrases, undo_reversal
 from .validation import _beat, validate_arrangement
 
 SNAP_BEATS = 0.5
@@ -139,6 +139,24 @@ def _errors(arrangement):
             if d["severity"] == "error" or d["code"] in AVOIDED_WARNINGS}
 
 
+def _reflow(arrangement, baseline):
+    """Reverse the phrases a change left on the wrong forehand/backhand, in place; return the undo record.
+
+    Adding or removing a cut inside a phrase makes the hand's following cuts repeat the
+    cut before them. When every new blocking diagnostic is such a flow break and
+    reversing those cuts up to the hand's next rest (``swing_repair.reverse_phrases``)
+    clears them all, the reversal is kept; otherwise nothing changes and [] is returned.
+    """
+    new = _errors(arrangement) - baseline
+    if not new or not all(code in FLOW_CODES for code, _ in new):
+        return []
+    undo = reverse_phrases(arrangement, baseline)
+    if _errors(arrangement) - baseline:
+        undo_reversal(undo)
+        return []
+    return undo
+
+
 def _culprits(arrangement, baseline, changes):
     """Changes responsible for blocking diagnostics absent from ``baseline``.
 
@@ -149,6 +167,12 @@ def _culprits(arrangement, baseline, changes):
     new = _errors(arrangement) - baseline
     if not new:
         return [], set()
+    # Blame only what reversing phrases cannot fix: a flow break alone does not condemn a change.
+    trial = copy.deepcopy(arrangement)
+    reverse_phrases(trial, baseline)
+    remaining = _errors(trial) - baseline
+    if remaining < new:
+        new = remaining
     beats = {n["id"]: float(n["beat"]) for n in expanded_notes(arrangement)}
     blamed, orphans = [], set()
     for _, ids in new:
@@ -375,6 +399,7 @@ def thin_quiet(arrangement: dict, report: dict) -> dict:
             tried.add(beat)
             progress = True
             section["notes"].remove(note)
+            _reflow(result, baseline)
             if _errors(result) - baseline:
                 section["notes"].append(note)
                 section["notes"].sort(key=lambda n: _beat(n["beat"]))
@@ -416,6 +441,7 @@ def _revert_breaking(result, original, changes, unresolved, baseline):
     source = {f'{s["id"]}/note/{n["id"]}': copy.deepcopy(n) for s in original["sections"] for n in s["notes"]}
     source_arcs = {(s["id"], a["id"]): copy.deepcopy(a) for s in original["sections"] for a in s.get("arcs", [])}
     for _ in range(len(changes) + 1):
+        _reflow(result, baseline)
         culprits, orphans = _culprits(result, baseline, changes)
         if orphans:
             raise ValueError("Audio repair introduced blocking diagnostics it cannot attribute: "
@@ -508,22 +534,27 @@ def insert_note(arrangement: dict, beat: Fraction, note_id: str, hands=(0, 1)) -
         anchor = _position(arrangement, before or after, hand)
         effective = _effective(swings[:at])
         prefer = _OPPOSITE[effective] if effective is not None else 1
-        for direction in sorted(range(8), key=lambda d: turn_degrees(prefer, d)):
-            trial = swings[:at] + [{"beat": beat, "seconds": seconds, "direction": direction, "ids": ["new"]}] + swings[at:]
-            if _count_breaks(trial, hand, view.bpm, at, at + 1):
-                continue
-            for cost, x, y in _cells(view, hand, direction, beat, anchor):
-                if not _reach_ok(arrangement, hand, before, after, seconds, x, y):
+        # A cut that flows on into the next one needs nothing else. One that only flows from the
+        # previous cut leaves the following cuts to be reversed up to the next rest (see _reflow).
+        for reverses in (0, 1):
+            for direction in sorted(range(8), key=lambda d: turn_degrees(prefer, d)):
+                trial = swings[:at] + [{"beat": beat, "seconds": seconds, "direction": direction, "ids": ["new"]}] + swings[at:]
+                if _count_breaks(trial, hand, at, at + 1 - reverses):
                     continue
-                spare = min(beat - before["beat"] if before else Fraction(8), after["beat"] - beat if after else Fraction(8))
-                options.append((-min(spare, 4), turn_degrees(prefer, direction), cost, hand, direction, x, y))
+                for cost, x, y in _cells(view, hand, direction, beat, anchor):
+                    if not _reach_ok(arrangement, hand, before, after, seconds, x, y):
+                        continue
+                    spare = min(beat - before["beat"] if before else Fraction(8), after["beat"] - beat if after else Fraction(8))
+                    options.append((reverses, -min(spare, 4), turn_degrees(prefer, direction), cost, hand, direction, x, y))
+                    break
+                else:
+                    continue
                 break
-            else:
-                continue
-            break
+            if options and options[-1][4] == hand:
+                break
     if not options:
         return None
-    _, _, _, hand, direction, x, y = min(options)
+    _, _, _, _, hand, direction, x, y = min(options)
     taken = {n["id"] for n in section["notes"]}
     while note_id in taken:
         note_id += "x"
@@ -734,6 +765,7 @@ def follow_lead(arrangement: dict, report: dict) -> dict:
             change = insert_note(result, _grid_beat(onset), f"lead-{counter:03d}")
             if change is not None:
                 added.append(change)
+        _reflow(result, baseline)
         times = {n["beat"] for n in expanded_notes(result) if first <= n["beat"] < last}
         worse = code == "lead_rhythm_unmapped" and _lead_mapped(
             result, report, leads[bar], float(first), float(last)) <= before
@@ -851,6 +883,7 @@ def harden_loud(arrangement: dict, report: dict) -> dict:
                 break
         buried = False
         if added:
+            _reflow(result, baseline)
             after = critique_arrangement(result, report)["warnings"]
             if (_errors(result) - baseline
                     or _overlapping(after, guarded, first, last) > _overlapping(warnings, guarded, first, last)):
@@ -947,6 +980,7 @@ def ease_soft(arrangement: dict, report: dict) -> dict:
         before = critique_arrangement(result, report)["warnings"] if salient else None
         for section, note in group:
             section["notes"].remove(note)
+        undo = _reflow(result, baseline)
         demand = _demand_at(result, report, first)
         reverted = (_errors(result) - baseline
                     or len(audio_findings(result, report)[0].get("unmapped_spans", [])) > spans
@@ -954,6 +988,7 @@ def ease_soft(arrangement: dict, report: dict) -> dict:
                     or (salient and _overlapping(critique_arrangement(result, report)["warnings"], EASE_GUARDED,
                                                  first, last) > _overlapping(before, EASE_GUARDED, first, last)))
         if reverted:
+            undo_reversal(undo)
             for section, note in group:
                 section["notes"].append(note)
                 section["notes"].sort(key=lambda n: _beat(n["beat"]))
@@ -1093,6 +1128,7 @@ def split_bursts(arrangement: dict, report: dict) -> dict:
         for action, target in plans:
             trial = copy.deepcopy(result)
             made = action(trial, target) if action is drop else action(trial, target, color)
+            _reflow(trial, baseline)
             if not _errors(trial) - baseline:
                 result.clear()
                 result.update(trial)
@@ -1105,6 +1141,33 @@ def split_bursts(arrangement: dict, report: dict) -> dict:
                                "reason": "burst notes are locked, arc or chain anchors or motif notes, or every "
                                          "split adds a blocking diagnostic; re-author by hand"})
     return {"arrangement": result, "changes": changes, "unresolved": unresolved}
+
+
+def _reversals(before, after, changes):
+    """Change records for runs of existing same-hand cuts whose direction the repair reversed.
+
+    Adding or removing a cut inside a phrase reverses the hand's following cuts up to its
+    next rest (``_reflow``); those notes are named by no other change.
+    """
+    named = {i for c in changes for i in c.get("object_ids", []) + c.get("removed_ids", [])}
+    old = {n["id"]: n["direction"] for n in expanded_notes(before)}
+    records = []
+    for hand in (0, 1):
+        run = []
+        for note in [n for n in expanded_notes(after) if n["color"] == hand] + [None]:
+            turned = (note is not None and note["id"] not in named and note["id"] in old
+                      and old[note["id"]] != note["direction"])
+            if turned:
+                run.append(note)
+                continue
+            if run:
+                records.append({"beat": float(run[0]["beat"]), "code": "flow_parity_break", "color": hand,
+                                "action": "reversed_phrase", "object_ids": [n["id"] for n in run],
+                                "reason": "a note added or removed before these cuts left them repeating the cut "
+                                          "before them; reversed them up to the hand's next rest so each cut "
+                                          "starts where the previous one left the saber"})
+            run = []
+    return sorted(records, key=lambda r: r["beat"])
 
 
 def repair_audio(arrangement: dict, report: dict | None) -> dict:
@@ -1133,11 +1196,14 @@ def repair_audio(arrangement: dict, report: dict | None) -> dict:
     # Notes added for the lead or for unmapped onsets can push a thin window (or the map's full-band
     # reference) past its allowance again; intensity keeps the last word on density.
     settled = thin_quiet(split["arrangement"], report)
+    reversed_ = _reversals(arrangement, settled["arrangement"],
+                           grounded["changes"] + led["changes"] + filled["changes"] + split["changes"]
+                           + settled["changes"])
     remaining = [{k: w[k] for k in ("code", "message", "section_id")}
                  for w in critique_arrangement(settled["arrangement"], report)["warnings"]]
     return {"arrangement": settled["arrangement"],
             "changes": grounded["changes"] + led["changes"] + filled["changes"] + split["changes"]
-                       + settled["changes"],
+                       + settled["changes"] + reversed_,
             "unresolved": grounded["unresolved"] + led["unresolved"] + filled["unresolved"] + split["unresolved"]
                           + settled["unresolved"],
             "remaining": remaining}

@@ -3,9 +3,11 @@
 Handles ``fast_direction_break`` and ``flow_parity_break`` from the movement
 model. For each offending same-hand pair, a true 16th pickup (under
 ``PICKUP_SECONDS``, on a weaker metric position than the cut it runs into) is
-removed. Otherwise one cut of the pair is re-angled: the note and direction that
-leave the fewest breaks nearby win, then the smallest turn from the authored
-direction. Arc anchors may be re-angled; the arc head or tail direction is
+removed. Otherwise one cut of the pair is re-angled, or the second cut and the
+hand's following cuts up to its next rest are all reversed: of the options that
+leave the hand fewer breaks, the one leaving the fewest wins, then the smallest
+turn from the authored direction, a single re-angle before a phrase reversal.
+When none does, an unanchored note of the pair is removed. Arc anchors may be re-angled; the arc head or tail direction is
 updated with the note. Chain anchors, notes in locked sections and
 motif-expanded notes are never changed; such pairs are reported as unresolved.
 
@@ -19,7 +21,7 @@ import copy
 from fractions import Fraction
 
 from .arrangement import expanded_notes
-from .movement import flow_break, turn_degrees, _OPPOSITE
+from .movement import flow_break, is_rest, turn_degrees, _OPPOSITE
 from .validation import _beat, validate_arrangement
 
 BLOCKING_CODES = ("fast_direction_break", "flow_parity_break")
@@ -127,13 +129,13 @@ def _hand_swings(arrangement, hand):
     return swings
 
 
-def _count_breaks(swings, hand, bpm, lo, hi):
+def _count_breaks(swings, hand, lo, hi):
     """Count blocking flow breaks whose later swing index lies in [lo, hi]."""
     count, effective = 0, None
     for index, swing in enumerate(swings[:hi + 1]):
         prior = swings[index - 1] if index else None
         gap = swing["seconds"] - prior["seconds"] if prior else 0
-        reset = bool(prior and (swing["beat"] - prior["beat"] >= 1 or gap >= 60 / bpm))
+        reset = bool(prior and is_rest(gap))
         if index >= lo and gap and effective is not None and flow_break(effective, swing["direction"], hand, gap, reset):
             count += 1
         if swing["direction"] != 8:
@@ -141,6 +143,94 @@ def _count_breaks(swings, hand, bpm, lo, hi):
         else:
             effective = _OPPOSITE[effective] if effective is not None and not reset else None
     return count
+
+
+def _turn(entries, direction):
+    """Set ``direction`` on literal note entries (section, note, beat), with the arc ends they anchor."""
+    for section, note, beat in entries:
+        note["direction"] = direction
+        start = _beat(section["start_beat"])
+        for arc in section.get("arcs", []):
+            if arc["color"] != note["color"]:
+                continue
+            if (start + _beat(arc["beat"]), arc["x"], arc["y"]) == (beat, note["x"], note["y"]):
+                arc["direction"] = direction
+            if (start + _beat(arc["tail_beat"]), arc["tail_x"], arc["tail_y"]) == (beat, note["x"], note["y"]):
+                arc["tail_direction"] = direction
+
+
+def _phrase_plan(swings, start, can_turn):
+    """[(index, reversed direction)] from swing ``start`` to the hand's next rest.
+
+    Stops early at a swing that cannot turn (locked, chain anchor, motif note). Dots
+    stay dots: they already take the reverse of the swing before them.
+    """
+    plan, index = [], start
+    while index < len(swings):
+        if index > start and is_rest(swings[index]["seconds"] - swings[index - 1]["seconds"]):
+            break
+        if swings[index]["direction"] != 8:
+            if not can_turn(index):
+                break
+            plan.append((index, _OPPOSITE[swings[index]["direction"]]))
+        index += 1
+    return plan, index
+
+
+def _turnable(arrangement):
+    """can_turn(entries) for literal note entries: unlocked and anchoring no chain."""
+    chains = _chain_anchors(arrangement)
+    return lambda group: all(e is not None and not e[0]["locked"]
+                             and (e[2], e[1]["x"], e[1]["y"], e[1]["color"]) not in chains for e in group)
+
+
+def reverse_phrases(arrangement: dict, baseline=frozenset()) -> list:
+    """Resolve new same-hand flow breaks by reversing cuts, in place; return the undo record.
+
+    A note added or removed inside a phrase leaves the hand's following cuts on the
+    wrong forehand/backhand: each would repeat the cut before it. For every blocking
+    flow finding not in ``baseline`` (``(code, object_ids)`` pairs), the second cut
+    and the hand's cuts after it up to its next rest are reversed. Only literal notes
+    in unlocked sections that anchor no chain turn; arc ends turn with their notes.
+    The caller validates the result and calls :func:`undo_reversal` to reject it.
+    """
+    undo, tried = [], set()
+    for _ in range(len(expanded_notes(arrangement)) + 1):
+        findings = [d for d in validate_arrangement(arrangement)
+                    if d["severity"] == "error" and d["code"] in BLOCKING_CODES
+                    and (d["code"], tuple(d["object_ids"])) not in baseline]
+        literal = _literal_notes(arrangement)
+        can_turn = _turnable(arrangement)
+        for finding in findings:
+            pair = finding["object_ids"]
+            if pair[1] not in literal:
+                continue
+            hand = literal[pair[1]][1]["color"]
+            swings = _hand_swings(arrangement, hand)
+            second = next(i for i, swing in enumerate(swings) if pair[1] in swing["ids"])
+            if (hand, swings[second]["beat"]) in tried:
+                continue
+            tried.add((hand, swings[second]["beat"]))
+            plan, _ = _phrase_plan(swings, second, lambda i: can_turn([literal.get(o) for o in swings[i]["ids"]]))
+            if not plan:
+                continue
+            for index, direction in plan:
+                group = [literal[o] for o in swings[index]["ids"]]
+                for section, note, _ in group:
+                    undo.append((note, "direction", note["direction"]))
+                    for arc in section.get("arcs", []):
+                        undo += [(arc, key, arc[key]) for key in ("direction", "tail_direction")]
+                _turn(group, direction)
+            break
+        else:
+            return undo
+    return undo
+
+
+def undo_reversal(undo: list) -> None:
+    """Restore the directions a :func:`reverse_phrases` call changed."""
+    for obj, key, value in reversed(undo):
+        obj[key] = value
 
 
 def _relative(beat: Fraction):
@@ -306,7 +396,6 @@ def repair_fast_breaks(arrangement: dict, max_steps: int = 5000) -> dict:
     """
     held = repair_held_conflicts(arrangement)
     result = held["arrangement"]
-    bpm = float(result["song"]["bpm"])
     changes, unresolved, skipped = list(held["changes"]), list(held["unresolved"]), set()
     for _ in range(max_steps):
         diagnostics = validate_arrangement(result)
@@ -352,13 +441,15 @@ def repair_fast_breaks(arrangement: dict, max_steps: int = 5000) -> dict:
         def can_remove(index):
             return can_turn(index) and all(key(e) not in arcs for e in entries(index))
 
+        last = len(swings) - 1
+
         def evaluate(index, direction):
-            """(pair still breaks, breaks from this swing through the next three)."""
+            """(pair still breaks, breaks left on the hand)."""
             original = swings[index]["direction"]
             swings[index]["direction"] = direction
             try:
-                return (_count_breaks(swings, hand, bpm, second_index, second_index) > 0,
-                        _count_breaks(swings, hand, bpm, index, index + 3))
+                return (_count_breaks(swings, hand, second_index, second_index) > 0,
+                        _count_breaks(swings, hand, 0, last))
             finally:
                 swings[index]["direction"] = original
 
@@ -373,6 +464,30 @@ def repair_fast_breaks(arrangement: dict, max_steps: int = 5000) -> dict:
             changes.append({**record, "action": "removed", "object_id": pair[0],
                             "reason": "weaker-position pickup cannot reset before the following cut"})
             continue
+        def phrase_flip():
+            """Reverse the second cut and the hand's following cuts up to its next rest.
+
+            Reversing every cut keeps each turn inside the phrase and makes the cut that
+            repeated its predecessor start where that predecessor left the saber.
+            """
+            plan, index = _phrase_plan(swings, second_index, can_turn)
+            if len(plan) < 2:  # a single reversal is already a re-angle option
+                return None
+            originals = [(i, swings[i]["direction"]) for i, _ in plan]
+            for i, direction in plan:
+                swings[i]["direction"] = direction
+            try:
+                if _count_breaks(swings, hand, second_index, second_index):
+                    return None
+                return _count_breaks(swings, hand, 0, last), plan
+            finally:
+                for i, direction in originals:
+                    swings[i]["direction"] = direction
+
+        # Only an option that leaves the hand fewer breaks counts, so a fix never just moves
+        # the break to the neighbouring pair (and back). Breaks the grouped swings cannot
+        # see (angle offsets) fall back to clearing the reported pair.
+        before = _count_breaks(swings, hand, 0, last)
         options = []
         for preference, index in enumerate((second_index, first_index)):
             if not can_turn(index) or swings[index]["direction"] == 8:
@@ -380,27 +495,32 @@ def repair_fast_breaks(arrangement: dict, max_steps: int = 5000) -> dict:
             for direction in range(8):
                 if direction == swings[index]["direction"]:
                     continue
-                pair_breaks, nearby = evaluate(index, direction)
-                if not pair_breaks:  # the chosen cut must clear the reported pair itself
-                    options.append((nearby, turn_degrees(swings[index]["direction"], direction),
-                                    preference, direction, index))
+                pair_breaks, total = evaluate(index, direction)
+                # the chosen cut must clear the reported pair itself
+                if not pair_breaks and (total < before or not before):
+                    options.append((total, turn_degrees(swings[index]["direction"], direction),
+                                    preference, [(index, direction)]))
+        flip = phrase_flip()
+        if flip and (flip[0] < before or not before):
+            options.append((flip[0], 180, 2, flip[1]))
         if options:
-            _, _, _, direction, index = min(options)
+            _, _, _, plan = min(options)
+            index, direction = plan[0]
             old = swings[index]["direction"]
-            for section, note, beat in entries(index):
-                note["direction"] = direction
-                start = _beat(section["start_beat"])
-                for arc in section.get("arcs", []):
-                    if arc["color"] != note["color"]:
-                        continue
-                    if (start + _beat(arc["beat"]), arc["x"], arc["y"]) == (beat, note["x"], note["y"]):
-                        arc["direction"] = direction
-                    if (start + _beat(arc["tail_beat"]), arc["tail_x"], arc["tail_y"]) == (beat, note["x"], note["y"]):
-                        arc["tail_direction"] = direction
-            changes.append({**record, "action": "reangled", "object_id": swings[index]["ids"][0],
-                            "object_ids_changed": list(swings[index]["ids"]),
-                            "from_direction": old, "to_direction": direction,
-                            "reason": "turned so the same-hand swings alternate and reverse in time"})
+            for i, d in plan:
+                _turn(entries(i), d)
+            if len(plan) == 1:
+                changes.append({**record, "action": "reangled", "object_id": swings[index]["ids"][0],
+                                "object_ids_changed": list(swings[index]["ids"]),
+                                "from_direction": old, "to_direction": direction,
+                                "reason": "turned so the same-hand swings alternate and reverse in time"})
+            else:
+                changes.append({**record, "action": "reversed_phrase", "object_id": swings[index]["ids"][0],
+                                "object_ids_changed": [oid for i, _ in plan for oid in swings[i]["ids"]],
+                                "from_direction": old, "to_direction": direction, "swing_count": len(plan),
+                                "reason": "the cut repeated the one before it; reversed it and the hand's "
+                                          "following cuts up to its next rest so every cut starts where the "
+                                          "previous one left the saber"})
             continue
         removable = next((i for i in (second_index, first_index) if can_remove(i)), None)
         if removable is not None:

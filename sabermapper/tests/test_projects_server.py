@@ -32,13 +32,13 @@ class ProjectStudioIntegrationTests(unittest.TestCase):
         initial = self.store.get(project_id)
         self.assertTrue(Path(self.store.directory(project_id), "song.ogg").is_file())
         self.assertTrue(initial["notes"])
-        self.assertEqual(initial["movement"]["model_version"], "1.5")
+        self.assertEqual(initial["movement"]["model_version"], "1.6")
         old_revision = initial["revision"]
 
         arrangement = copy.deepcopy(initial["arrangement"])
         first = arrangement["sections"][0]
         first["intent"] = "Revision: softer opening"
-        first["notes"][0]["direction"] = 4
+        first["notes"][0]["direction"] = 6
         request = self.store.add_feedback(project_id, {"revision": old_revision,
                    "start_beat": 4, "end_beat": 5, "text": "Soften the first cut"})
         saved = self.store.save(project_id, arrangement, old_revision, request_id=request["id"])

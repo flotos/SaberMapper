@@ -87,7 +87,8 @@ def main(argv=None):
             "set-album": "Set the album that groups this project in the studio's artist/album tree",
             "repair-swings": "Fix same-color notes inside a held arc or chain (move to the other hand, or split "
                              "the arc at the cut), then blocking fast_direction_break/flow_parity_break findings: "
-                             "drop 16th pickups or re-angle one cut (arc directions follow)",
+                             "drop 16th pickups, re-angle one cut, or reverse the hand's cuts from the "
+                             "repeated one up to its next rest (arc directions follow)",
             "repair-visibility": "Fix blocking hidden_note findings: move a note hidden behind the note in front "
                                  "of it in the same cell to a free neighbouring cell (arcs follow)",
             "repair-audio": "Fix audio findings (and split one_hand_burst runs): move notes with no sound under "
@@ -95,7 +96,8 @@ def main(argv=None):
                             "(or remove them), thin quiet passages mapped as densely as the full band, then "
                             "add flow-safe notes on unmapped vocal, drum, accent and density-collapse onsets; "
                             "raise heavy bars that play easier than soft ones and ease soft bars that play as "
-                            "hard as the heavy passages",
+                            "hard as the heavy passages; a note added or removed inside a phrase reverses the "
+                            "hand's following cuts up to its next rest so the flow holds",
             "add-difficulty": "Add a difficulty as an unlocked copy of another one (then rewrite it at its level)",
             "remove-difficulty": "Delete a non-primary difficulty; its content stays in history",
             "export": "Export every difficulty of the project into one map ZIP"}.get(name))

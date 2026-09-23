@@ -51,7 +51,7 @@ def arrangement(sections=((0, 48),), notes_from=0):
     """120 BPM, offset 0: beat b sits at b / 2 seconds. One note per beat from ``notes_from``."""
     result = []
     for index, (start, length) in enumerate(sections):
-        notes = [{"id": f"n{b}", "beat": b - start, "x": b % 4, "y": 0, "color": b % 2, "direction": 1}
+        notes = [{"id": f"n{b}", "beat": b - start, "x": b % 4, "y": 0, "color": b % 2, "direction": 1 - b // 2 % 2}
                  for b in range(max(start, notes_from), start + length)]
         result.append({"id": f"s{index}", "start_beat": start, "length_beats": length, "intent": "fixture",
                        "locked": False, "resolved": True, "notes": notes, "patterns": []})

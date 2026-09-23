@@ -75,8 +75,8 @@ def main(argv=None):
             "repair-swings": "Fix blocking fast_direction_break/flow_parity_break findings: drop 16th pickups or "
                              "re-angle one cut (arc directions follow)",
             "repair-audio": "Fix audio findings: move notes with no sound under them onto the nearest onset "
-                            "(or remove them), then add flow-safe notes on unmapped vocal, drum, accent and "
-                            "density-collapse onsets"}.get(name))
+                            "(or remove them), thin quiet passages mapped as densely as the full band, then "
+                            "add flow-safe notes on unmapped vocal, drum, accent and density-collapse onsets"}.get(name))
         leaf.add_argument("--workspace", type=Path, default=Path("workspace"))
         if name != "list":
             leaf.add_argument("project")

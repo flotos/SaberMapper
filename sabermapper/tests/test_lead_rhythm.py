@@ -108,6 +108,31 @@ class LeadRhythmCritiqueTests(unittest.TestCase):
         self.assertEqual(bar["code"], "lead_rhythm_diluted")
 
 
+class QuietLeadTests(unittest.TestCase):
+    """Intensity sets the density, the lead the placement: a thin, soft bar takes only the lead's strongest attacks."""
+
+    def quiet(self):
+        data = report()
+        data["passages"] = [{"start_seconds": t, "end_seconds": t + 2, "energy_ratio": 0.3, "support_score": 0.2}
+                            for t in range(0, 16, 2)]
+        # Strong guitar attack on each offbeat, a weaker one on each sixteenth after it.
+        data["layers"]["guitar"]["events"] += events("guitar", [b + 0.75 for b in range(32)], strength=0.5)
+        return data
+
+    def test_a_quiet_bar_does_not_demand_every_lead_attack(self):
+        result = critique_arrangement(arrangement(OFFBEATS[::2]), self.quiet())
+        self.assertNotIn("lead_rhythm_unmapped", codes(result))
+        self.assertTrue(all(b["quiet"] for b in result["metrics"]["lead_rhythm"]["bars"]))
+        self.assertIn("lead_rhythm_unmapped", codes(critique_arrangement(arrangement(OFFBEATS[::2]), report())))
+
+    def test_a_quiet_rebuild_takes_one_attack_per_beat(self):
+        result = follow_lead(arrangement(STREAM), self.quiet())
+        beats = sorted(float(Fraction(str(n["beat"]))) for n in result["arrangement"]["sections"][0]["notes"])
+        self.assertTrue(beats)
+        self.assertTrue(all(b % 1 == 0.5 for b in beats), beats)
+        self.assertTrue(all(y - x >= 1 for x, y in zip(beats, beats[1:])), beats)
+
+
 class GridAlignmentTests(unittest.TestCase):
     def test_a_window_whose_onsets_drift_is_flagged(self):
         data = report(96)

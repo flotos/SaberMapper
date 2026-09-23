@@ -210,6 +210,9 @@ guitar's sixteenth runs at 0:33-0:39.
 - Follow the lead's density changes. A riff that moves from offbeat eighths to
   sixteenth runs should read that way. Short sixteenth bursts are within the
   player's band; flow rules still apply.
+- Intensity sets the density; the lead sets the placement. In a thin, soft
+  passage (`density_exceeds_audio` territory), take the lead's strongest attack
+  per beat rather than every attack. `lead_rhythm_unmapped` does not fire there.
 - `critique` checks this. `lead_rhythm_unmapped`: fewer than 60% of an
   instrument lead's strongest attacks per half-beat carry a note.
   `lead_rhythm_diluted`: fewer than 75% of a bar's note times sit on a lead

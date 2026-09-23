@@ -15,6 +15,7 @@ from statistics import median
 
 from .arrangement import expanded_notes
 from .audio_grounding import DEFINITIONS as AUDIO_DEFINITIONS, audio_findings
+from .lighting import DEFINITIONS as LIGHT_DEFINITIONS, lighting_findings
 
 MODEL_VERSION = "1.0"
 WINDOW_SECONDS = 4.0
@@ -122,6 +123,7 @@ DEFINITIONS = {
                              "checks count: the map plays a thin, quiet passage as hard as the full band.",
     "focus_on_quiet_stem": "A musical_focus phrase gives weight 0.3 or more to a separated stem whose median energy_contour level inside the phrase is at least 20 dB below that stem's own 90th-percentile level over the song: the stem is essentially absent there, so its events are separator bleed (for example vocals in an instrumental intro) or the instrument was routed to another stem (for example a soft solo piano in other while the piano stem is silent). The message names the most active stem, measured the same way.",
     **AUDIO_DEFINITIONS,
+    **LIGHT_DEFINITIONS,
 }
 
 
@@ -809,5 +811,9 @@ def critique_arrangement(arrangement: dict, report: dict | None = None) -> dict:
     for finding in findings:
         warn(finding["code"], finding["message"], value=finding["value"], threshold=finding["threshold"],
              section_id=finding["section_id"], object_ids=finding["object_ids"])
+    metrics["lighting"], findings = lighting_findings(arrangement, report)
+    for finding in findings:
+        warn(finding["code"], finding["message"], value=finding["value"], threshold=finding["threshold"],
+             section_id=finding["section_id"], beats=finding.get("beats"))
     return {"model_version": MODEL_VERSION, "metrics": metrics, "warnings": warnings,
             "definitions": DEFINITIONS}

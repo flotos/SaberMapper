@@ -57,7 +57,7 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
         return not missing
 
     if not keys(arrangement, {"schema_version", "song", "difficulty", "motifs", "sections"}, "arrangement",
-                optional={"tempo_events", "mapper"}):
+                optional={"tempo_events", "mapper", "lightshow"}):
         return findings
     if arrangement["schema_version"] != "0.1":
         add("error", "schema_version", "schema_version must be 0.1")
@@ -335,6 +335,13 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
                     add("error", "invalid_tempo", f"tempo_events[{index}] beats must increase")
                 if not _finite_number(event["bpm"]) or event["bpm"] <= 0:
                     add("error", "invalid_tempo", f"tempo_events[{index}].bpm must be positive")
+
+    if "lightshow" in arrangement:
+        from .lighting import validate_lightshow
+        try:
+            validate_lightshow(arrangement, add)
+        except (ValueError, TypeError, KeyError, ZeroDivisionError, OverflowError) as exc:
+            add("error", "invalid_lightshow", f"lightshow cannot be checked: {exc}")
 
     seen = {}
     for item in expanded:

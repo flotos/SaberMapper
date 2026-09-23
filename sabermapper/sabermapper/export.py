@@ -158,11 +158,14 @@ def export_arrangement(arrangement: dict, audio: str | Path, cover: str | Path, 
                 latest_object = max(latest_object, float(item["b"]) + float(item["d"]))
     if _beat_seconds(latest_object, float(song["bpm"]), beatmap.get("bpmEvents", [])) > audio_metadata["duration_seconds"]:
         raise ExportError("compiled gameplay object extends past decoded audio duration")
-    # A small visible pulse at each section start. Basic events live in the v3
-    # beatmap itself; they do not require a separate v4 lightshow file.
-    if not beatmap.get("basicBeatmapEvents"):
+    # Without a lightshow, a small visible pulse at each section start. Basic events live
+    # in the v3 beatmap itself; they do not require a separate v4 lightshow file.
+    has_lightshow = isinstance(arrangement.get("lightshow"), dict)
+    lighting_source = "lightshow" if has_lightshow else "section-pulse fallback"
+    if not has_lightshow and not beatmap.get("basicBeatmapEvents"):
         beats = sorted({float(beat_fraction(section["start_beat"])) + beat_shift for section in arrangement["sections"]})
         beatmap["basicBeatmapEvents"] = [{"b": b, "et": 0, "i": 1, "f": 1.0} for b in beats]
+    environment = (arrangement.get("lightshow") or {}).get("environment") or "DefaultEnvironment"
     name = difficulty.get("name", "Expert")
     if name not in ("Easy", "Normal", "Hard", "Expert", "ExpertPlus"):
         raise ExportError("difficulty name must be a built-in Standard difficulty")
@@ -172,10 +175,10 @@ def export_arrangement(arrangement: dict, audio: str | Path, cover: str | Path, 
         "_beatsPerMinute": song["bpm"], "_songTimeOffset": 0, "_shuffle": 0,
         "_shufflePeriod": 0, "_previewStartTime": 0, "_previewDuration": 10,
         "_songFilename": "song.ogg", "_coverImageFilename": cover_name,
-        "_environmentName": "DefaultEnvironment", "_allDirectionsEnvironmentName": "GlassDesertEnvironment",
+        "_environmentName": environment, "_allDirectionsEnvironmentName": "GlassDesertEnvironment",
         # Info 2.1.0 introduced these collections; declare them explicitly so the
         # file matches the schema version it claims.
-        "_environmentNames": ["DefaultEnvironment"], "_colorSchemes": [],
+        "_environmentNames": [environment], "_colorSchemes": [],
         "_difficultyBeatmapSets": [{"_beatmapCharacteristicName": "Standard", "_difficultyBeatmaps": [{
             "_difficulty": name, "_difficultyRank": difficulty.get("rank", 7),
             "_beatmapFilename": f"{name}.dat", "_noteJumpMovementSpeed": difficulty.get("njs", 16),
@@ -196,6 +199,9 @@ def export_arrangement(arrangement: dict, audio: str | Path, cover: str | Path, 
         "baked_audio_offset_seconds": offset_seconds,
         "audio_decoder": audio_metadata["decoder"],
         "basic_event_count": len(beatmap["basicBeatmapEvents"]),
+        "lighting": {"source": lighting_source, "environment": environment,
+                     "basic_events": len(beatmap["basicBeatmapEvents"]),
+                     "boost_events": len(beatmap.get("colorBoostBeatmapEvents", []))},
         "checks": "Vorbis and cover decoded; gameplay duration and structure checked. Musical timing, editor import and in-game playback require separate review.",
     }
     destination.parent.mkdir(parents=True, exist_ok=True)

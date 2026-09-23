@@ -1,0 +1,5244 @@
+{
+ "format": "SaberMapper lighting reference 1.0",
+ "method": "Hardest Standard difficulty per archive; basic light events (types 0-4) between first and last note; 4 s windows ranked by note count into within-map terciles.",
+ "summary": {
+  "maps": 133,
+  "lit_maps": 132,
+  "environments": [
+   [
+    "DefaultEnvironment",
+    73
+   ],
+   [
+    "BigMirrorEnvironment",
+    24
+   ],
+   [
+    "NiceEnvironment",
+    5
+   ],
+   [
+    "TimbalandEnvironment",
+    5
+   ],
+   [
+    "OriginsEnvironment",
+    4
+   ],
+   [
+    "TriangleEnvironment",
+    4
+   ],
+   [
+    "BTSEnvironment",
+    3
+   ],
+   [
+    "KaleidoscopeEnvironment",
+    3
+   ],
+   [
+    "PanicEnvironment",
+    3
+   ],
+   [
+    "DragonsEnvironment",
+    2
+   ],
+   [
+    "RockMixtapeEnvironment",
+    2
+   ],
+   [
+    "TheWeekndEnvironment",
+    2
+   ],
+   [
+    "SkrillexEnvironment",
+    1
+   ],
+   [
+    "BillieEnvironment",
+    1
+   ],
+   [
+    "KDAEnvironment",
+    1
+   ]
+  ],
+  "light_events_per_second": {
+   "p10": 7.869,
+   "p25": 12.859,
+   "p50": 20.658,
+   "p75": 30.197,
+   "p90": 40.905
+  },
+  "light_moments_per_second": {
+   "p10": 4.796,
+   "p25": 6.596,
+   "p50": 9.341,
+   "p75": 12.851,
+   "p90": 21.957
+  },
+  "events_per_moment": {
+   "p10": 1.293,
+   "p25": 1.668,
+   "p50": 2.223,
+   "p75": 2.617,
+   "p90": 3.005
+  },
+  "tier_light_events_per_second": {
+   "low": {
+    "p10": 4.344,
+    "p25": 6.523,
+    "p50": 12.283,
+    "p75": 19.023,
+    "p90": 29.889
+   },
+   "mid": {
+    "p10": 8.719,
+    "p25": 13.575,
+    "p50": 21.175,
+    "p75": 30.3,
+    "p90": 40.737
+   },
+   "high": {
+    "p10": 10.5,
+    "p25": 17.682,
+    "p50": 26.312,
+    "p75": 38.0,
+    "p90": 50.842
+   }
+  },
+  "value_share": {
+   "on": {
+    "p10": 0,
+    "p25": 0.001,
+    "p50": 0.032,
+    "p75": 0.276,
+    "p90": 0.475
+   },
+   "flash": {
+    "p10": 0,
+    "p25": 0,
+    "p50": 0.004,
+    "p75": 0.03,
+    "p90": 0.076
+   },
+   "fade": {
+    "p10": 0.004,
+    "p25": 0.212,
+    "p50": 0.501,
+    "p75": 0.623,
+    "p90": 0.872
+   },
+   "off": {
+    "p10": 0.0,
+    "p25": 0.143,
+    "p50": 0.378,
+    "p75": 0.44,
+    "p90": 0.483
+   },
+   "transition": {
+    "p10": 0,
+    "p25": 0,
+    "p50": 0,
+    "p75": 0,
+    "p90": 0
+   }
+  },
+  "white_share": {
+   "p10": 0,
+   "p25": 0,
+   "p50": 0,
+   "p75": 0,
+   "p90": 0
+  },
+  "laser_speed_events_per_second": {
+   "p10": 0.0,
+   "p25": 0.088,
+   "p50": 3.128,
+   "p75": 5.139,
+   "p90": 7.569
+  },
+  "ring_events_per_second": {
+   "p10": 0.336,
+   "p25": 0.78,
+   "p50": 2.066,
+   "p75": 4.881,
+   "p90": 9.203
+  },
+  "maps_using_boost": 9,
+  "longest_static_seconds": {
+   "p10": 0.68,
+   "p25": 1.02,
+   "p50": 1.81,
+   "p75": 3.48,
+   "p90": 6.76
+  },
+  "p95_static_seconds": {
+   "p10": 0.081,
+   "p25": 0.13,
+   "p50": 0.172,
+   "p75": 0.265,
+   "p90": 0.364
+  },
+  "max_group_flashes_per_second": {
+   "p10": 0,
+   "p25": 0,
+   "p50": 0,
+   "p75": 0,
+   "p90": 4
+  }
+ },
+ "skipped": [],
+ "maps": [
+  {
+   "id": "00cb8e5db47fa5e1490858fd5a8a1e7ba30d553b7f4fbc1df6f371824ec682a9",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 158.3,
+   "light_events_per_second": 16.956,
+   "light_moments_per_second": 12.851,
+   "events_per_moment": 1.319,
+   "notes_per_second": 7.566,
+   "tier_light_events_per_second": {
+    "low": 11.885,
+    "mid": 15.288,
+    "high": 23.558
+   },
+   "value_share": {
+    "on": 0.422,
+    "transition": 0.541,
+    "fade": 0.022,
+    "off": 0.015
+   },
+   "color_share": {
+    "red": 0.504,
+    "blue": 0.496
+   },
+   "group_share": {
+    "0": 0.26,
+    "1": 0.101,
+    "2": 0.252,
+    "3": 0.251,
+    "4": 0.137
+   },
+   "laser_speed_events_per_second": 3.252,
+   "ring_events_per_second": 2.021,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.7,
+   "p95_static_seconds": 0.13,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "02e68f00fb25f7340f31c4dc6de58d4995b57dfaa261d1ac83d93d919609c1ca",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "Expert",
+   "seconds": 225.2,
+   "light_events_per_second": 4.094,
+   "light_moments_per_second": 2.807,
+   "events_per_moment": 1.459,
+   "notes_per_second": 4.827,
+   "tier_light_events_per_second": {
+    "low": 3.389,
+    "mid": 3.6,
+    "high": 5.403
+   },
+   "value_share": {
+    "fade": 0.502,
+    "on": 0.408,
+    "flash": 0.005,
+    "off": 0.085
+   },
+   "color_share": {
+    "blue": 0.451,
+    "red": 0.549
+   },
+   "group_share": {
+    "0": 0.079,
+    "1": 0.325,
+    "2": 0.102,
+    "3": 0.102,
+    "4": 0.392
+   },
+   "laser_speed_events_per_second": 0.027,
+   "ring_events_per_second": 0.488,
+   "boost_toggles": 0,
+   "longest_static_seconds": 6.0,
+   "p95_static_seconds": 0.562,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "065773fe8861b9ee79c175940786415b549646efaa073fdf3a80c792948abbee",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 194.6,
+   "light_events_per_second": 19.211,
+   "light_moments_per_second": 9.341,
+   "events_per_moment": 2.057,
+   "notes_per_second": 11.309,
+   "tier_light_events_per_second": {
+    "low": 14.938,
+    "mid": 19.828,
+    "high": 22.469
+   },
+   "value_share": {
+    "on": 0.05,
+    "flash": 0.051,
+    "off": 0.424,
+    "fade": 0.474
+   },
+   "color_share": {
+    "blue": 0.529,
+    "red": 0.471
+   },
+   "group_share": {
+    "0": 0.231,
+    "1": 0.23,
+    "2": 0.161,
+    "3": 0.147,
+    "4": 0.232
+   },
+   "laser_speed_events_per_second": 3.581,
+   "ring_events_per_second": 5.503,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.75,
+   "p95_static_seconds": 0.188,
+   "max_group_flashes_per_second": 1
+  },
+  {
+   "id": "07e98a1f15e20718d7f5d977c8244c1902cd597fa03869499546db76d0e02ea0",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 110.2,
+   "light_events_per_second": 25.125,
+   "light_moments_per_second": 9.025,
+   "events_per_moment": 2.784,
+   "notes_per_second": 8.88,
+   "tier_light_events_per_second": {
+    "low": 19.0,
+    "mid": 22.5,
+    "high": 32.972
+   },
+   "value_share": {
+    "fade": 0.489,
+    "off": 0.482,
+    "on": 0.014,
+    "flash": 0.014
+   },
+   "color_share": {
+    "blue": 0.467,
+    "red": 0.533
+   },
+   "group_share": {
+    "0": 0.204,
+    "1": 0.204,
+    "2": 0.199,
+    "3": 0.191,
+    "4": 0.202
+   },
+   "laser_speed_events_per_second": 4.971,
+   "ring_events_per_second": 2.957,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.9,
+   "p95_static_seconds": 0.15,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "086221abc90bd044d3e9a94e49297ff846f5b2b9a36f2f1c3a27276847a5abdf",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 251.4,
+   "light_events_per_second": 35.282,
+   "light_moments_per_second": 18.89,
+   "events_per_moment": 1.868,
+   "notes_per_second": 7.243,
+   "tier_light_events_per_second": {
+    "low": 15.45,
+    "mid": 46.375,
+    "high": 42.837
+   },
+   "value_share": {
+    "off": 0.384,
+    "on": 0.299,
+    "other": 0.223,
+    "flash": 0.004,
+    "fade": 0.09
+   },
+   "color_share": {
+    "blue": 0.474,
+    "red": 0.526
+   },
+   "group_share": {
+    "0": 0.111,
+    "1": 0.291,
+    "2": 0.187,
+    "3": 0.186,
+    "4": 0.225
+   },
+   "laser_speed_events_per_second": 2.872,
+   "ring_events_per_second": 11.436,
+   "boost_toggles": 0,
+   "longest_static_seconds": 7.2,
+   "p95_static_seconds": 0.1,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "0f3163c43568110f72059bd54674ed3ce0568aafb38989d8dcaeccd3a215b30b",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 100.5,
+   "light_events_per_second": 33.717,
+   "light_moments_per_second": 21.957,
+   "events_per_moment": 1.536,
+   "notes_per_second": 8.337,
+   "tier_light_events_per_second": {
+    "low": 29.031,
+    "mid": 35.444,
+    "high": 35.562
+   },
+   "value_share": {
+    "on": 0.441,
+    "off": 0.409,
+    "fade": 0.15
+   },
+   "color_share": {
+    "red": 0.593,
+    "blue": 0.407
+   },
+   "group_share": {
+    "0": 0.167,
+    "1": 0.324,
+    "2": 0.164,
+    "3": 0.173,
+    "4": 0.172
+   },
+   "laser_speed_events_per_second": 0.497,
+   "ring_events_per_second": 18.963,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.75,
+   "p95_static_seconds": 0.083,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "0feb5254b1ed91f06b9f5333f1c8abf4e34385d7b8903c4bdf53886f036201ee",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 217.6,
+   "light_events_per_second": 5.901,
+   "light_moments_per_second": 3.493,
+   "events_per_moment": 1.689,
+   "notes_per_second": 5.156,
+   "tier_light_events_per_second": {
+    "low": 2.194,
+    "mid": 6.097,
+    "high": 9.486
+   },
+   "value_share": {
+    "fade": 0.857,
+    "off": 0.143
+   },
+   "color_share": {
+    "red": 0.69,
+    "blue": 0.31
+   },
+   "group_share": {
+    "0": 0.273,
+    "1": 0.009,
+    "2": 0.252,
+    "3": 0.238,
+    "4": 0.229
+   },
+   "laser_speed_events_per_second": 0.028,
+   "ring_events_per_second": 0.331,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.28,
+   "p95_static_seconds": 0.4,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "1f168da693071629ebe1be2924c88341fa766fdfeaad209aefc7870037831582",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 198.2,
+   "light_events_per_second": 37.423,
+   "light_moments_per_second": 11.936,
+   "events_per_moment": 3.135,
+   "notes_per_second": 11.664,
+   "tier_light_events_per_second": {
+    "low": 26.469,
+    "mid": 40.279,
+    "high": 45.609
+   },
+   "value_share": {
+    "fade": 0.68,
+    "off": 0.32,
+    "on": 0.001
+   },
+   "color_share": {
+    "blue": 0.489,
+    "red": 0.511
+   },
+   "group_share": {
+    "0": 0.218,
+    "1": 0.218,
+    "2": 0.173,
+    "3": 0.173,
+    "4": 0.218
+   },
+   "laser_speed_events_per_second": 12.965,
+   "ring_events_per_second": 6.927,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.04,
+   "p95_static_seconds": 0.13,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "1f27f3a165f6bd99da1bbeaff7f24156f7349b81d579543d2810ec35a7078ec0",
+   "environment": "BTSEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 145.2,
+   "light_events_per_second": 14.633,
+   "light_moments_per_second": 4.581,
+   "events_per_moment": 3.194,
+   "notes_per_second": 4.134,
+   "tier_light_events_per_second": {
+    "low": 6.812,
+    "mid": 15.188,
+    "high": 22.042
+   },
+   "value_share": {
+    "fade": 0.5,
+    "off": 0.498,
+    "on": 0.001,
+    "flash": 0.001
+   },
+   "color_share": {
+    "blue": 0.547,
+    "red": 0.453
+   },
+   "group_share": {
+    "0": 0.2,
+    "1": 0.198,
+    "2": 0.194,
+    "3": 0.204,
+    "4": 0.204
+   },
+   "laser_speed_events_per_second": 2.921,
+   "ring_events_per_second": 0.496,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.09,
+   "p95_static_seconds": 0.221,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "219db9b2c3a148040ad50a524ec9c45ea9a8259ee915fa36200f9dcdd6995e8f",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 239.3,
+   "light_events_per_second": 7.869,
+   "light_moments_per_second": 6.018,
+   "events_per_moment": 1.308,
+   "notes_per_second": 7.702,
+   "tier_light_events_per_second": {
+    "low": 4.145,
+    "mid": 7.798,
+    "high": 11.816
+   },
+   "value_share": {
+    "fade": 1.0
+   },
+   "color_share": {
+    "blue": 0.605,
+    "red": 0.395
+   },
+   "group_share": {
+    "0": 0.238,
+    "1": 0.045,
+    "2": 0.241,
+    "3": 0.224,
+    "4": 0.253
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 0.339,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.25,
+   "p95_static_seconds": 0.357,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "25bb068d1715281ac651dab6043ff1db0411503dc86d66f621870161bb211066",
+   "environment": "KaleidoscopeEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 150.0,
+   "light_events_per_second": 22.353,
+   "light_moments_per_second": 9.507,
+   "events_per_moment": 2.351,
+   "notes_per_second": 5.78,
+   "tier_light_events_per_second": {
+    "low": 25.083,
+    "mid": 21.75,
+    "high": 19.75
+   },
+   "value_share": {
+    "on": 0.461,
+    "off": 0.356,
+    "fade": 0.183
+   },
+   "color_share": {
+    "red": 0.607,
+    "blue": 0.393
+   },
+   "group_share": {
+    "0": 0.147,
+    "1": 0.244,
+    "2": 0.222,
+    "3": 0.222,
+    "4": 0.165
+   },
+   "laser_speed_events_per_second": 0.013,
+   "ring_events_per_second": 5.093,
+   "boost_toggles": 98,
+   "longest_static_seconds": 1.02,
+   "p95_static_seconds": 0.227,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "2601c3fdd7374b501a6266b4f1e943d2bbfde7f8f65624e2d8166095b6c334bf",
+   "environment": "OriginsEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 182.4,
+   "light_events_per_second": 83.646,
+   "light_moments_per_second": 25.313,
+   "events_per_moment": 3.305,
+   "notes_per_second": 7.138,
+   "tier_light_events_per_second": {
+    "low": 29.133,
+    "mid": 115.033,
+    "high": 107.7
+   },
+   "value_share": {
+    "on": 0.586,
+    "off": 0.414
+   },
+   "color_share": {
+    "blue": 0.339,
+    "red": 0.661
+   },
+   "group_share": {
+    "0": 0.066,
+    "1": 0.552,
+    "2": 0.15,
+    "3": 0.154,
+    "4": 0.077
+   },
+   "laser_speed_events_per_second": 1.031,
+   "ring_events_per_second": 0.493,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.2,
+   "p95_static_seconds": 0.075,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "2bd8be7f49fb16853d14bdff07051aadf2256d9ccc59646eb9c92259b3f733af",
+   "environment": "TriangleEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 322.5,
+   "light_events_per_second": 30.636,
+   "light_moments_per_second": 14.374,
+   "events_per_moment": 2.131,
+   "notes_per_second": 5.715,
+   "tier_light_events_per_second": {
+    "low": 18.173,
+    "mid": 30.839,
+    "high": 43.077
+   },
+   "value_share": {
+    "off": 0.393,
+    "on": 0.1,
+    "flash": 0.009,
+    "fade": 0.498
+   },
+   "color_share": {
+    "blue": 0.377,
+    "red": 0.623
+   },
+   "group_share": {
+    "0": 0.188,
+    "1": 0.177,
+    "2": 0.235,
+    "3": 0.229,
+    "4": 0.172
+   },
+   "laser_speed_events_per_second": 3.247,
+   "ring_events_per_second": 3.47,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.73,
+   "p95_static_seconds": 0.115,
+   "max_group_flashes_per_second": 4
+  },
+  {
+   "id": "2c2e2e57cd09046f346d1af8b208a5a74433a25bc22794ed9645b4fe9bf96575",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 235.5,
+   "light_events_per_second": 14.694,
+   "light_moments_per_second": 5.528,
+   "events_per_moment": 2.658,
+   "notes_per_second": 4.772,
+   "tier_light_events_per_second": {
+    "low": 7.039,
+    "mid": 17.387,
+    "high": 19.329
+   },
+   "value_share": {
+    "on": 0.002,
+    "fade": 0.583,
+    "flash": 0.006,
+    "off": 0.409
+   },
+   "color_share": {
+    "blue": 0.429,
+    "red": 0.571
+   },
+   "group_share": {
+    "0": 0.241,
+    "1": 0.238,
+    "2": 0.141,
+    "3": 0.149,
+    "4": 0.231
+   },
+   "laser_speed_events_per_second": 3.409,
+   "ring_events_per_second": 1.142,
+   "boost_toggles": 0,
+   "longest_static_seconds": 4.71,
+   "p95_static_seconds": 0.257,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "2c6527558b0b815f7cded073a4fd3c1f6e952c807d6532b375fe29ce95fd02b5",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 124.2,
+   "light_events_per_second": 25.821,
+   "light_moments_per_second": 8.671,
+   "events_per_moment": 2.978,
+   "notes_per_second": 8.237,
+   "tier_light_events_per_second": {
+    "low": 14.375,
+    "mid": 18.955,
+    "high": 44.55
+   },
+   "value_share": {
+    "fade": 0.498,
+    "off": 0.497,
+    "on": 0.002,
+    "flash": 0.003
+   },
+   "color_share": {
+    "blue": 0.493,
+    "red": 0.507
+   },
+   "group_share": {
+    "0": 0.2,
+    "1": 0.199,
+    "2": 0.197,
+    "3": 0.198,
+    "4": 0.205
+   },
+   "laser_speed_events_per_second": 5.113,
+   "ring_events_per_second": 1.699,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.6,
+   "p95_static_seconds": 0.15,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "2ec0e8e14f951a5fa4d68917729b2e78624bc8cc44ea3cb5a050d639bddfb7ed",
+   "environment": "TriangleEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 134.5,
+   "light_events_per_second": 15.609,
+   "light_moments_per_second": 6.596,
+   "events_per_moment": 2.366,
+   "notes_per_second": 8.187,
+   "tier_light_events_per_second": {
+    "low": 10.455,
+    "mid": 17.773,
+    "high": 19.159
+   },
+   "value_share": {
+    "fade": 0.66,
+    "off": 0.339,
+    "on": 0.001
+   },
+   "color_share": {
+    "blue": 0.487,
+    "red": 0.513
+   },
+   "group_share": {
+    "0": 0.175,
+    "1": 0.174,
+    "2": 0.239,
+    "3": 0.237,
+    "4": 0.176
+   },
+   "laser_speed_events_per_second": 7.05,
+   "ring_events_per_second": 4.157,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.87,
+   "p95_static_seconds": 0.174,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "315d5d68b9cfb97b5330e606639877f116d0058a881c46c70ec04279c879a33a",
+   "environment": "SkrillexEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 134.7,
+   "light_events_per_second": 24.269,
+   "light_moments_per_second": 11.811,
+   "events_per_moment": 2.055,
+   "notes_per_second": 8.693,
+   "tier_light_events_per_second": {
+    "low": 15.318,
+    "mid": 23.841,
+    "high": 33.273
+   },
+   "value_share": {
+    "fade": 0.374,
+    "off": 0.423,
+    "on": 0.102,
+    "flash": 0.102
+   },
+   "color_share": {
+    "blue": 0.507,
+    "red": 0.493
+   },
+   "group_share": {
+    "0": 0.233,
+    "1": 0.231,
+    "2": 0.148,
+    "3": 0.148,
+    "4": 0.24
+   },
+   "laser_speed_events_per_second": 3.601,
+   "ring_events_per_second": 12.353,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.9,
+   "p95_static_seconds": 0.15,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "326e512904a48dfa733cae79ecea694a638497ec8e4f1905c7d4464c08fd90b8",
+   "environment": "BillieEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 66.9,
+   "light_events_per_second": 128.029,
+   "light_moments_per_second": 30.068,
+   "events_per_moment": 4.258,
+   "notes_per_second": 4.289,
+   "tier_light_events_per_second": {
+    "low": 239.45,
+    "mid": 31.542,
+    "high": 118.9
+   },
+   "value_share": {
+    "on": 0.996,
+    "fade": 0.004
+   },
+   "color_share": {
+    "red": 0.143,
+    "blue": 0.857
+   },
+   "group_share": {
+    "0": 0.0,
+    "1": 1.0
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 0.0,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.68,
+   "p95_static_seconds": 0.027,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "32b3f0276ad45f0c49096158cdf6c10b03c7d53e787c5cc3100180cf07e5724f",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 248.8,
+   "light_events_per_second": 21.365,
+   "light_moments_per_second": 9.807,
+   "events_per_moment": 2.179,
+   "notes_per_second": 6.483,
+   "tier_light_events_per_second": {
+    "low": 9.975,
+    "mid": 21.08,
+    "high": 33.2
+   },
+   "value_share": {
+    "off": 0.255,
+    "fade": 0.724,
+    "flash": 0.021
+   },
+   "color_share": {
+    "red": 0.547,
+    "blue": 0.453
+   },
+   "group_share": {
+    "0": 0.085,
+    "1": 0.278,
+    "2": 0.315,
+    "3": 0.318,
+    "4": 0.003
+   },
+   "laser_speed_events_per_second": 3.324,
+   "ring_events_per_second": 41.598,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.03,
+   "p95_static_seconds": 0.188,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "356070ce75a57f048f5a6c65cb474ae6369d6d7f5b2e61ae800ff7532bf867d6",
+   "environment": "TriangleEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 231.6,
+   "light_events_per_second": 26.352,
+   "light_moments_per_second": 9.302,
+   "events_per_moment": 2.833,
+   "notes_per_second": 7.32,
+   "tier_light_events_per_second": {
+    "low": 9.368,
+    "mid": 32.447,
+    "high": 38.0
+   },
+   "value_share": {
+    "fade": 0.189,
+    "on": 0.392,
+    "off": 0.419
+   },
+   "color_share": {
+    "blue": 0.474,
+    "red": 0.526
+   },
+   "group_share": {
+    "0": 0.248,
+    "1": 0.257,
+    "2": 0.165,
+    "3": 0.168,
+    "4": 0.162
+   },
+   "laser_speed_events_per_second": 1.291,
+   "ring_events_per_second": 2.997,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.11,
+   "p95_static_seconds": 0.151,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "362819fc9cd3070d126012bc68e5a9e25c825599313c5f585d1ad639dba59087",
+   "environment": "NiceEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 235.2,
+   "light_events_per_second": 38.692,
+   "light_moments_per_second": 9.804,
+   "events_per_moment": 3.947,
+   "notes_per_second": 7.597,
+   "tier_light_events_per_second": {
+    "low": 28.526,
+    "mid": 36.538,
+    "high": 50.842
+   },
+   "value_share": {
+    "fade": 0.649,
+    "off": 0.351
+   },
+   "color_share": {
+    "blue": 0.501,
+    "red": 0.499
+   },
+   "group_share": {
+    "0": 0.236,
+    "1": 0.236,
+    "2": 0.146,
+    "3": 0.146,
+    "4": 0.236
+   },
+   "laser_speed_events_per_second": 11.326,
+   "ring_events_per_second": 1.998,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.48,
+   "p95_static_seconds": 0.145,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "374f6152e992d05e8a27efa26a5c0a2a4a011c5fffe7d14eb07f8eb05d32c0a3",
+   "environment": "DragonsEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 137.1,
+   "light_events_per_second": 17.267,
+   "light_moments_per_second": 8.116,
+   "events_per_moment": 2.128,
+   "notes_per_second": 5.447,
+   "tier_light_events_per_second": {
+    "low": 6.523,
+    "mid": 21.896,
+    "high": 22.886
+   },
+   "value_share": {
+    "flash": 0.397,
+    "fade": 0.086,
+    "off": 0.48,
+    "on": 0.038
+   },
+   "color_share": {
+    "red": 0.36,
+    "blue": 0.64
+   },
+   "group_share": {
+    "0": 0.141,
+    "1": 0.269,
+    "2": 0.245,
+    "3": 0.253,
+    "4": 0.092
+   },
+   "laser_speed_events_per_second": 2.231,
+   "ring_events_per_second": 0.671,
+   "boost_toggles": 0,
+   "longest_static_seconds": 6.9,
+   "p95_static_seconds": 0.179,
+   "max_group_flashes_per_second": 9
+  },
+  {
+   "id": "37513f88c22aef65d9a61355a63f2edf1fe43db1cb2eba6b3044f0df0d4bd493",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 184.4,
+   "light_events_per_second": 28.028,
+   "light_moments_per_second": 11.154,
+   "events_per_moment": 2.513,
+   "notes_per_second": 9.869,
+   "tier_light_events_per_second": {
+    "low": 16.217,
+    "mid": 28.312,
+    "high": 39.433
+   },
+   "value_share": {
+    "fade": 0.53,
+    "off": 0.408,
+    "on": 0.031,
+    "flash": 0.031
+   },
+   "color_share": {
+    "blue": 0.492,
+    "red": 0.508
+   },
+   "group_share": {
+    "0": 0.238,
+    "1": 0.246,
+    "2": 0.139,
+    "3": 0.141,
+    "4": 0.236
+   },
+   "laser_speed_events_per_second": 5.916,
+   "ring_events_per_second": 4.929,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.3,
+   "p95_static_seconds": 0.15,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "39397eeea280c9f797b13000b6d7398a3309a0d59255485eb81f89fd7a59932f",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 292.2,
+   "light_events_per_second": 18.79,
+   "light_moments_per_second": 6.252,
+   "events_per_moment": 3.005,
+   "notes_per_second": 5.721,
+   "tier_light_events_per_second": {
+    "low": 10.542,
+    "mid": 13.92,
+    "high": 32.073
+   },
+   "value_share": {
+    "fade": 0.5,
+    "off": 0.5
+   },
+   "color_share": {
+    "blue": 0.523,
+    "red": 0.477
+   },
+   "group_share": {
+    "0": 0.2,
+    "1": 0.198,
+    "2": 0.201,
+    "3": 0.2,
+    "4": 0.201
+   },
+   "laser_speed_events_per_second": 3.774,
+   "ring_events_per_second": 1.068,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.71,
+   "p95_static_seconds": 0.176,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "3992d9628918e52c038473b0228bc2bb526e9bf7244fd725fe2c1a7a28ed4536",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 206.1,
+   "light_events_per_second": 12.144,
+   "light_moments_per_second": 5.414,
+   "events_per_moment": 2.243,
+   "notes_per_second": 8.233,
+   "tier_light_events_per_second": {
+    "low": 11.132,
+    "mid": 10.265,
+    "high": 14.559
+   },
+   "value_share": {
+    "fade": 0.553,
+    "off": 0.189,
+    "on": 0.24,
+    "flash": 0.018
+   },
+   "color_share": {
+    "blue": 0.5,
+    "red": 0.5
+   },
+   "group_share": {
+    "0": 0.216,
+    "1": 0.198,
+    "2": 0.185,
+    "3": 0.22,
+    "4": 0.181
+   },
+   "laser_speed_events_per_second": 0.65,
+   "ring_events_per_second": 2.901,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.41,
+   "p95_static_seconds": 0.265,
+   "max_group_flashes_per_second": 5
+  },
+  {
+   "id": "39d16b1a257a4eab48eb0c9d660ef9484feffc58c140c3438aaecc1678d5b0dd",
+   "environment": "TimbalandEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 129.0,
+   "light_events_per_second": 129.445,
+   "light_moments_per_second": 74.465,
+   "events_per_moment": 1.738,
+   "notes_per_second": 6.262,
+   "tier_light_events_per_second": {
+    "low": 87.125,
+    "mid": 132.208,
+    "high": 169.0
+   },
+   "value_share": {
+    "on": 0.942,
+    "off": 0.057,
+    "fade": 0.0
+   },
+   "color_share": {
+    "red": 0.843,
+    "blue": 0.157
+   },
+   "group_share": {
+    "0": 0.093,
+    "1": 0.716,
+    "2": 0.012,
+    "3": 0.012,
+    "4": 0.167
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 0.992,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.33,
+   "p95_static_seconds": 0.021,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "3baa35b04819e07a65ceed9e6b4bf7bb8c77bd565e034252eb518b1c99321035",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 326.5,
+   "light_events_per_second": 21.619,
+   "light_moments_per_second": 10.133,
+   "events_per_moment": 2.134,
+   "notes_per_second": 7.642,
+   "tier_light_events_per_second": {
+    "low": 12.519,
+    "mid": 23.056,
+    "high": 29.546
+   },
+   "value_share": {
+    "fade": 0.533,
+    "off": 0.288,
+    "on": 0.099,
+    "flash": 0.08
+   },
+   "color_share": {
+    "red": 0.468,
+    "blue": 0.532
+   },
+   "group_share": {
+    "0": 0.164,
+    "1": 0.262,
+    "2": 0.229,
+    "3": 0.229,
+    "4": 0.116
+   },
+   "laser_speed_events_per_second": 8.445,
+   "ring_events_per_second": 14.626,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.65,
+   "p95_static_seconds": 0.176,
+   "max_group_flashes_per_second": 2
+  },
+  {
+   "id": "3d3776601264e17cc5c17af9c89357f35df365730f9179eb3d6161b1daab34fc",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 389.8,
+   "light_events_per_second": 7.914,
+   "light_moments_per_second": 7.281,
+   "events_per_moment": 1.087,
+   "notes_per_second": 8.071,
+   "tier_light_events_per_second": {
+    "low": 3.844,
+    "mid": 8.697,
+    "high": 11.258
+   },
+   "value_share": {
+    "fade": 0.996,
+    "flash": 0.004
+   },
+   "color_share": {
+    "blue": 0.558,
+    "red": 0.442
+   },
+   "group_share": {
+    "0": 0.246,
+    "1": 0.001,
+    "2": 0.249,
+    "3": 0.235,
+    "4": 0.269
+   },
+   "laser_speed_events_per_second": 0.005,
+   "ring_events_per_second": 0.328,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.31,
+   "p95_static_seconds": 0.414,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "42df5a48b1d8e975bd95242f4c7becf8e28e2f9bd679423d37a2906aa8aa00e8",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 245.3,
+   "light_events_per_second": 39.436,
+   "light_moments_per_second": 17.601,
+   "events_per_moment": 2.241,
+   "notes_per_second": 16.219,
+   "tier_light_events_per_second": {
+    "low": 39.125,
+    "mid": 37.44,
+    "high": 41.35
+   },
+   "value_share": {
+    "fade": 0.55,
+    "off": 0.447,
+    "on": 0.002,
+    "flash": 0.002
+   },
+   "color_share": {
+    "blue": 0.499,
+    "red": 0.501
+   },
+   "group_share": {
+    "0": 0.218,
+    "1": 0.217,
+    "2": 0.173,
+    "3": 0.176,
+    "4": 0.217
+   },
+   "laser_speed_events_per_second": 8.694,
+   "ring_events_per_second": 1.965,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.83,
+   "p95_static_seconds": 0.056,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "45629048d0271fa5496cdf37875bfcdbd1b04b2c8a3e4f235e3f485cf06651e5",
+   "environment": "OriginsEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 129.7,
+   "light_events_per_second": 102.567,
+   "light_moments_per_second": 26.371,
+   "events_per_moment": 3.889,
+   "notes_per_second": 4.527,
+   "tier_light_events_per_second": {
+    "low": 62.9,
+    "mid": 101.104,
+    "high": 141.975
+   },
+   "value_share": {
+    "on": 0.723,
+    "fade": 0.147,
+    "off": 0.119,
+    "flash": 0.011
+   },
+   "color_share": {
+    "red": 0.927,
+    "blue": 0.073
+   },
+   "group_share": {
+    "0": 0.07,
+    "1": 0.499,
+    "2": 0.189,
+    "3": 0.188,
+    "4": 0.054
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 0.594,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.04,
+   "p95_static_seconds": 0.033,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "4649a670d7a9394859443a6cd5c0ba8beed9e4f7cbe5857ece395d933bdbfb54",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 140.5,
+   "light_events_per_second": 24.245,
+   "light_moments_per_second": 10.286,
+   "events_per_moment": 2.357,
+   "notes_per_second": 8.278,
+   "tier_light_events_per_second": {
+    "low": 20.705,
+    "mid": 25.096,
+    "high": 26.773
+   },
+   "value_share": {
+    "on": 0.026,
+    "fade": 0.543,
+    "off": 0.405,
+    "flash": 0.026
+   },
+   "color_share": {
+    "blue": 0.464,
+    "red": 0.536
+   },
+   "group_share": {
+    "0": 0.24,
+    "1": 0.24,
+    "2": 0.141,
+    "3": 0.142,
+    "4": 0.237
+   },
+   "laser_speed_events_per_second": 5.139,
+   "ring_events_per_second": 4.086,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.51,
+   "p95_static_seconds": 0.146,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "47669fe7cafeeadcb65a88b6525cfa36e6be3475ad95f3d332ba941633c6ff93",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 224.4,
+   "light_events_per_second": 16.713,
+   "light_moments_per_second": 7.303,
+   "events_per_moment": 2.289,
+   "notes_per_second": 7.824,
+   "tier_light_events_per_second": {
+    "low": 5.278,
+    "mid": 16.863,
+    "high": 28.0
+   },
+   "value_share": {
+    "fade": 0.747,
+    "off": 0.253
+   },
+   "color_share": {
+    "blue": 0.49,
+    "red": 0.51
+   },
+   "group_share": {
+    "0": 0.176,
+    "1": 0.176,
+    "2": 0.235,
+    "3": 0.235,
+    "4": 0.176
+   },
+   "laser_speed_events_per_second": 7.864,
+   "ring_events_per_second": 1.158,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.86,
+   "p95_static_seconds": 0.162,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "4b821c5bb91a3db891afff91cd71c9e679c1be956128ea55893597711cda6d0b",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 242.8,
+   "light_events_per_second": 21.15,
+   "light_moments_per_second": 7.12,
+   "events_per_moment": 2.971,
+   "notes_per_second": 6.914,
+   "tier_light_events_per_second": {
+    "low": 15.35,
+    "mid": 23.188,
+    "high": 24.825
+   },
+   "value_share": {
+    "fade": 0.497,
+    "off": 0.497,
+    "on": 0.003,
+    "flash": 0.003
+   },
+   "color_share": {
+    "blue": 0.497,
+    "red": 0.503
+   },
+   "group_share": {
+    "0": 0.2,
+    "1": 0.198,
+    "2": 0.2,
+    "3": 0.199,
+    "4": 0.203
+   },
+   "laser_speed_events_per_second": 4.221,
+   "ring_events_per_second": 1.244,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.4,
+   "p95_static_seconds": 0.2,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "4d686beffc861823597ce58f026fefef7f0060232b1fd24188ec7a684d31eac8",
+   "environment": "DragonsEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 167.6,
+   "light_events_per_second": 35.443,
+   "light_moments_per_second": 21.925,
+   "events_per_moment": 1.617,
+   "notes_per_second": 5.22,
+   "tier_light_events_per_second": {
+    "low": 21.846,
+    "mid": 38.267,
+    "high": 45.115
+   },
+   "value_share": {
+    "fade": 0.508,
+    "off": 0.33,
+    "on": 0.161,
+    "flash": 0.001
+   },
+   "color_share": {
+    "red": 0.474,
+    "blue": 0.526
+   },
+   "group_share": {
+    "0": 0.266,
+    "1": 0.162,
+    "2": 0.226,
+    "3": 0.229,
+    "4": 0.116
+   },
+   "laser_speed_events_per_second": 2.828,
+   "ring_events_per_second": 19.962,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.31,
+   "p95_static_seconds": 0.06,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "4dc6a494ef87c6f16ddf013d69855adc6f0bb0b5d82d130d10e64766668d5f91",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 115.5,
+   "light_events_per_second": 30.552,
+   "light_moments_per_second": 11.318,
+   "events_per_moment": 2.699,
+   "notes_per_second": 9.872,
+   "tier_light_events_per_second": {
+    "low": 17.444,
+    "mid": 27.575,
+    "high": 46.694
+   },
+   "value_share": {
+    "off": 0.496,
+    "fade": 0.496,
+    "on": 0.004,
+    "flash": 0.004
+   },
+   "color_share": {
+    "blue": 0.514,
+    "red": 0.486
+   },
+   "group_share": {
+    "0": 0.2,
+    "1": 0.201,
+    "2": 0.194,
+    "3": 0.2,
+    "4": 0.206
+   },
+   "laser_speed_events_per_second": 6.019,
+   "ring_events_per_second": 2.503,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.45,
+   "p95_static_seconds": 0.094,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "4f08a915af162f65e77048a2d85a8ca3e7ef7ace503aedc152e092d102297053",
+   "environment": "PanicEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 92.7,
+   "light_events_per_second": 13.159,
+   "light_moments_per_second": 5.199,
+   "events_per_moment": 2.531,
+   "notes_per_second": 4.541,
+   "tier_light_events_per_second": {
+    "low": 9.464,
+    "mid": 14.0,
+    "high": 15.857
+   },
+   "value_share": {
+    "fade": 0.551,
+    "off": 0.448,
+    "on": 0.002
+   },
+   "color_share": {
+    "red": 0.524,
+    "blue": 0.476
+   },
+   "group_share": {
+    "0": 0.128,
+    "1": 0.085,
+    "2": 0.357,
+    "3": 0.357,
+    "4": 0.074
+   },
+   "laser_speed_events_per_second": 0.302,
+   "ring_events_per_second": 0.032,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.68,
+   "p95_static_seconds": 0.303,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "4f5f5992be8b33089dff7dbbbeff31dceb5091f5c76364a05d6247ee0d64ea47",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 132.5,
+   "light_events_per_second": 21.216,
+   "light_moments_per_second": 8.888,
+   "events_per_moment": 2.387,
+   "notes_per_second": 7.726,
+   "tier_light_events_per_second": {
+    "low": 15.932,
+    "mid": 21.386,
+    "high": 26.25
+   },
+   "value_share": {
+    "fade": 0.566,
+    "off": 0.434
+   },
+   "color_share": {
+    "blue": 0.533,
+    "red": 0.467
+   },
+   "group_share": {
+    "0": 0.22,
+    "1": 0.23,
+    "2": 0.164,
+    "3": 0.157,
+    "4": 0.229
+   },
+   "laser_speed_events_per_second": 4.799,
+   "ring_events_per_second": 1.6,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.41,
+   "p95_static_seconds": 0.176,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "517fe857eba2a8c2bc31dbcf35fea10db2591be4ad8ed601173c92a2bad0284c",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 204.8,
+   "light_events_per_second": 39.077,
+   "light_moments_per_second": 20.073,
+   "events_per_moment": 1.947,
+   "notes_per_second": 6.382,
+   "tier_light_events_per_second": {
+    "low": 29.662,
+    "mid": 38.176,
+    "high": 49.735
+   },
+   "value_share": {
+    "fade": 0.564,
+    "off": 0.436
+   },
+   "color_share": {
+    "blue": 0.525,
+    "red": 0.475
+   },
+   "group_share": {
+    "0": 0.078,
+    "1": 0.252,
+    "2": 0.225,
+    "3": 0.228,
+    "4": 0.217
+   },
+   "laser_speed_events_per_second": 8.145,
+   "ring_events_per_second": 4.18,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.1,
+   "p95_static_seconds": 0.1,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "53b3e78320d34a8491cfed1d50e9ba2d705f4d6514552067dd72ab03e44499a7",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 259.6,
+   "light_events_per_second": 17.77,
+   "light_moments_per_second": 12.111,
+   "events_per_moment": 1.467,
+   "notes_per_second": 6.53,
+   "tier_light_events_per_second": {
+    "low": 5.56,
+    "mid": 16.693,
+    "high": 31.071
+   },
+   "value_share": {
+    "flash": 0.076,
+    "fade": 0.232,
+    "off": 0.416,
+    "on": 0.276
+   },
+   "color_share": {
+    "red": 0.388,
+    "blue": 0.612
+   },
+   "group_share": {
+    "0": 0.186,
+    "1": 0.128,
+    "2": 0.25,
+    "3": 0.241,
+    "4": 0.195
+   },
+   "laser_speed_events_per_second": 1.73,
+   "ring_events_per_second": 11.172,
+   "boost_toggles": 0,
+   "longest_static_seconds": 11.29,
+   "p95_static_seconds": 0.176,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "581444b3e478ef7650667371787b6e255ccbc9c0e7858e14c9c3704341b9497f",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 183.2,
+   "light_events_per_second": 26.426,
+   "light_moments_per_second": 15.843,
+   "events_per_moment": 1.668,
+   "notes_per_second": 11.013,
+   "tier_light_events_per_second": {
+    "low": 24.1,
+    "mid": 26.167,
+    "high": 29.4
+   },
+   "value_share": {
+    "flash": 0.43,
+    "off": 0.494,
+    "fade": 0.076
+   },
+   "color_share": {
+    "red": 0.59,
+    "blue": 0.41
+   },
+   "group_share": {
+    "0": 0.147,
+    "1": 0.308,
+    "2": 0.14,
+    "3": 0.148,
+    "4": 0.258
+   },
+   "laser_speed_events_per_second": 3.018,
+   "ring_events_per_second": 5.136,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.96,
+   "p95_static_seconds": 0.154,
+   "max_group_flashes_per_second": 9
+  },
+  {
+   "id": "58906334a89bffa124d716fc3461d057467d071e6a6143343a24fc44c37b59c1",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 287.7,
+   "light_events_per_second": 20.658,
+   "light_moments_per_second": 7.437,
+   "events_per_moment": 2.778,
+   "notes_per_second": 6.433,
+   "tier_light_events_per_second": {
+    "low": 11.391,
+    "mid": 24.38,
+    "high": 26.413
+   },
+   "value_share": {
+    "on": 0.006,
+    "flash": 0.006,
+    "off": 0.401,
+    "fade": 0.588
+   },
+   "color_share": {
+    "blue": 0.508,
+    "red": 0.492
+   },
+   "group_share": {
+    "0": 0.237,
+    "1": 0.239,
+    "2": 0.144,
+    "3": 0.144,
+    "4": 0.237
+   },
+   "laser_speed_events_per_second": 4.848,
+   "ring_events_per_second": 1.366,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.85,
+   "p95_static_seconds": 0.175,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "58d490a93f04ee4ba26c6c7c31fc0395a7a973b7c4c1387d1234ef6b1dc574b6",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 146.4,
+   "light_events_per_second": 29.378,
+   "light_moments_per_second": 10.929,
+   "events_per_moment": 2.688,
+   "notes_per_second": 8.538,
+   "tier_light_events_per_second": {
+    "low": 16.271,
+    "mid": 34.625,
+    "high": 36.521
+   },
+   "value_share": {
+    "fade": 0.44,
+    "off": 0.468,
+    "on": 0.045,
+    "flash": 0.047
+   },
+   "color_share": {
+    "blue": 0.502,
+    "red": 0.498
+   },
+   "group_share": {
+    "0": 0.217,
+    "1": 0.214,
+    "2": 0.178,
+    "3": 0.176,
+    "4": 0.214
+   },
+   "laser_speed_events_per_second": 5.212,
+   "ring_events_per_second": 8.975,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.88,
+   "p95_static_seconds": 0.15,
+   "max_group_flashes_per_second": 6
+  },
+  {
+   "id": "593ecc5bee037eb0758d0c840354fc52ee3b3c8b9bc55d0bef49ff7551d168ea",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 117.6,
+   "light_events_per_second": 30.197,
+   "light_moments_per_second": 11.596,
+   "events_per_moment": 2.604,
+   "notes_per_second": 9.624,
+   "tier_light_events_per_second": {
+    "low": 22.361,
+    "mid": 31.75,
+    "high": 36.083
+   },
+   "value_share": {
+    "fade": 0.463,
+    "off": 0.476,
+    "on": 0.031,
+    "flash": 0.03
+   },
+   "color_share": {
+    "blue": 0.509,
+    "red": 0.491
+   },
+   "group_share": {
+    "0": 0.208,
+    "1": 0.205,
+    "2": 0.195,
+    "3": 0.183,
+    "4": 0.21
+   },
+   "laser_speed_events_per_second": 5.704,
+   "ring_events_per_second": 5.483,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.42,
+   "p95_static_seconds": 0.14,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "5e0c333d5f950c2b00ba5faf66e6333585a86e88d6910809ba51f6bbe6c1f94f",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 252.4,
+   "light_events_per_second": 17.301,
+   "light_moments_per_second": 9.984,
+   "events_per_moment": 1.733,
+   "notes_per_second": 7.305,
+   "tier_light_events_per_second": {
+    "low": 10.417,
+    "mid": 17.655,
+    "high": 23.869
+   },
+   "value_share": {
+    "fade": 0.554,
+    "off": 0.378,
+    "flash": 0.068
+   },
+   "color_share": {
+    "blue": 0.513,
+    "red": 0.487
+   },
+   "group_share": {
+    "0": 0.067,
+    "1": 0.369,
+    "2": 0.245,
+    "3": 0.245,
+    "4": 0.074
+   },
+   "laser_speed_events_per_second": 3.312,
+   "ring_events_per_second": 29.329,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.52,
+   "p95_static_seconds": 0.172,
+   "max_group_flashes_per_second": 8
+  },
+  {
+   "id": "60136a932aadfe78380a89b5aed1a515434b60b8a1d3435abc256ef0d98c8246",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 60.6,
+   "light_events_per_second": 20.199,
+   "light_moments_per_second": 9.349,
+   "events_per_moment": 2.16,
+   "notes_per_second": 6.876,
+   "tier_light_events_per_second": {
+    "low": 8.65,
+    "mid": 17.7,
+    "high": 34.6
+   },
+   "value_share": {
+    "on": 0.039,
+    "flash": 0.039,
+    "off": 0.407,
+    "fade": 0.515
+   },
+   "color_share": {
+    "blue": 0.527,
+    "red": 0.473
+   },
+   "group_share": {
+    "0": 0.23,
+    "1": 0.245,
+    "2": 0.14,
+    "3": 0.15,
+    "4": 0.234
+   },
+   "laser_speed_events_per_second": 4.172,
+   "ring_events_per_second": 4.881,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.64,
+   "p95_static_seconds": 0.16,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "611cb8ece239ccd3be51b5dd4f8ca440b3698709bf7606d42b557ef8d4857075",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 151.6,
+   "light_events_per_second": 35.821,
+   "light_moments_per_second": 13.8,
+   "events_per_moment": 2.596,
+   "notes_per_second": 10.575,
+   "tier_light_events_per_second": {
+    "low": 27.979,
+    "mid": 37.462,
+    "high": 40.521
+   },
+   "value_share": {
+    "off": 0.457,
+    "on": 0.01,
+    "fade": 0.531,
+    "flash": 0.001
+   },
+   "color_share": {
+    "blue": 0.529,
+    "red": 0.471
+   },
+   "group_share": {
+    "0": 0.167,
+    "1": 0.209,
+    "2": 0.194,
+    "3": 0.197,
+    "4": 0.233
+   },
+   "laser_speed_events_per_second": 9.038,
+   "ring_events_per_second": 6.26,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.53,
+   "p95_static_seconds": 0.237,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "61b29ae757f193027395dd7fca785088d4fc243d30c557ee7b42774491be57ed",
+   "environment": "RockMixtapeEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 180.0,
+   "light_events_per_second": 0.228,
+   "light_moments_per_second": 0.228,
+   "events_per_moment": 1.0,
+   "notes_per_second": 6.46,
+   "tier_light_events_per_second": {
+    "low": 0.233,
+    "mid": 0.3,
+    "high": 0.15
+   },
+   "value_share": {
+    "off": 0.268,
+    "transition": 0.415,
+    "on": 0.317
+   },
+   "color_share": {
+    "blue": 1.0
+   },
+   "group_share": {
+    "4": 1.0
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 0.0,
+   "boost_toggles": 9,
+   "longest_static_seconds": 20.19,
+   "p95_static_seconds": 12.196,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "626b5c3abc73afb048149c4e97bbe8c5bdd6fe0824ce8bcb76996524a36fe1a1",
+   "environment": "KaleidoscopeEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 295.6,
+   "light_events_per_second": 43.356,
+   "light_moments_per_second": 25.811,
+   "events_per_moment": 1.68,
+   "notes_per_second": 6.367,
+   "tier_light_events_per_second": {
+    "low": 30.51,
+    "mid": 41.96,
+    "high": 57.688
+   },
+   "value_share": {
+    "fade": 0.149,
+    "on": 0.467,
+    "off": 0.384
+   },
+   "color_share": {
+    "red": 0.523,
+    "blue": 0.477
+   },
+   "group_share": {
+    "0": 0.048,
+    "1": 0.683,
+    "2": 0.113,
+    "3": 0.122,
+    "4": 0.034
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 3.309,
+   "boost_toggles": 1,
+   "longest_static_seconds": 0.98,
+   "p95_static_seconds": 0.082,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "6517bb0c316a95ec1d66439c41dc8a6158fe2fef42849c8b41b1d07ff7103738",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 219.5,
+   "light_events_per_second": 19.928,
+   "light_moments_per_second": 7.65,
+   "events_per_moment": 2.605,
+   "notes_per_second": 6.26,
+   "tier_light_events_per_second": {
+    "low": 14.667,
+    "mid": 21.764,
+    "high": 23.042
+   },
+   "value_share": {
+    "on": 0.034,
+    "flash": 0.033,
+    "off": 0.414,
+    "fade": 0.519
+   },
+   "color_share": {
+    "blue": 0.474,
+    "red": 0.526
+   },
+   "group_share": {
+    "0": 0.237,
+    "1": 0.241,
+    "2": 0.147,
+    "3": 0.136,
+    "4": 0.238
+   },
+   "laser_speed_events_per_second": 3.854,
+   "ring_events_per_second": 2.456,
+   "boost_toggles": 0,
+   "longest_static_seconds": 5.18,
+   "p95_static_seconds": 0.225,
+   "max_group_flashes_per_second": 12
+  },
+  {
+   "id": "6b17ed582ece6d322f2416ce973de6589504860f5cf5d718c375a32eb77bf284",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 226.0,
+   "light_events_per_second": 17.087,
+   "light_moments_per_second": 7.519,
+   "events_per_moment": 2.273,
+   "notes_per_second": 7.271,
+   "tier_light_events_per_second": {
+    "low": 11.417,
+    "mid": 19.538,
+    "high": 20.375
+   },
+   "value_share": {
+    "fade": 0.494,
+    "flash": 0.03,
+    "off": 0.423,
+    "on": 0.052
+   },
+   "color_share": {
+    "red": 0.518,
+    "blue": 0.482
+   },
+   "group_share": {
+    "0": 0.184,
+    "1": 0.212,
+    "2": 0.199,
+    "3": 0.197,
+    "4": 0.208
+   },
+   "laser_speed_events_per_second": 3.881,
+   "ring_events_per_second": 1.943,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.65,
+   "p95_static_seconds": 0.244,
+   "max_group_flashes_per_second": 4
+  },
+  {
+   "id": "7179563bb25701da1430a149cc7ef4d8b34d9616abbc611b762784d5d31c47ef",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 242.5,
+   "light_events_per_second": 11.637,
+   "light_moments_per_second": 5.167,
+   "events_per_moment": 2.252,
+   "notes_per_second": 9.34,
+   "tier_light_events_per_second": {
+    "low": 6.562,
+    "mid": 13.575,
+    "high": 14.812
+   },
+   "value_share": {
+    "flash": 0.299,
+    "off": 0.511,
+    "on": 0.065,
+    "fade": 0.125
+   },
+   "color_share": {
+    "blue": 0.547,
+    "red": 0.453
+   },
+   "group_share": {
+    "0": 0.232,
+    "1": 0.193,
+    "2": 0.134,
+    "3": 0.111,
+    "4": 0.33
+   },
+   "laser_speed_events_per_second": 0.544,
+   "ring_events_per_second": 4.008,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.88,
+   "p95_static_seconds": 0.312,
+   "max_group_flashes_per_second": 3
+  },
+  {
+   "id": "71c5489c499cfcff1e05d3ec93035504fda30fe6433f772d4b7fcd65b00dc47f",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 200.6,
+   "light_events_per_second": 25.995,
+   "light_moments_per_second": 10.898,
+   "events_per_moment": 2.385,
+   "notes_per_second": 9.313,
+   "tier_light_events_per_second": {
+    "low": 18.672,
+    "mid": 25.25,
+    "high": 34.078
+   },
+   "value_share": {
+    "on": 0.06,
+    "flash": 0.06,
+    "off": 0.371,
+    "fade": 0.508
+   },
+   "color_share": {
+    "blue": 0.527,
+    "red": 0.473
+   },
+   "group_share": {
+    "0": 0.253,
+    "1": 0.25,
+    "2": 0.123,
+    "3": 0.122,
+    "4": 0.251
+   },
+   "laser_speed_events_per_second": 5.115,
+   "ring_events_per_second": 7.189,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.09,
+   "p95_static_seconds": 0.145,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "71c5b5bb71217b8e4e20ee64d5b77eda681a01dace443e4887456b9c43edf724",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 139.0,
+   "light_events_per_second": 24.258,
+   "light_moments_per_second": 10.227,
+   "events_per_moment": 2.372,
+   "notes_per_second": 9.22,
+   "tier_light_events_per_second": {
+    "low": 21.136,
+    "mid": 21.792,
+    "high": 29.977
+   },
+   "value_share": {
+    "fade": 0.545,
+    "off": 0.426,
+    "on": 0.015,
+    "flash": 0.014
+   },
+   "color_share": {
+    "blue": 0.454,
+    "red": 0.546
+   },
+   "group_share": {
+    "0": 0.232,
+    "1": 0.23,
+    "2": 0.155,
+    "3": 0.153,
+    "4": 0.231
+   },
+   "laser_speed_events_per_second": 5.092,
+   "ring_events_per_second": 2.014,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.07,
+   "p95_static_seconds": 0.119,
+   "max_group_flashes_per_second": 9
+  },
+  {
+   "id": "724a60423b4a3a9c5852f784472a1ef5ab22cf8c0ec7be2ef5aa62749b4ab399",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 307.6,
+   "light_events_per_second": 25.434,
+   "light_moments_per_second": 10.121,
+   "events_per_moment": 2.513,
+   "notes_per_second": 8.446,
+   "tier_light_events_per_second": {
+    "low": 10.45,
+    "mid": 26.788,
+    "high": 37.34
+   },
+   "value_share": {
+    "fade": 0.433,
+    "off": 0.454,
+    "on": 0.057,
+    "flash": 0.057
+   },
+   "color_share": {
+    "blue": 0.5,
+    "red": 0.5
+   },
+   "group_share": {
+    "0": 0.218,
+    "1": 0.219,
+    "2": 0.173,
+    "3": 0.171,
+    "4": 0.218
+   },
+   "laser_speed_events_per_second": 4.34,
+   "ring_events_per_second": 8.157,
+   "boost_toggles": 0,
+   "longest_static_seconds": 8.51,
+   "p95_static_seconds": 0.135,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "724bb88b2928cbd8d080bb04e42e721c682b1ddf914b8515cc5ab184ddc1bfa5",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 105.7,
+   "light_events_per_second": 16.172,
+   "light_moments_per_second": 6.472,
+   "events_per_moment": 2.499,
+   "notes_per_second": 4.305,
+   "tier_light_events_per_second": {
+    "low": 9.125,
+    "mid": 18.375,
+    "high": 20.312
+   },
+   "value_share": {
+    "off": 0.473,
+    "fade": 0.452,
+    "on": 0.037,
+    "flash": 0.037
+   },
+   "color_share": {
+    "blue": 0.51,
+    "red": 0.49
+   },
+   "group_share": {
+    "0": 0.215,
+    "1": 0.203,
+    "2": 0.183,
+    "3": 0.191,
+    "4": 0.209
+   },
+   "laser_speed_events_per_second": 3.037,
+   "ring_events_per_second": 3.416,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.41,
+   "p95_static_seconds": 0.281,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "7417f8107b9a0ec1f7cc84c6da1d17a4cbda5310c40d7b1b74c4c5947c6a0981",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 122.1,
+   "light_events_per_second": 4.765,
+   "light_moments_per_second": 2.514,
+   "events_per_moment": 1.896,
+   "notes_per_second": 6.722,
+   "tier_light_events_per_second": {
+    "low": 3.825,
+    "mid": 5.325,
+    "high": 5.175
+   },
+   "value_share": {
+    "on": 0.01,
+    "fade": 0.469,
+    "flash": 0.507,
+    "off": 0.014
+   },
+   "color_share": {
+    "red": 0.51,
+    "blue": 0.49
+   },
+   "group_share": {
+    "0": 0.302,
+    "1": 0.077,
+    "2": 0.271,
+    "3": 0.271,
+    "4": 0.077
+   },
+   "laser_speed_events_per_second": 2.456,
+   "ring_events_per_second": 1.22,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.31,
+   "p95_static_seconds": 0.71,
+   "max_group_flashes_per_second": 3
+  },
+  {
+   "id": "742eea240acdc68966a526ed6a3e6016d885241f9585189a68f7b58c440a4ddc",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 221.6,
+   "light_events_per_second": 40.905,
+   "light_moments_per_second": 31.907,
+   "events_per_moment": 1.282,
+   "notes_per_second": 5.167,
+   "tier_light_events_per_second": {
+    "low": 29.889,
+    "mid": 40.737,
+    "high": 52.569
+   },
+   "value_share": {
+    "fade": 0.54,
+    "off": 0.453,
+    "on": 0.007,
+    "flash": 0.0
+   },
+   "color_share": {
+    "blue": 0.476,
+    "red": 0.524
+   },
+   "group_share": {
+    "0": 0.032,
+    "1": 0.664,
+    "2": 0.135,
+    "3": 0.141,
+    "4": 0.027
+   },
+   "laser_speed_events_per_second": 5.392,
+   "ring_events_per_second": 3.669,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.85,
+   "p95_static_seconds": 0.103,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "74899089cc7ad9dae172010dfdfd594a82fd47d15196f473a9089e514a57ae2b",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 226.3,
+   "light_events_per_second": 0.384,
+   "light_moments_per_second": 0.208,
+   "events_per_moment": 1.851,
+   "notes_per_second": 4.114,
+   "tier_light_events_per_second": {
+    "low": 0.264,
+    "mid": 0.362,
+    "high": 0.542
+   },
+   "value_share": {
+    "on": 1.0
+   },
+   "color_share": {
+    "red": 0.391,
+    "blue": 0.609
+   },
+   "group_share": {
+    "0": 0.115,
+    "1": 0.54,
+    "2": 0.115,
+    "3": 0.115,
+    "4": 0.115
+   },
+   "laser_speed_events_per_second": 0.088,
+   "ring_events_per_second": 0.508,
+   "boost_toggles": 0,
+   "longest_static_seconds": 9.14,
+   "p95_static_seconds": 9.143,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "74b723f9347f6a4968a618c8dd774d9389483cb045d366959302cce04bbf805d",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 213.9,
+   "light_events_per_second": 7.335,
+   "light_moments_per_second": 5.867,
+   "events_per_moment": 1.25,
+   "notes_per_second": 7.33,
+   "tier_light_events_per_second": {
+    "low": 5.235,
+    "mid": 7.645,
+    "high": 9.088
+   },
+   "value_share": {
+    "fade": 1.0
+   },
+   "color_share": {
+    "blue": 0.526,
+    "red": 0.474
+   },
+   "group_share": {
+    "0": 0.318,
+    "2": 0.171,
+    "3": 0.317,
+    "4": 0.194
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 0.0,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.78,
+   "p95_static_seconds": 0.261,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "7daceb0fff1ecf1a5523db5e24b91e2947f83e526d5f896c741b11cb1c6d524b",
+   "environment": "NiceEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 132.8,
+   "light_events_per_second": 42.277,
+   "light_moments_per_second": 25.307,
+   "events_per_moment": 1.671,
+   "notes_per_second": 9.204,
+   "tier_light_events_per_second": {
+    "low": 46.045,
+    "mid": 41.227,
+    "high": 39.864
+   },
+   "value_share": {
+    "fade": 0.499,
+    "off": 0.474,
+    "flash": 0.027
+   },
+   "color_share": {
+    "red": 0.51,
+    "blue": 0.49
+   },
+   "group_share": {
+    "0": 0.117,
+    "1": 0.465,
+    "2": 0.103,
+    "3": 0.106,
+    "4": 0.21
+   },
+   "laser_speed_events_per_second": 7.02,
+   "ring_events_per_second": 3.261,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.83,
+   "p95_static_seconds": 0.083,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "802b73624dd94b0a0291274cddf4b41f4becf9109fb5266b0fa67ddcecafd1d3",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 167.6,
+   "light_events_per_second": 24.808,
+   "light_moments_per_second": 9.099,
+   "events_per_moment": 2.727,
+   "notes_per_second": 7.864,
+   "tier_light_events_per_second": {
+    "low": 14.231,
+    "mid": 25.067,
+    "high": 35.096
+   },
+   "value_share": {
+    "fade": 0.472,
+    "off": 0.483,
+    "on": 0.022,
+    "flash": 0.023
+   },
+   "color_share": {
+    "blue": 0.516,
+    "red": 0.484
+   },
+   "group_share": {
+    "0": 0.204,
+    "1": 0.204,
+    "2": 0.192,
+    "3": 0.19,
+    "4": 0.209
+   },
+   "laser_speed_events_per_second": 4.749,
+   "ring_events_per_second": 3.443,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.68,
+   "p95_static_seconds": 0.13,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "80b772e3e3e199e25617bb7da4099b25291b619930bb63467a3984961c94a8dc",
+   "environment": "RockMixtapeEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 231.4,
+   "light_events_per_second": 1.162,
+   "light_moments_per_second": 1.08,
+   "events_per_moment": 1.076,
+   "notes_per_second": 4.814,
+   "tier_light_events_per_second": {
+    "low": 1.066,
+    "mid": 1.276,
+    "high": 1.171
+   },
+   "value_share": {
+    "on": 0.413,
+    "transition": 0.572,
+    "off": 0.015
+   },
+   "color_share": {
+    "red": 0.445,
+    "blue": 0.487,
+    "white": 0.068
+   },
+   "group_share": {
+    "3": 0.123,
+    "4": 0.877
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 0.0,
+   "boost_toggles": 8,
+   "longest_static_seconds": 12.86,
+   "p95_static_seconds": 1.714,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "81cde910a9ca1e2ea86c30c8d78b0809bba19cfc9fed54bae34673845184fd65",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 292.5,
+   "light_events_per_second": 35.039,
+   "light_moments_per_second": 18.824,
+   "events_per_moment": 1.861,
+   "notes_per_second": 9.244,
+   "tier_light_events_per_second": {
+    "low": 36.375,
+    "mid": 27.08,
+    "high": 41.948
+   },
+   "value_share": {
+    "fade": 0.067,
+    "on": 0.746,
+    "off": 0.187
+   },
+   "color_share": {
+    "blue": 0.857,
+    "red": 0.143
+   },
+   "group_share": {
+    "0": 0.386,
+    "1": 0.228,
+    "2": 0.115,
+    "3": 0.117,
+    "4": 0.153
+   },
+   "laser_speed_events_per_second": 0.007,
+   "ring_events_per_second": 0.017,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.5,
+   "p95_static_seconds": 0.094,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "83085eff3fd8cc67e4fc695801851075c4d5850316c6a77f30d8a5d1ca476890",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 98.7,
+   "light_events_per_second": 21.743,
+   "light_moments_per_second": 8.342,
+   "events_per_moment": 2.606,
+   "notes_per_second": 8.961,
+   "tier_light_events_per_second": {
+    "low": 8.5,
+    "mid": 30.656,
+    "high": 26.312
+   },
+   "value_share": {
+    "fade": 0.712,
+    "off": 0.288
+   },
+   "color_share": {
+    "blue": 0.487,
+    "red": 0.513
+   },
+   "group_share": {
+    "0": 0.197,
+    "1": 0.197,
+    "2": 0.204,
+    "3": 0.204,
+    "4": 0.197
+   },
+   "laser_speed_events_per_second": 8.88,
+   "ring_events_per_second": 2.413,
+   "boost_toggles": 0,
+   "longest_static_seconds": 6.76,
+   "p95_static_seconds": 0.156,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "834477c17debfaca422ad103c372499b307cc47d269a2159100ce88452463f20",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 168.9,
+   "light_events_per_second": 31.423,
+   "light_moments_per_second": 14.136,
+   "events_per_moment": 2.223,
+   "notes_per_second": 11.785,
+   "tier_light_events_per_second": {
+    "low": 23.839,
+    "mid": 33.571,
+    "high": 36.536
+   },
+   "value_share": {
+    "on": 0.081,
+    "flash": 0.081,
+    "off": 0.379,
+    "fade": 0.459
+   },
+   "color_share": {
+    "blue": 0.498,
+    "red": 0.502
+   },
+   "group_share": {
+    "0": 0.251,
+    "1": 0.249,
+    "2": 0.127,
+    "3": 0.125,
+    "4": 0.248
+   },
+   "laser_speed_events_per_second": 5.632,
+   "ring_events_per_second": 9.203,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.71,
+   "p95_static_seconds": 0.143,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "84571855706875541ebfdfbad6315dbeaf9eb5e681ffeaae4ce094b7b2b32a15",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 115.4,
+   "light_events_per_second": 8.683,
+   "light_moments_per_second": 7.99,
+   "events_per_moment": 1.087,
+   "notes_per_second": 8.284,
+   "tier_light_events_per_second": {
+    "low": 5.833,
+    "mid": 9.125,
+    "high": 11.333
+   },
+   "value_share": {
+    "fade": 1.0
+   },
+   "color_share": {
+    "blue": 0.607,
+    "red": 0.393
+   },
+   "group_share": {
+    "0": 0.22,
+    "1": 0.036,
+    "2": 0.267,
+    "3": 0.225,
+    "4": 0.252
+   },
+   "laser_speed_events_per_second": 0.017,
+   "ring_events_per_second": 0.338,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.0,
+   "p95_static_seconds": 0.2,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "8499cfa9a79e7e2ccbe310253a012f81c1e320d2066bb7625e58c108d5fa8891",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 299.2,
+   "light_events_per_second": 24.262,
+   "light_moments_per_second": 10.173,
+   "events_per_moment": 2.385,
+   "notes_per_second": 9.538,
+   "tier_light_events_per_second": {
+    "low": 19.573,
+    "mid": 27.837,
+    "high": 24.802
+   },
+   "value_share": {
+    "fade": 0.577,
+    "off": 0.421,
+    "flash": 0.001,
+    "on": 0.001
+   },
+   "color_share": {
+    "blue": 0.575,
+    "red": 0.425
+   },
+   "group_share": {
+    "0": 0.214,
+    "1": 0.217,
+    "2": 0.178,
+    "3": 0.178,
+    "4": 0.214
+   },
+   "laser_speed_events_per_second": 4.856,
+   "ring_events_per_second": 1.196,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.59,
+   "p95_static_seconds": 0.081,
+   "max_group_flashes_per_second": 1
+  },
+  {
+   "id": "855eae97f4847393368419fb41883897cf278b4d4bcb163ce1bb57ca36961346",
+   "environment": "KDAEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 125.1,
+   "light_events_per_second": 19.167,
+   "light_moments_per_second": 9.891,
+   "events_per_moment": 1.938,
+   "notes_per_second": 7.005,
+   "tier_light_events_per_second": {
+    "low": 9.0,
+    "mid": 15.568,
+    "high": 33.15
+   },
+   "value_share": {
+    "fade": 0.295,
+    "off": 0.446,
+    "on": 0.259
+   },
+   "color_share": {
+    "blue": 0.503,
+    "red": 0.497
+   },
+   "group_share": {
+    "0": 0.126,
+    "1": 0.244,
+    "2": 0.147,
+    "3": 0.15,
+    "4": 0.333
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 0.0,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.79,
+   "p95_static_seconds": 0.199,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "85b9dcd6859936e23327faf9c7f1eee8a527e798d622ae92248ad09ee0a558af",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 210.5,
+   "light_events_per_second": 17.664,
+   "light_moments_per_second": 7.053,
+   "events_per_moment": 2.504,
+   "notes_per_second": 8.141,
+   "tier_light_events_per_second": {
+    "low": 13.162,
+    "mid": 17.0,
+    "high": 22.279
+   },
+   "value_share": {
+    "on": 0.003,
+    "fade": 0.571,
+    "off": 0.423,
+    "flash": 0.003
+   },
+   "color_share": {
+    "blue": 0.517,
+    "red": 0.483
+   },
+   "group_share": {
+    "0": 0.233,
+    "1": 0.228,
+    "2": 0.158,
+    "3": 0.153,
+    "4": 0.227
+   },
+   "laser_speed_events_per_second": 4.066,
+   "ring_events_per_second": 1.458,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.0,
+   "p95_static_seconds": 0.182,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "88e06094c4cc6cfa94e3b126077e4abb0e0d48f30b291b6b155997eb04687e52",
+   "environment": "PanicEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 135.9,
+   "light_events_per_second": 14.62,
+   "light_moments_per_second": 12.501,
+   "events_per_moment": 1.17,
+   "notes_per_second": 5.798,
+   "tier_light_events_per_second": {
+    "low": 10.455,
+    "mid": 15.932,
+    "high": 17.682
+   },
+   "value_share": {
+    "on": 0.357,
+    "transition": 0.474,
+    "fade": 0.097,
+    "off": 0.072
+   },
+   "color_share": {
+    "blue": 0.506,
+    "red": 0.494
+   },
+   "group_share": {
+    "0": 0.123,
+    "1": 0.151,
+    "2": 0.203,
+    "3": 0.202,
+    "4": 0.32
+   },
+   "laser_speed_events_per_second": 2.126,
+   "ring_events_per_second": 0.809,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.67,
+   "p95_static_seconds": 0.167,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "8b166efa142820ca0627e65b02631b993012f5b203782971720499660e82b842",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 209.3,
+   "light_events_per_second": 16.925,
+   "light_moments_per_second": 13.5,
+   "events_per_moment": 1.254,
+   "notes_per_second": 7.4,
+   "tier_light_events_per_second": {
+    "low": 13.868,
+    "mid": 17.194,
+    "high": 19.647
+   },
+   "value_share": {
+    "on": 0.413,
+    "transition": 0.587
+   },
+   "color_share": {
+    "blue": 0.472,
+    "red": 0.528
+   },
+   "group_share": {
+    "0": 0.224,
+    "1": 0.106,
+    "2": 0.281,
+    "3": 0.283,
+    "4": 0.106
+   },
+   "laser_speed_events_per_second": 3.296,
+   "ring_events_per_second": 1.223,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.78,
+   "p95_static_seconds": 0.117,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "8c104e60b637494b117f5fa6c37d8afb3c7185cf7a2185548204bf5007ef5fe9",
+   "environment": "OriginsEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 222.9,
+   "light_events_per_second": 22.014,
+   "light_moments_per_second": 4.685,
+   "events_per_moment": 4.699,
+   "notes_per_second": 5.919,
+   "tier_light_events_per_second": {
+    "low": 16.986,
+    "mid": 23.895,
+    "high": 25.069
+   },
+   "value_share": {
+    "off": 0.44,
+    "on": 0.381,
+    "fade": 0.178
+   },
+   "color_share": {
+    "blue": 0.692,
+    "red": 0.308
+   },
+   "group_share": {
+    "0": 0.113,
+    "1": 0.576,
+    "2": 0.092,
+    "3": 0.092,
+    "4": 0.127
+   },
+   "laser_speed_events_per_second": 0.117,
+   "ring_events_per_second": 0.651,
+   "boost_toggles": 7,
+   "longest_static_seconds": 0.94,
+   "p95_static_seconds": 0.268,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "8d4040bb626b483e50fdea67da5a3b641fe3423b4755403f2a1cb88811a3c034",
+   "environment": "TimbalandEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 200.9,
+   "light_events_per_second": 116.364,
+   "light_moments_per_second": 33.917,
+   "events_per_moment": 3.431,
+   "notes_per_second": 8.7,
+   "tier_light_events_per_second": {
+    "low": 36.531,
+    "mid": 152.542,
+    "high": 156.188
+   },
+   "value_share": {
+    "fade": 0.019,
+    "on": 0.802,
+    "off": 0.173,
+    "flash": 0.006
+   },
+   "color_share": {
+    "red": 0.837,
+    "blue": 0.163
+   },
+   "group_share": {
+    "0": 0.119,
+    "1": 0.527,
+    "2": 0.059,
+    "3": 0.059,
+    "4": 0.235
+   },
+   "laser_speed_events_per_second": 6.281,
+   "ring_events_per_second": 4.658,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.12,
+   "p95_static_seconds": 0.035,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "8f485d837905eb8588fcd8336238d045502f68052f234f3bb1897d79957f349a",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 293.1,
+   "light_events_per_second": 31.037,
+   "light_moments_per_second": 18.035,
+   "events_per_moment": 1.721,
+   "notes_per_second": 8.56,
+   "tier_light_events_per_second": {
+    "low": 15.531,
+    "mid": 30.3,
+    "high": 47.344
+   },
+   "value_share": {
+    "flash": 0.532,
+    "off": 0.18,
+    "on": 0.248,
+    "fade": 0.039
+   },
+   "color_share": {
+    "blue": 0.473,
+    "red": 0.527
+   },
+   "group_share": {
+    "0": 0.115,
+    "1": 0.494,
+    "2": 0.14,
+    "3": 0.134,
+    "4": 0.117
+   },
+   "laser_speed_events_per_second": 2.586,
+   "ring_events_per_second": 5.442,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.4,
+   "p95_static_seconds": 0.075,
+   "max_group_flashes_per_second": 14
+  },
+  {
+   "id": "92244b621b6e487c200230c9090175d0b3d650da19d08c09b508cd59c472d52e",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "Expert",
+   "seconds": 181.3,
+   "light_events_per_second": 5.907,
+   "light_moments_per_second": 4.567,
+   "events_per_moment": 1.293,
+   "notes_per_second": 4.958,
+   "tier_light_events_per_second": {
+    "low": 4.667,
+    "mid": 5.35,
+    "high": 7.5
+   },
+   "value_share": {
+    "fade": 0.894,
+    "off": 0.1,
+    "flash": 0.007
+   },
+   "color_share": {
+    "blue": 0.634,
+    "red": 0.366
+   },
+   "group_share": {
+    "0": 0.319,
+    "1": 0.044,
+    "2": 0.228,
+    "3": 0.235,
+    "4": 0.174
+   },
+   "laser_speed_events_per_second": 0.011,
+   "ring_events_per_second": 0.336,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.68,
+   "p95_static_seconds": 0.273,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "924b6866604159e1803300fc889cd1280d4a209e236c98937fff0ffeab782a47",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 132.3,
+   "light_events_per_second": 26.997,
+   "light_moments_per_second": 11.386,
+   "events_per_moment": 2.371,
+   "notes_per_second": 11.665,
+   "tier_light_events_per_second": {
+    "low": 19.023,
+    "mid": 27.045,
+    "high": 34.886
+   },
+   "value_share": {
+    "on": 0.218,
+    "flash": 0.053,
+    "off": 0.258,
+    "fade": 0.472
+   },
+   "color_share": {
+    "blue": 0.476,
+    "red": 0.524
+   },
+   "group_share": {
+    "0": 0.216,
+    "1": 0.217,
+    "2": 0.178,
+    "3": 0.173,
+    "4": 0.216
+   },
+   "laser_speed_events_per_second": 6.872,
+   "ring_events_per_second": 5.08,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.78,
+   "p95_static_seconds": 0.13,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "9285e7419c40dc5b54b47c8c03f36f2a96258d11da185db1b89f3ed3691d72e6",
+   "environment": "NiceEnvironment",
+   "lit": false
+  },
+  {
+   "id": "95affbbe203e62bc649cd564b934ed4ba91c46f5abaea50fd137f11e7f1a6b51",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 96.0,
+   "light_events_per_second": 6.229,
+   "light_moments_per_second": 3.99,
+   "events_per_moment": 1.561,
+   "notes_per_second": 7.115,
+   "tier_light_events_per_second": {
+    "low": 4.344,
+    "mid": 6.094,
+    "high": 8.094
+   },
+   "value_share": {
+    "fade": 0.403,
+    "on": 0.353,
+    "off": 0.244
+   },
+   "color_share": {
+    "red": 0.427,
+    "blue": 0.573
+   },
+   "group_share": {
+    "0": 0.229,
+    "1": 0.161,
+    "2": 0.214,
+    "3": 0.219,
+    "4": 0.177
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 0.469,
+   "boost_toggles": 0,
+   "longest_static_seconds": 4.12,
+   "p95_static_seconds": 0.75,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "96642aecec3c1746fcb2e35f5f02a2a80c0e4349124d06acc7d392534e965f97",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 188.4,
+   "light_events_per_second": 30.593,
+   "light_moments_per_second": 11.257,
+   "events_per_moment": 2.718,
+   "notes_per_second": 9.437,
+   "tier_light_events_per_second": {
+    "low": 12.283,
+    "mid": 30.015,
+    "high": 49.45
+   },
+   "value_share": {
+    "fade": 0.46,
+    "off": 0.475,
+    "on": 0.032,
+    "flash": 0.033
+   },
+   "color_share": {
+    "blue": 0.487,
+    "red": 0.513
+   },
+   "group_share": {
+    "0": 0.209,
+    "1": 0.211,
+    "2": 0.184,
+    "3": 0.186,
+    "4": 0.21
+   },
+   "laser_speed_events_per_second": 5.668,
+   "ring_events_per_second": 6.507,
+   "boost_toggles": 0,
+   "longest_static_seconds": 4.39,
+   "p95_static_seconds": 0.14,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "96ec6dc18466aa6671b93c473842f7241101c10255d7ffe79ec34f9cbfe50f63",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 210.8,
+   "light_events_per_second": 8.781,
+   "light_moments_per_second": 3.928,
+   "events_per_moment": 2.236,
+   "notes_per_second": 3.753,
+   "tier_light_events_per_second": {
+    "low": 5.75,
+    "mid": 9.681,
+    "high": 10.868
+   },
+   "value_share": {
+    "on": 0.027,
+    "fade": 0.668,
+    "off": 0.305
+   },
+   "color_share": {
+    "blue": 0.461,
+    "red": 0.539
+   },
+   "group_share": {
+    "0": 0.204,
+    "1": 0.21,
+    "2": 0.198,
+    "3": 0.192,
+    "4": 0.196
+   },
+   "laser_speed_events_per_second": 2.4,
+   "ring_events_per_second": 1.191,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.58,
+   "p95_static_seconds": 0.474,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "9afe93d352badc2aa65f206d08c3a8ad2614c309304ca66a965138c4cee04217",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 138.0,
+   "light_events_per_second": 12.072,
+   "light_moments_per_second": 5.014,
+   "events_per_moment": 2.408,
+   "notes_per_second": 5.717,
+   "tier_light_events_per_second": {
+    "low": 5.182,
+    "mid": 11.833,
+    "high": 18.886
+   },
+   "value_share": {
+    "fade": 0.768,
+    "off": 0.232
+   },
+   "color_share": {
+    "blue": 0.519,
+    "red": 0.481
+   },
+   "group_share": {
+    "0": 0.176,
+    "1": 0.176,
+    "2": 0.235,
+    "3": 0.235,
+    "4": 0.176
+   },
+   "laser_speed_events_per_second": 5.681,
+   "ring_events_per_second": 1.797,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.0,
+   "p95_static_seconds": 0.188,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "9b416dff3828542c84a7a3efa0d90afee67b338b7cf04a11f8d3132e9ad5d761",
+   "environment": "TheWeekndEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 215.8,
+   "light_events_per_second": 3.577,
+   "light_moments_per_second": 1.923,
+   "events_per_moment": 1.86,
+   "notes_per_second": 6.385,
+   "tier_light_events_per_second": {
+    "low": 1.868,
+    "mid": 2.461,
+    "high": 6.588
+   },
+   "value_share": {
+    "transition": 0.688,
+    "off": 0.049,
+    "on": 0.263
+   },
+   "color_share": {
+    "white": 0.248,
+    "blue": 0.241,
+    "red": 0.511
+   },
+   "group_share": {
+    "0": 0.499,
+    "1": 0.5,
+    "3": 0.001
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 0.0,
+   "boost_toggles": 44,
+   "longest_static_seconds": 4.94,
+   "p95_static_seconds": 1.588,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "9f08f19f251da6149443b3cf929134d70b37ff996de81dab9f4660837fee8bcd",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 161.5,
+   "light_events_per_second": 10.785,
+   "light_moments_per_second": 5.058,
+   "events_per_moment": 2.132,
+   "notes_per_second": 8.283,
+   "tier_light_events_per_second": {
+    "low": 4.135,
+    "mid": 13.411,
+    "high": 14.635
+   },
+   "value_share": {
+    "fade": 0.674,
+    "flash": 0.01,
+    "off": 0.316,
+    "on": 0.001
+   },
+   "color_share": {
+    "blue": 0.463,
+    "red": 0.537
+   },
+   "group_share": {
+    "0": 0.258,
+    "1": 0.066,
+    "2": 0.203,
+    "3": 0.25,
+    "4": 0.222
+   },
+   "laser_speed_events_per_second": 0.012,
+   "ring_events_per_second": 0.409,
+   "boost_toggles": 0,
+   "longest_static_seconds": 10.11,
+   "p95_static_seconds": 0.316,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "a28ab8d90d590a02234035c36742f7c74867b1e008d0b2c22e75990648e6cd68",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 275.0,
+   "light_events_per_second": 8.2,
+   "light_moments_per_second": 7.102,
+   "events_per_moment": 1.155,
+   "notes_per_second": 7.419,
+   "tier_light_events_per_second": {
+    "low": 1.648,
+    "mid": 9.0,
+    "high": 14.102
+   },
+   "value_share": {
+    "on": 0.047,
+    "fade": 0.953
+   },
+   "color_share": {
+    "red": 0.482,
+    "blue": 0.518
+   },
+   "group_share": {
+    "0": 0.27,
+    "1": 0.095,
+    "2": 0.19,
+    "3": 0.263,
+    "4": 0.181
+   },
+   "laser_speed_events_per_second": 0.015,
+   "ring_events_per_second": 0.396,
+   "boost_toggles": 0,
+   "longest_static_seconds": 7.2,
+   "p95_static_seconds": 0.3,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "a2a4da5673013946bbeecd47906f6196472120029998485a7041ee3ef58af680",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 256.6,
+   "light_events_per_second": 53.759,
+   "light_moments_per_second": 16.188,
+   "events_per_moment": 3.321,
+   "notes_per_second": 7.901,
+   "tier_light_events_per_second": {
+    "low": 32.143,
+    "mid": 41.841,
+    "high": 87.679
+   },
+   "value_share": {
+    "on": 0.141,
+    "flash": 0.135,
+    "fade": 0.371,
+    "off": 0.353
+   },
+   "color_share": {
+    "blue": 0.48,
+    "red": 0.52
+   },
+   "group_share": {
+    "0": 0.203,
+    "1": 0.199,
+    "2": 0.224,
+    "3": 0.225,
+    "4": 0.148
+   },
+   "laser_speed_events_per_second": 7.663,
+   "ring_events_per_second": 10.629,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.76,
+   "p95_static_seconds": 0.086,
+   "max_group_flashes_per_second": 12
+  },
+  {
+   "id": "a510f452daca1576517a6cb95cf9b9d52f08530e3b859c97161206956314e918",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 211.8,
+   "light_events_per_second": 9.356,
+   "light_moments_per_second": 8.375,
+   "events_per_moment": 1.117,
+   "notes_per_second": 9.729,
+   "tier_light_events_per_second": {
+    "low": 6.206,
+    "mid": 10.278,
+    "high": 11.897
+   },
+   "value_share": {
+    "fade": 1.0
+   },
+   "color_share": {
+    "blue": 0.594,
+    "red": 0.406
+   },
+   "group_share": {
+    "0": 0.253,
+    "2": 0.249,
+    "3": 0.253,
+    "4": 0.244
+   },
+   "laser_speed_events_per_second": 0.009,
+   "ring_events_per_second": 0.392,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.33,
+   "p95_static_seconds": 0.278,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "aa735c9fc187565a5cf96661189fefd7f793ad1013c54c4200a408470b04fd7d",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 232.9,
+   "light_events_per_second": 34.214,
+   "light_moments_per_second": 13.882,
+   "events_per_moment": 2.465,
+   "notes_per_second": 11.984,
+   "tier_light_events_per_second": {
+    "low": 14.658,
+    "mid": 38.7,
+    "high": 48.868
+   },
+   "value_share": {
+    "fade": 0.42,
+    "off": 0.452,
+    "on": 0.064,
+    "flash": 0.064
+   },
+   "color_share": {
+    "blue": 0.468,
+    "red": 0.532
+   },
+   "group_share": {
+    "0": 0.219,
+    "1": 0.222,
+    "2": 0.168,
+    "3": 0.17,
+    "4": 0.221
+   },
+   "laser_speed_events_per_second": 5.788,
+   "ring_events_per_second": 11.624,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.33,
+   "p95_static_seconds": 0.111,
+   "max_group_flashes_per_second": 1
+  },
+  {
+   "id": "ac6a7b0e0c78d584b79c685cc9e9042be0ca90a46c4b20c891f5c3388da28122",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 238.8,
+   "light_events_per_second": 13.463,
+   "light_moments_per_second": 7.144,
+   "events_per_moment": 1.885,
+   "notes_per_second": 7.044,
+   "tier_light_events_per_second": {
+    "low": 5.408,
+    "mid": 14.929,
+    "high": 20.237
+   },
+   "value_share": {
+    "fade": 0.62,
+    "off": 0.379,
+    "on": 0.001
+   },
+   "color_share": {
+    "blue": 0.488,
+    "red": 0.512
+   },
+   "group_share": {
+    "0": 0.03,
+    "1": 0.147,
+    "2": 0.395,
+    "3": 0.427,
+    "4": 0.001
+   },
+   "laser_speed_events_per_second": 0.268,
+   "ring_events_per_second": 4.841,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.74,
+   "p95_static_seconds": 0.171,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "ad27e84deec6cfd821586d79e885b5613a5aa19c07eaf31d55fc9339f6a3c46d",
+   "environment": "TimbalandEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 303.3,
+   "light_events_per_second": 10.569,
+   "light_moments_per_second": 5.589,
+   "events_per_moment": 1.891,
+   "notes_per_second": 7.881,
+   "tier_light_events_per_second": {
+    "low": 4.02,
+    "mid": 13.14,
+    "high": 14.74
+   },
+   "value_share": {
+    "fade": 0.611,
+    "transition": 0.022,
+    "off": 0.176,
+    "on": 0.028,
+    "flash": 0.162
+   },
+   "color_share": {
+    "blue": 0.528,
+    "white": 0.001,
+    "red": 0.471
+   },
+   "group_share": {
+    "0": 0.123,
+    "1": 0.319,
+    "2": 0.182,
+    "3": 0.157,
+    "4": 0.22
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 6.687,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.28,
+   "p95_static_seconds": 0.41,
+   "max_group_flashes_per_second": 3
+  },
+  {
+   "id": "ae3fa5e7890b9955fa821091f45e5b30f94deab8560a3b9e0640d397cc674ead",
+   "environment": "BTSEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 156.6,
+   "light_events_per_second": 74.391,
+   "light_moments_per_second": 22.767,
+   "events_per_moment": 3.268,
+   "notes_per_second": 5.861,
+   "tier_light_events_per_second": {
+    "low": 62.731,
+    "mid": 76.75,
+    "high": 84.365
+   },
+   "value_share": {
+    "on": 0.856,
+    "off": 0.144
+   },
+   "color_share": {
+    "red": 0.964,
+    "blue": 0.036
+   },
+   "group_share": {
+    "0": 0.073,
+    "1": 0.269,
+    "2": 0.288,
+    "3": 0.26,
+    "4": 0.11
+   },
+   "laser_speed_events_per_second": 9.328,
+   "ring_events_per_second": 5.267,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.27,
+   "p95_static_seconds": 0.049,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "aeada652d0c8fbf37c4a6f14ae0dfd4a66a30d1cbb2f04f9dde711d3a267d646",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 171.8,
+   "light_events_per_second": 10.475,
+   "light_moments_per_second": 8.118,
+   "events_per_moment": 1.29,
+   "notes_per_second": 10.026,
+   "tier_light_events_per_second": {
+    "low": 6.25,
+    "mid": 10.125,
+    "high": 15.446
+   },
+   "value_share": {
+    "fade": 1.0
+   },
+   "color_share": {
+    "red": 0.496,
+    "blue": 0.504
+   },
+   "group_share": {
+    "0": 0.276,
+    "1": 0.057,
+    "2": 0.181,
+    "3": 0.281,
+    "4": 0.205
+   },
+   "laser_speed_events_per_second": 0.012,
+   "ring_events_per_second": 0.605,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.83,
+   "p95_static_seconds": 0.3,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "af1e35072527a46fd114344d5a38a796a5e99d386dc2d417479dd51c4f6430ff",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 246.8,
+   "light_events_per_second": 8.947,
+   "light_moments_per_second": 7.367,
+   "events_per_moment": 1.215,
+   "notes_per_second": 8.785,
+   "tier_light_events_per_second": {
+    "low": 4.438,
+    "mid": 9.821,
+    "high": 12.4
+   },
+   "value_share": {
+    "fade": 0.999,
+    "on": 0.001
+   },
+   "color_share": {
+    "blue": 0.568,
+    "red": 0.432
+   },
+   "group_share": {
+    "0": 0.212,
+    "1": 0.042,
+    "2": 0.255,
+    "3": 0.213,
+    "4": 0.278
+   },
+   "laser_speed_events_per_second": 0.008,
+   "ring_events_per_second": 0.417,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.76,
+   "p95_static_seconds": 0.302,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "af40e1087464971a84794d41f2983c98a158b45ca26605c4256f1e0a97df5d67",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 178.9,
+   "light_events_per_second": 24.864,
+   "light_moments_per_second": 9.484,
+   "events_per_moment": 2.622,
+   "notes_per_second": 6.516,
+   "tier_light_events_per_second": {
+    "low": 12.732,
+    "mid": 19.734,
+    "high": 41.839
+   },
+   "value_share": {
+    "on": 0.298,
+    "off": 0.446,
+    "fade": 0.212,
+    "flash": 0.044
+   },
+   "color_share": {
+    "red": 0.602,
+    "blue": 0.398
+   },
+   "group_share": {
+    "0": 0.127,
+    "1": 0.18,
+    "2": 0.247,
+    "3": 0.245,
+    "4": 0.201
+   },
+   "laser_speed_events_per_second": 0.453,
+   "ring_events_per_second": 14.084,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.4,
+   "p95_static_seconds": 0.155,
+   "max_group_flashes_per_second": 3
+  },
+  {
+   "id": "b1709eedbc924f442dec834cffded1128204f82b65466730dfbbcbc3b265f54a",
+   "environment": "TriangleEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 203.2,
+   "light_events_per_second": 10.576,
+   "light_moments_per_second": 4.985,
+   "events_per_moment": 2.121,
+   "notes_per_second": 5.782,
+   "tier_light_events_per_second": {
+    "low": 6.281,
+    "mid": 12.111,
+    "high": 13.266
+   },
+   "value_share": {
+    "fade": 0.865,
+    "off": 0.134,
+    "flash": 0.001
+   },
+   "color_share": {
+    "blue": 0.411,
+    "red": 0.589
+   },
+   "group_share": {
+    "0": 0.249,
+    "1": 0.007,
+    "2": 0.271,
+    "3": 0.212,
+    "4": 0.261
+   },
+   "laser_speed_events_per_second": 0.03,
+   "ring_events_per_second": 0.753,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.2,
+   "p95_static_seconds": 0.3,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "b3531b0dfb9468230cecd296de99028c81e1db8a4dec6868d42f3f6733d35a33",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 139.5,
+   "light_events_per_second": 21.345,
+   "light_moments_per_second": 6.324,
+   "events_per_moment": 3.375,
+   "notes_per_second": 5.521,
+   "tier_light_events_per_second": {
+    "low": 10.227,
+    "mid": 25.542,
+    "high": 27.386
+   },
+   "value_share": {
+    "fade": 0.488,
+    "off": 0.492,
+    "on": 0.011,
+    "flash": 0.009
+   },
+   "color_share": {
+    "blue": 0.51,
+    "red": 0.49
+   },
+   "group_share": {
+    "0": 0.204,
+    "1": 0.199,
+    "2": 0.198,
+    "3": 0.198,
+    "4": 0.202
+   },
+   "laser_speed_events_per_second": 4.252,
+   "ring_events_per_second": 1.778,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.42,
+   "p95_static_seconds": 0.203,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "b8aff2ccb8865a7b1a6c76ebdf0eef831aa11ed1444a40ae5e8ea2d924b55130",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 186.8,
+   "light_events_per_second": 6.655,
+   "light_moments_per_second": 4.84,
+   "events_per_moment": 1.375,
+   "notes_per_second": 6.499,
+   "tier_light_events_per_second": {
+    "low": 3.533,
+    "mid": 6.344,
+    "high": 10.183
+   },
+   "value_share": {
+    "fade": 0.998,
+    "off": 0.001,
+    "on": 0.002
+   },
+   "color_share": {
+    "red": 0.468,
+    "blue": 0.532
+   },
+   "group_share": {
+    "0": 0.291,
+    "1": 0.058,
+    "2": 0.154,
+    "3": 0.3,
+    "4": 0.196
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 0.385,
+   "boost_toggles": 0,
+   "longest_static_seconds": 10.12,
+   "p95_static_seconds": 0.316,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "b9d49ab4b228f814e33b72989fddb7797e418a8d30ee01cb1ac8c4a04a1182b5",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 156.4,
+   "light_events_per_second": 17.339,
+   "light_moments_per_second": 5.658,
+   "events_per_moment": 3.064,
+   "notes_per_second": 6.419,
+   "tier_light_events_per_second": {
+    "low": 12.308,
+    "mid": 19.5,
+    "high": 20.038
+   },
+   "value_share": {
+    "fade": 0.705,
+    "off": 0.295
+   },
+   "color_share": {
+    "blue": 0.48,
+    "red": 0.52
+   },
+   "group_share": {
+    "0": 0.206,
+    "1": 0.206,
+    "2": 0.191,
+    "3": 0.191,
+    "4": 0.206
+   },
+   "laser_speed_events_per_second": 6.636,
+   "ring_events_per_second": 3.523,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.09,
+   "p95_static_seconds": 0.273,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "baaeb562d9042e7ea4cbfcd2c36bd9443e8f36a35f213a8c2b8fdfd75f2a6ae4",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 202.5,
+   "light_events_per_second": 21.848,
+   "light_moments_per_second": 7.411,
+   "events_per_moment": 2.948,
+   "notes_per_second": 6.833,
+   "tier_light_events_per_second": {
+    "low": 9.875,
+    "mid": 22.625,
+    "high": 33.438
+   },
+   "value_share": {
+    "off": 0.495,
+    "fade": 0.492,
+    "on": 0.007,
+    "flash": 0.007
+   },
+   "color_share": {
+    "blue": 0.52,
+    "red": 0.48
+   },
+   "group_share": {
+    "0": 0.204,
+    "1": 0.202,
+    "2": 0.196,
+    "3": 0.197,
+    "4": 0.201
+   },
+   "laser_speed_events_per_second": 4.296,
+   "ring_events_per_second": 1.96,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.02,
+   "p95_static_seconds": 0.146,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "bdb13c187a6b4cbf19a757e4537ae955f8c50a23b8aa22746365701a33fb626f",
+   "environment": "BTSEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 142.9,
+   "light_events_per_second": 54.182,
+   "light_moments_per_second": 24.932,
+   "events_per_moment": 2.173,
+   "notes_per_second": 5.262,
+   "tier_light_events_per_second": {
+    "low": 29.818,
+    "mid": 47.788,
+    "high": 85.295
+   },
+   "value_share": {
+    "on": 0.97,
+    "off": 0.03
+   },
+   "color_share": {
+    "red": 0.977,
+    "blue": 0.023
+   },
+   "group_share": {
+    "0": 0.095,
+    "1": 0.506,
+    "2": 0.159,
+    "3": 0.122,
+    "4": 0.117
+   },
+   "laser_speed_events_per_second": 8.411,
+   "ring_events_per_second": 5.941,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.98,
+   "p95_static_seconds": 0.077,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "beb13eb45772b6a21aa5c658799a42d2018e0ed1ba7f095ea1314b3e999abb20",
+   "environment": "PanicEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 181.5,
+   "light_events_per_second": 7.736,
+   "light_moments_per_second": 5.339,
+   "events_per_moment": 1.449,
+   "notes_per_second": 4.683,
+   "tier_light_events_per_second": {
+    "low": 4.733,
+    "mid": 9.867,
+    "high": 8.783
+   },
+   "value_share": {
+    "on": 0.259,
+    "off": 0.145,
+    "fade": 0.596
+   },
+   "color_share": {
+    "blue": 0.537,
+    "red": 0.463
+   },
+   "group_share": {
+    "0": 0.334,
+    "1": 0.154,
+    "2": 0.157,
+    "3": 0.169,
+    "4": 0.187
+   },
+   "laser_speed_events_per_second": 0.011,
+   "ring_events_per_second": 3.548,
+   "boost_toggles": 7,
+   "longest_static_seconds": 4.5,
+   "p95_static_seconds": 0.375,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "beec4c314dc52a7943a082ec1ae800979db6bfaad418f9dd035c523f4f6fcf8b",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 128.5,
+   "light_events_per_second": 17.724,
+   "light_moments_per_second": 7.189,
+   "events_per_moment": 2.465,
+   "notes_per_second": 5.944,
+   "tier_light_events_per_second": {
+    "low": 14.8,
+    "mid": 17.167,
+    "high": 20.675
+   },
+   "value_share": {
+    "fade": 0.473,
+    "off": 0.483,
+    "on": 0.022,
+    "flash": 0.022
+   },
+   "color_share": {
+    "blue": 0.449,
+    "red": 0.551
+   },
+   "group_share": {
+    "0": 0.208,
+    "1": 0.209,
+    "2": 0.188,
+    "3": 0.183,
+    "4": 0.212
+   },
+   "laser_speed_events_per_second": 3.299,
+   "ring_events_per_second": 0.016,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.3,
+   "p95_static_seconds": 0.164,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "c3d41665c4b2f8641357be45c9147478bba68bba55d8af53fe284cb0986945aa",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 263.5,
+   "light_events_per_second": 32.036,
+   "light_moments_per_second": 11.334,
+   "events_per_moment": 2.827,
+   "notes_per_second": 7.413,
+   "tier_light_events_per_second": {
+    "low": 28.405,
+    "mid": 33.13,
+    "high": 33.905
+   },
+   "value_share": {
+    "fade": 0.671,
+    "off": 0.301,
+    "flash": 0.018,
+    "on": 0.01
+   },
+   "color_share": {
+    "red": 0.49,
+    "blue": 0.51
+   },
+   "group_share": {
+    "0": 0.148,
+    "1": 0.274,
+    "2": 0.216,
+    "3": 0.216,
+    "4": 0.145
+   },
+   "laser_speed_events_per_second": 12.42,
+   "ring_events_per_second": 3.12,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.46,
+   "p95_static_seconds": 0.152,
+   "max_group_flashes_per_second": 4
+  },
+  {
+   "id": "c4126d47fbd61b5b2e520f12adcd27d7f160f13b75ed60f31c6289bd2db88a85",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 249.2,
+   "light_events_per_second": 22.107,
+   "light_moments_per_second": 10.885,
+   "events_per_moment": 2.031,
+   "notes_per_second": 7.727,
+   "tier_light_events_per_second": {
+    "low": 15.338,
+    "mid": 22.318,
+    "high": 28.637
+   },
+   "value_share": {
+    "fade": 0.513,
+    "off": 0.444,
+    "on": 0.033,
+    "flash": 0.01
+   },
+   "color_share": {
+    "red": 0.493,
+    "blue": 0.507
+   },
+   "group_share": {
+    "0": 0.152,
+    "1": 0.315,
+    "2": 0.215,
+    "3": 0.217,
+    "4": 0.102
+   },
+   "laser_speed_events_per_second": 2.909,
+   "ring_events_per_second": 1.87,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.42,
+   "p95_static_seconds": 0.152,
+   "max_group_flashes_per_second": 2
+  },
+  {
+   "id": "c59cf7cef0b445caacf4aa49adc48b665bca5a02c591a144b744d850b389b3d7",
+   "environment": "TimbalandEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 165.4,
+   "light_events_per_second": 109.545,
+   "light_moments_per_second": 43.597,
+   "events_per_moment": 2.513,
+   "notes_per_second": 5.709,
+   "tier_light_events_per_second": {
+    "low": 50.654,
+    "mid": 96.083,
+    "high": 186.596
+   },
+   "value_share": {
+    "on": 0.5,
+    "flash": 0.007,
+    "transition": 0.209,
+    "fade": 0.002,
+    "off": 0.281
+   },
+   "color_share": {
+    "red": 0.547,
+    "blue": 0.453
+   },
+   "group_share": {
+    "0": 0.123,
+    "1": 0.38,
+    "2": 0.15,
+    "3": 0.123,
+    "4": 0.225
+   },
+   "laser_speed_events_per_second": 0.508,
+   "ring_events_per_second": 3.344,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.68,
+   "p95_static_seconds": 0.022,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "c7a6bc690221c8af4adadbc74efc2669ab168c6b8b27d799febe5ded57451100",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 252.3,
+   "light_events_per_second": 27.93,
+   "light_moments_per_second": 13.28,
+   "events_per_moment": 2.103,
+   "notes_per_second": 8.144,
+   "tier_light_events_per_second": {
+    "low": 18.869,
+    "mid": 27.19,
+    "high": 37.56
+   },
+   "value_share": {
+    "fade": 0.541,
+    "off": 0.392,
+    "flash": 0.067
+   },
+   "color_share": {
+    "blue": 0.535,
+    "red": 0.465
+   },
+   "group_share": {
+    "0": 0.077,
+    "1": 0.321,
+    "2": 0.204,
+    "3": 0.204,
+    "4": 0.194
+   },
+   "laser_speed_events_per_second": 7.569,
+   "ring_events_per_second": 13.002,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.5,
+   "p95_static_seconds": 0.129,
+   "max_group_flashes_per_second": 2
+  },
+  {
+   "id": "cb9c890f79656b2ec46b70a1b99767087acd4c3b48a6d2606297fd532da0b5f0",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 263.0,
+   "light_events_per_second": 19.512,
+   "light_moments_per_second": 10.359,
+   "events_per_moment": 1.884,
+   "notes_per_second": 9.02,
+   "tier_light_events_per_second": {
+    "low": 15.214,
+    "mid": 17.261,
+    "high": 25.81
+   },
+   "value_share": {
+    "on": 0.002,
+    "off": 0.427,
+    "fade": 0.558,
+    "flash": 0.014
+   },
+   "color_share": {
+    "blue": 0.572,
+    "red": 0.428
+   },
+   "group_share": {
+    "0": 0.122,
+    "1": 0.385,
+    "2": 0.181,
+    "3": 0.183,
+    "4": 0.129
+   },
+   "laser_speed_events_per_second": 1.551,
+   "ring_events_per_second": 3.103,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.69,
+   "p95_static_seconds": 0.171,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "cfad4af8ce32bb4dd23994b5664234f06a97c603a048232bdb93abfcc11c2c4f",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 68.0,
+   "light_events_per_second": 32.886,
+   "light_moments_per_second": 21.316,
+   "events_per_moment": 1.543,
+   "notes_per_second": 7.086,
+   "tier_light_events_per_second": {
+    "low": 17.35,
+    "mid": 34.5,
+    "high": 46.1
+   },
+   "value_share": {
+    "flash": 0.017,
+    "fade": 0.028,
+    "on": 0.463,
+    "off": 0.493
+   },
+   "color_share": {
+    "blue": 0.384,
+    "red": 0.616
+   },
+   "group_share": {
+    "0": 0.14,
+    "1": 0.359,
+    "2": 0.209,
+    "3": 0.21,
+    "4": 0.083
+   },
+   "laser_speed_events_per_second": 2.881,
+   "ring_events_per_second": 19.39,
+   "boost_toggles": 4,
+   "longest_static_seconds": 1.12,
+   "p95_static_seconds": 0.105,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "d0095c5aa4c1d35be88740bab87af072a9731e373ee9bab717b4339ce05367ad",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 215.4,
+   "light_events_per_second": 9.436,
+   "light_moments_per_second": 7.208,
+   "events_per_moment": 1.309,
+   "notes_per_second": 8.694,
+   "tier_light_events_per_second": {
+    "low": 5.779,
+    "mid": 10.013,
+    "high": 12.265
+   },
+   "value_share": {
+    "fade": 0.918,
+    "on": 0.082
+   },
+   "color_share": {
+    "blue": 0.557,
+    "red": 0.443
+   },
+   "group_share": {
+    "0": 0.204,
+    "1": 0.082,
+    "2": 0.242,
+    "3": 0.204,
+    "4": 0.269
+   },
+   "laser_speed_events_per_second": 0.009,
+   "ring_events_per_second": 0.78,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.55,
+   "p95_static_seconds": 0.279,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "d0b2f2429a29607f0985a787eae262a9b0d93a0fd77149ef0ef83721d9d363da",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 208.6,
+   "light_events_per_second": 22.624,
+   "light_moments_per_second": 8.443,
+   "events_per_moment": 2.68,
+   "notes_per_second": 7.599,
+   "tier_light_events_per_second": {
+    "low": 7.235,
+    "mid": 26.944,
+    "high": 33.559
+   },
+   "value_share": {
+    "fade": 0.48,
+    "off": 0.489,
+    "on": 0.015,
+    "flash": 0.015
+   },
+   "color_share": {
+    "blue": 0.484,
+    "red": 0.516
+   },
+   "group_share": {
+    "0": 0.205,
+    "1": 0.202,
+    "2": 0.197,
+    "3": 0.193,
+    "4": 0.203
+   },
+   "laser_speed_events_per_second": 4.42,
+   "ring_events_per_second": 2.766,
+   "boost_toggles": 0,
+   "longest_static_seconds": 2.51,
+   "p95_static_seconds": 0.157,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "d185aeb92d7583e835866bbee8029a100e42dba97652582c1c23d4c8280b9c1e",
+   "environment": "NiceEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 87.7,
+   "light_events_per_second": 22.967,
+   "light_moments_per_second": 13.798,
+   "events_per_moment": 1.664,
+   "notes_per_second": 8.712,
+   "tier_light_events_per_second": {
+    "low": 11.214,
+    "mid": 24.857,
+    "high": 29.857
+   },
+   "value_share": {
+    "on": 0.378,
+    "fade": 0.235,
+    "off": 0.386
+   },
+   "color_share": {
+    "red": 0.863,
+    "blue": 0.137
+   },
+   "group_share": {
+    "0": 0.529,
+    "1": 0.196,
+    "2": 0.06,
+    "3": 0.057,
+    "4": 0.159
+   },
+   "laser_speed_events_per_second": 0.433,
+   "ring_events_per_second": 1.482,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.92,
+   "p95_static_seconds": 0.231,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "d25ecc11b02c07f87ab41def8a72a2533709a5f533599ad860243076ffff28f7",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 125.9,
+   "light_events_per_second": 15.633,
+   "light_moments_per_second": 11.582,
+   "events_per_moment": 1.35,
+   "notes_per_second": 7.88,
+   "tier_light_events_per_second": {
+    "low": 11.975,
+    "mid": 15.386,
+    "high": 19.65
+   },
+   "value_share": {
+    "on": 0.46,
+    "transition": 0.54
+   },
+   "color_share": {
+    "blue": 0.515,
+    "red": 0.485
+   },
+   "group_share": {
+    "0": 0.245,
+    "1": 0.141,
+    "2": 0.238,
+    "3": 0.235,
+    "4": 0.14
+   },
+   "laser_speed_events_per_second": 3.082,
+   "ring_events_per_second": 0.715,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.46,
+   "p95_static_seconds": 0.223,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "d442012ececae791730ea3a7091e787b43ddc3d9398e0950ddb9394a3cf085b6",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 96.2,
+   "light_events_per_second": 7.575,
+   "light_moments_per_second": 5.528,
+   "events_per_moment": 1.37,
+   "notes_per_second": 6.837,
+   "tier_light_events_per_second": {
+    "low": 5.562,
+    "mid": 8.938,
+    "high": 8.156
+   },
+   "value_share": {
+    "flash": 0.049,
+    "off": 0.078,
+    "fade": 0.872
+   },
+   "color_share": {
+    "red": 0.464,
+    "blue": 0.536
+   },
+   "group_share": {
+    "0": 0.225,
+    "1": 0.021,
+    "2": 0.27,
+    "3": 0.191,
+    "4": 0.294
+   },
+   "laser_speed_events_per_second": 0.759,
+   "ring_events_per_second": 0.229,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.74,
+   "p95_static_seconds": 0.297,
+   "max_group_flashes_per_second": 1
+  },
+  {
+   "id": "d538c3bddbb62dcc78b0503f6a8fcbed3c0e22f3d560ce6b1b3a18be07329ae7",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 279.4,
+   "light_events_per_second": 167.127,
+   "light_moments_per_second": 99.542,
+   "events_per_moment": 1.679,
+   "notes_per_second": 5.901,
+   "tier_light_events_per_second": {
+    "low": 35.739,
+    "mid": 112.011,
+    "high": 359.174
+   },
+   "value_share": {
+    "fade": 0.036,
+    "off": 0.188,
+    "on": 0.749,
+    "flash": 0.027
+   },
+   "color_share": {
+    "red": 0.204,
+    "blue": 0.796
+   },
+   "group_share": {
+    "0": 0.031,
+    "1": 0.857,
+    "2": 0.053,
+    "3": 0.053,
+    "4": 0.006
+   },
+   "laser_speed_events_per_second": 2.09,
+   "ring_events_per_second": 1.056,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.86,
+   "p95_static_seconds": 0.012,
+   "max_group_flashes_per_second": 6
+  },
+  {
+   "id": "d8691d1e2a1756b19711c616944cdbc7fbcb9ac2edc261683289149093ef18d6",
+   "environment": "TimbalandEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 160.7,
+   "light_events_per_second": 14.519,
+   "light_moments_per_second": 7.257,
+   "events_per_moment": 2.001,
+   "notes_per_second": 6.535,
+   "tier_light_events_per_second": {
+    "low": 6.923,
+    "mid": 16.911,
+    "high": 19.346
+   },
+   "value_share": {
+    "fade": 0.635,
+    "off": 0.346,
+    "transition": 0.018,
+    "on": 0.001
+   },
+   "color_share": {
+    "blue": 0.508,
+    "red": 0.492
+   },
+   "group_share": {
+    "0": 0.186,
+    "1": 0.423,
+    "2": 0.075,
+    "3": 0.075,
+    "4": 0.24
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 3.199,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.77,
+   "p95_static_seconds": 0.393,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "df55961ea1a947e1a1c215bab7d4e8ced23b822a508166fb7b7893c4d5e1027f",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 120.8,
+   "light_events_per_second": 19.154,
+   "light_moments_per_second": 7.748,
+   "events_per_moment": 2.472,
+   "notes_per_second": 9.287,
+   "tier_light_events_per_second": {
+    "low": 7.325,
+    "mid": 21.175,
+    "high": 29.2
+   },
+   "value_share": {
+    "fade": 0.75,
+    "off": 0.25
+   },
+   "color_share": {
+    "blue": 0.528,
+    "red": 0.472
+   },
+   "group_share": {
+    "0": 0.18,
+    "1": 0.18,
+    "2": 0.23,
+    "3": 0.23,
+    "4": 0.179
+   },
+   "laser_speed_events_per_second": 8.84,
+   "ring_events_per_second": 4.453,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.08,
+   "p95_static_seconds": 0.135,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "e03b0e9917550a1c71aeff30dd113cb09189122a2badd16e18115a616f3a2115",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 194.4,
+   "light_events_per_second": 17.341,
+   "light_moments_per_second": 6.626,
+   "events_per_moment": 2.617,
+   "notes_per_second": 5.576,
+   "tier_light_events_per_second": {
+    "low": 11.891,
+    "mid": 18.031,
+    "high": 21.922
+   },
+   "value_share": {
+    "fade": 0.447,
+    "off": 0.467,
+    "on": 0.043,
+    "flash": 0.043
+   },
+   "color_share": {
+    "blue": 0.506,
+    "red": 0.494
+   },
+   "group_share": {
+    "0": 0.209,
+    "1": 0.216,
+    "2": 0.182,
+    "3": 0.178,
+    "4": 0.215
+   },
+   "laser_speed_events_per_second": 3.128,
+   "ring_events_per_second": 3.971,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.2,
+   "p95_static_seconds": 0.15,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "e0b50f13064eb7920f2a26c2d9837c2b0ced94b44a5805462bf3690c1995aa61",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 357.8,
+   "light_events_per_second": 23.748,
+   "light_moments_per_second": 9.785,
+   "events_per_moment": 2.427,
+   "notes_per_second": 8.77,
+   "tier_light_events_per_second": {
+    "low": 18.905,
+    "mid": 24.548,
+    "high": 27.991
+   },
+   "value_share": {
+    "on": 0.004,
+    "fade": 0.558,
+    "flash": 0.004,
+    "off": 0.435
+   },
+   "color_share": {
+    "blue": 0.478,
+    "red": 0.522
+   },
+   "group_share": {
+    "0": 0.226,
+    "1": 0.226,
+    "2": 0.166,
+    "3": 0.16,
+    "4": 0.222
+   },
+   "laser_speed_events_per_second": 5.338,
+   "ring_events_per_second": 4.405,
+   "boost_toggles": 0,
+   "longest_static_seconds": 4.19,
+   "p95_static_seconds": 0.15,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "e415da875fbc6749c582d16eb93ce182a2755154b533e8bd3a148016afa90db9",
+   "environment": "OriginsEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 86.0,
+   "light_events_per_second": 172.419,
+   "light_moments_per_second": 33.953,
+   "events_per_moment": 5.078,
+   "notes_per_second": 6.907,
+   "tier_light_events_per_second": {
+    "low": 173.464,
+    "mid": 182.714,
+    "high": 166.179
+   },
+   "value_share": {
+    "on": 0.803,
+    "fade": 0.047,
+    "transition": 0.003,
+    "off": 0.118,
+    "flash": 0.029
+   },
+   "color_share": {
+    "red": 0.922,
+    "blue": 0.078
+   },
+   "group_share": {
+    "0": 0.077,
+    "1": 0.551,
+    "2": 0.138,
+    "3": 0.138,
+    "4": 0.097
+   },
+   "laser_speed_events_per_second": 0.023,
+   "ring_events_per_second": 1.256,
+   "boost_toggles": 0,
+   "longest_static_seconds": 0.77,
+   "p95_static_seconds": 0.024,
+   "max_group_flashes_per_second": 1
+  },
+  {
+   "id": "e7e2fcc1e1a53c4363066e6f6e8b7ed2fe62a8bdb9aece862f2d909e3828de1f",
+   "environment": "NiceEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 170.8,
+   "light_events_per_second": 10.678,
+   "light_moments_per_second": 7.019,
+   "events_per_moment": 1.521,
+   "notes_per_second": 8.196,
+   "tier_light_events_per_second": {
+    "low": 8.607,
+    "mid": 10.732,
+    "high": 12.804
+   },
+   "value_share": {
+    "fade": 0.748,
+    "on": 0.169,
+    "off": 0.082
+   },
+   "color_share": {
+    "blue": 0.532,
+    "red": 0.468
+   },
+   "group_share": {
+    "0": 0.224,
+    "1": 0.184,
+    "2": 0.18,
+    "3": 0.221,
+    "4": 0.191
+   },
+   "laser_speed_events_per_second": 0.808,
+   "ring_events_per_second": 1.048,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.41,
+   "p95_static_seconds": 0.265,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "e839f27f3e60072dfb843d62325c68746a8d32429831463070cfd556ab67e106",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 146.9,
+   "light_events_per_second": 17.585,
+   "light_moments_per_second": 14.508,
+   "events_per_moment": 1.212,
+   "notes_per_second": 9.048,
+   "tier_light_events_per_second": {
+    "low": 12.958,
+    "mid": 18.542,
+    "high": 20.917
+   },
+   "value_share": {
+    "on": 0.475,
+    "transition": 0.525,
+    "off": 0.0
+   },
+   "color_share": {
+    "red": 0.462,
+    "blue": 0.463,
+    "white": 0.075
+   },
+   "group_share": {
+    "0": 0.177,
+    "1": 0.173,
+    "2": 0.233,
+    "3": 0.243,
+    "4": 0.174
+   },
+   "laser_speed_events_per_second": 3.731,
+   "ring_events_per_second": 0.919,
+   "boost_toggles": 0,
+   "longest_static_seconds": 5.88,
+   "p95_static_seconds": 0.178,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "e86fcf1e5866ebb2045e8177fb44e43982f31b5569c5538b8430b3f82aa2b6ad",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 213.4,
+   "light_events_per_second": 12.733,
+   "light_moments_per_second": 4.682,
+   "events_per_moment": 2.72,
+   "notes_per_second": 4.621,
+   "tier_light_events_per_second": {
+    "low": 4.574,
+    "mid": 14.039,
+    "high": 19.691
+   },
+   "value_share": {
+    "off": 0.499,
+    "fade": 0.501
+   },
+   "color_share": {
+    "blue": 0.544,
+    "red": 0.456
+   },
+   "group_share": {
+    "0": 0.196,
+    "1": 0.202,
+    "2": 0.2,
+    "3": 0.198,
+    "4": 0.204
+   },
+   "laser_speed_events_per_second": 2.554,
+   "ring_events_per_second": 1.022,
+   "boost_toggles": 0,
+   "longest_static_seconds": 14.6,
+   "p95_static_seconds": 0.259,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "e92fb305dcbfe5bc85dcf782147f0d73a38b60ce55a65e51f9c63ee6bbed371d",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 121.9,
+   "light_events_per_second": 31.734,
+   "light_moments_per_second": 12.082,
+   "events_per_moment": 2.627,
+   "notes_per_second": 10.244,
+   "tier_light_events_per_second": {
+    "low": 22.0,
+    "mid": 33.6,
+    "high": 37.725
+   },
+   "value_share": {
+    "fade": 0.576,
+    "off": 0.415,
+    "on": 0.004,
+    "flash": 0.004
+   },
+   "color_share": {
+    "blue": 0.492,
+    "red": 0.508
+   },
+   "group_share": {
+    "0": 0.233,
+    "1": 0.234,
+    "2": 0.151,
+    "3": 0.149,
+    "4": 0.233
+   },
+   "laser_speed_events_per_second": 7.341,
+   "ring_events_per_second": 1.895,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.08,
+   "p95_static_seconds": 0.12,
+   "max_group_flashes_per_second": 1
+  },
+  {
+   "id": "eaacce486dae876ad69f9383af211f3fa17f6791f7084be80514bfff0977a179",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 115.8,
+   "light_events_per_second": 9.041,
+   "light_moments_per_second": 6.813,
+   "events_per_moment": 1.327,
+   "notes_per_second": 8.29,
+   "tier_light_events_per_second": {
+    "low": 5.806,
+    "mid": 9.525,
+    "high": 11.306
+   },
+   "value_share": {
+    "on": 0.042,
+    "fade": 0.958
+   },
+   "color_share": {
+    "red": 0.515,
+    "blue": 0.485
+   },
+   "group_share": {
+    "0": 0.26,
+    "1": 0.085,
+    "2": 0.196,
+    "3": 0.259,
+    "4": 0.201
+   },
+   "laser_speed_events_per_second": 0.017,
+   "ring_events_per_second": 2.409,
+   "boost_toggles": 0,
+   "longest_static_seconds": 8.55,
+   "p95_static_seconds": 0.3,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "ed26a9cc7f6521e20aea2f798745b4ec7429fb5688808b7680b5885772e981ff",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 201.8,
+   "light_events_per_second": 13.026,
+   "light_moments_per_second": 4.796,
+   "events_per_moment": 2.716,
+   "notes_per_second": 4.395,
+   "tier_light_events_per_second": {
+    "low": 5.578,
+    "mid": 12.875,
+    "high": 20.859
+   },
+   "value_share": {
+    "fade": 0.493,
+    "off": 0.495,
+    "on": 0.006,
+    "flash": 0.006
+   },
+   "color_share": {
+    "blue": 0.478,
+    "red": 0.522
+   },
+   "group_share": {
+    "0": 0.199,
+    "1": 0.204,
+    "2": 0.195,
+    "3": 0.196,
+    "4": 0.207
+   },
+   "laser_speed_events_per_second": 2.547,
+   "ring_events_per_second": 1.159,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.88,
+   "p95_static_seconds": 0.234,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "f2ea99da10018340aca4a3107cf036c6d423e4f8e7bfbfdb4a99f35135f9e1a8",
+   "environment": "KaleidoscopeEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 181.0,
+   "light_events_per_second": 17.856,
+   "light_moments_per_second": 9.481,
+   "events_per_moment": 1.883,
+   "notes_per_second": 9.066,
+   "tier_light_events_per_second": {
+    "low": 14.317,
+    "mid": 19.533,
+    "high": 19.683
+   },
+   "value_share": {
+    "fade": 0.744,
+    "on": 0.092,
+    "flash": 0.09,
+    "off": 0.074
+   },
+   "color_share": {
+    "red": 0.488,
+    "blue": 0.45,
+    "white": 0.063
+   },
+   "group_share": {
+    "0": 0.221,
+    "1": 0.223,
+    "2": 0.167,
+    "3": 0.164,
+    "4": 0.225
+   },
+   "laser_speed_events_per_second": 4.68,
+   "ring_events_per_second": 9.044,
+   "boost_toggles": 19,
+   "longest_static_seconds": 0.6,
+   "p95_static_seconds": 0.2,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "f46f708591952682a23bd4e398b06fc1d5fa3352c98edf3aafbada280fd8a939",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 112.9,
+   "light_events_per_second": 24.05,
+   "light_moments_per_second": 9.634,
+   "events_per_moment": 2.496,
+   "notes_per_second": 8.306,
+   "tier_light_events_per_second": {
+    "low": 22.806,
+    "mid": 23.575,
+    "high": 25.694
+   },
+   "value_share": {
+    "on": 0.021,
+    "fade": 0.545,
+    "flash": 0.021,
+    "off": 0.412
+   },
+   "color_share": {
+    "blue": 0.516,
+    "red": 0.484
+   },
+   "group_share": {
+    "0": 0.239,
+    "1": 0.236,
+    "2": 0.142,
+    "3": 0.148,
+    "4": 0.235
+   },
+   "laser_speed_events_per_second": 5.136,
+   "ring_events_per_second": 3.135,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.55,
+   "p95_static_seconds": 0.172,
+   "max_group_flashes_per_second": 2
+  },
+  {
+   "id": "f5031ece9c9b866736881c9799446b8c0c090e3aa71c089e02ac3f67d40abfc4",
+   "environment": "TheWeekndEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 118.3,
+   "light_events_per_second": 12.859,
+   "light_moments_per_second": 9.461,
+   "events_per_moment": 1.359,
+   "notes_per_second": 6.696,
+   "tier_light_events_per_second": {
+    "low": 8.389,
+    "mid": 12.023,
+    "high": 17.361
+   },
+   "value_share": {
+    "on": 0.508,
+    "transition": 0.11,
+    "off": 0.381
+   },
+   "color_share": {
+    "white": 0.262,
+    "blue": 0.153,
+    "red": 0.584
+   },
+   "group_share": {
+    "0": 0.49,
+    "1": 0.51
+   },
+   "laser_speed_events_per_second": 0.0,
+   "ring_events_per_second": 0.0,
+   "boost_toggles": 0,
+   "longest_static_seconds": 14.81,
+   "p95_static_seconds": 0.218,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "f5d48a34a206c57f89e6b44cccfbdd9df0e3a400e1571f4734cb674020bfb518",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 246.2,
+   "light_events_per_second": 23.357,
+   "light_moments_per_second": 9.269,
+   "events_per_moment": 2.52,
+   "notes_per_second": 7.19,
+   "tier_light_events_per_second": {
+    "low": 11.338,
+    "mid": 24.357,
+    "high": 34.1
+   },
+   "value_share": {
+    "on": 0.033,
+    "flash": 0.033,
+    "off": 0.393,
+    "fade": 0.542
+   },
+   "color_share": {
+    "blue": 0.49,
+    "red": 0.51
+   },
+   "group_share": {
+    "0": 0.245,
+    "1": 0.241,
+    "2": 0.138,
+    "3": 0.139,
+    "4": 0.237
+   },
+   "laser_speed_events_per_second": 4.964,
+   "ring_events_per_second": 4.549,
+   "boost_toggles": 0,
+   "longest_static_seconds": 4.97,
+   "p95_static_seconds": 0.158,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "f93b965ef469175e072c7875e4b7c1c692290b67a79704e8c31360407239f7f5",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 246.4,
+   "light_events_per_second": 16.293,
+   "light_moments_per_second": 8.313,
+   "events_per_moment": 1.96,
+   "notes_per_second": 8.914,
+   "tier_light_events_per_second": {
+    "low": 12.9,
+    "mid": 15.06,
+    "high": 20.762
+   },
+   "value_share": {
+    "on": 0.281,
+    "fade": 0.623,
+    "flash": 0.088,
+    "off": 0.008
+   },
+   "color_share": {
+    "blue": 0.492,
+    "red": 0.508
+   },
+   "group_share": {
+    "0": 0.227,
+    "1": 0.229,
+    "2": 0.159,
+    "3": 0.158,
+    "4": 0.226
+   },
+   "laser_speed_events_per_second": 5.114,
+   "ring_events_per_second": 2.066,
+   "boost_toggles": 0,
+   "longest_static_seconds": 6.0,
+   "p95_static_seconds": 0.182,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "f9bbe01a8743ced27294ac6a8234dfd808e6d19a8ff52f92a3f165552e124d90",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 140.8,
+   "light_events_per_second": 11.649,
+   "light_moments_per_second": 8.751,
+   "events_per_moment": 1.331,
+   "notes_per_second": 11.046,
+   "tier_light_events_per_second": {
+    "low": 7.818,
+    "mid": 11.192,
+    "high": 16.182
+   },
+   "value_share": {
+    "fade": 1.0
+   },
+   "color_share": {
+    "blue": 0.603,
+    "red": 0.397
+   },
+   "group_share": {
+    "0": 0.24,
+    "1": 0.044,
+    "2": 0.252,
+    "3": 0.232,
+    "4": 0.233
+   },
+   "laser_speed_events_per_second": 0.014,
+   "ring_events_per_second": 0.49,
+   "boost_toggles": 0,
+   "longest_static_seconds": 4.44,
+   "p95_static_seconds": 0.244,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "fa2be54e34966b3fd176ca00031621614795933f8f30943f184b703b80abf233",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 141.3,
+   "light_events_per_second": 15.634,
+   "light_moments_per_second": 5.754,
+   "events_per_moment": 2.717,
+   "notes_per_second": 6.71,
+   "tier_light_events_per_second": {
+    "low": 9.227,
+    "mid": 18.0,
+    "high": 18.977
+   },
+   "value_share": {
+    "fade": 0.726,
+    "off": 0.274
+   },
+   "color_share": {
+    "blue": 0.501,
+    "red": 0.499
+   },
+   "group_share": {
+    "0": 0.193,
+    "1": 0.193,
+    "2": 0.211,
+    "3": 0.211,
+    "4": 0.193
+   },
+   "laser_speed_events_per_second": 6.589,
+   "ring_events_per_second": 4.615,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.94,
+   "p95_static_seconds": 0.242,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "fad7c456e311bc6bcbbe3625ccaf08152821715e24dce4658156542488e086c1",
+   "environment": "BigMirrorEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 316.6,
+   "light_events_per_second": 29.524,
+   "light_moments_per_second": 13.255,
+   "events_per_moment": 2.227,
+   "notes_per_second": 11.234,
+   "tier_light_events_per_second": {
+    "low": 15.192,
+    "mid": 29.111,
+    "high": 44.413
+   },
+   "value_share": {
+    "fade": 0.519,
+    "off": 0.412,
+    "on": 0.035,
+    "flash": 0.035
+   },
+   "color_share": {
+    "blue": 0.566,
+    "red": 0.434
+   },
+   "group_share": {
+    "0": 0.236,
+    "1": 0.233,
+    "2": 0.145,
+    "3": 0.148,
+    "4": 0.238
+   },
+   "laser_speed_events_per_second": 6.032,
+   "ring_events_per_second": 5.653,
+   "boost_toggles": 0,
+   "longest_static_seconds": 1.81,
+   "p95_static_seconds": 0.09,
+   "max_group_flashes_per_second": 0
+  },
+  {
+   "id": "fc2c95ac84e7b12380a449d10a9645b325f10a2e1782db3fef700eb8c4bb06ba",
+   "environment": "DefaultEnvironment",
+   "lit": true,
+   "difficulty": "ExpertPlus",
+   "seconds": 98.9,
+   "light_events_per_second": 8.705,
+   "light_moments_per_second": 5.389,
+   "events_per_moment": 1.615,
+   "notes_per_second": 8.29,
+   "tier_light_events_per_second": {
+    "low": 5.344,
+    "mid": 8.719,
+    "high": 10.5
+   },
+   "value_share": {
+    "flash": 0.567,
+    "off": 0.278,
+    "fade": 0.152,
+    "on": 0.003
+   },
+   "color_share": {
+    "blue": 0.492,
+    "red": 0.508
+   },
+   "group_share": {
+    "0": 0.174,
+    "1": 0.476,
+    "2": 0.12,
+    "3": 0.095,
+    "4": 0.135
+   },
+   "laser_speed_events_per_second": 0.202,
+   "ring_events_per_second": 1.597,
+   "boost_toggles": 0,
+   "longest_static_seconds": 3.09,
+   "p95_static_seconds": 0.364,
+   "max_group_flashes_per_second": 5
+  }
+ ]
+}

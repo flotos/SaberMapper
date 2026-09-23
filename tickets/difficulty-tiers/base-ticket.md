@@ -27,16 +27,17 @@ star-tier work merged on 2026-09-23 (`Merge multi-difficulty`, `Merge repair-tie
   compares 4-beat windows of the map with each tier's reference windows. It uses only four
   **density** features: median and p90 window NPS, median swings/s, and median peak swings in 1 s.
   It emits `tier_below_target` / `tier_above_target`. NJS is not checked at all.
-- Living a Lie (`d002569949ef`):
-  - Expert (primary): the old map, revision `22085a31…`, 1,026 notes, target `below_band`, NJS 18.
-  - ExpertPlus: revision `bb699e90…`, 1,458 notes, NJS 19, target `band`. It still reads closest
-    to `below_band`: median window 5.08 nps against 6.75 for band.
-  - Where ExpertPlus falls short: its loud guitar/drum sections are dense (first-drive 7.6, peak
-    8.1, return 6.9 nps). The vocal-led sections (response, sustained, last-response, about 4.6
-    nps) follow only the sung syllables, and held-vocal arcs occupy one hand.
-  - It was built by `workspace/authoring/living-a-lie/expertplus_challenge.py` (a bar rebuild through
-    `audio_repair.insert_note`) and `expertplus_variety.py` (breaks placement loops), then
-    repair-visibility, repair-swings and repair-audio.
+- Living a Lie (`d002569949ef`), drafted from the ensemble evidence run `148f9ae3` on 2026-09-23:
+  - Expert (primary): revision `73b10992`, 1,112 notes, NJS 18, target `below_band`, reads
+    `below_band` (median window 4.07 nps). No critique warning.
+  - ExpertPlus: revision `9e348b1d`, 1,317 notes, NJS 19, target `challenge`, reads `below_band`
+    (median window 5.08 nps, 2.5 notes per beat). Every note time sits on a sound, and its only
+    warning is `tier_below_target`. Riff sections carry 10-14 notes per bar (first-drive 5.85,
+    peak 6.61 nps median). Sung sections (response 5.59, sustained 4.58, last-response 5.08) follow
+    the syllables, with the band on the free hand under held arcs and in the voice's gaps. Beside
+    that, band attacks stay under the 25% `lead_rhythm_diluted` limit.
+  - The rules that draft follows are listed in SM-036, "Musical rules the rhythm draft and placer
+    follow".
 
 Measured on the corpus (medians of 4-beat windows, `tier-reference.json`, 79,373 windows):
 
@@ -97,26 +98,22 @@ Define the terms so a check can enforce them:
   flagged on existing maps. Record the preference in `workspace/player-profile.json` overrides
   (`profile feedback`), because it is reusable.
 
-### 4. A reusable raise-tier tool (agent-first)
+### 4. The first draft is written at the target tier (agent-first)
 
-Promote the Living a Lie scripts into a CLI command, e.g.
-`project raise-tier ID --difficulty NAME --target-tier T --revision REV [--dry-run]`. It rebuilds
-loud, non-quiet bars from real attacks: lead first, then secondary rhythm layers (per change 3).
-Density scales with bar loudness (`intensity_bars`), and quiet bars stay light. It adds doubles on
-strong accents and crossovers where flow allows. It varies placements (no `repetitive_cycle` or
-`low_placement_variety`) and sets NJS per change 1. Then it runs repair-visibility, repair-swings and
-repair-audio and reports `tier_fit` before and after. Existing helpers to reuse:
-`audio_repair.insert_note` (flow-safe placement, but no doubles and no crossovers: `LANES` pins each
-hand to its half), the double placer and the placement-variety pass in the two authoring scripts.
-The tool needs structured JSON output and actionable `unresolved` reasons (for example "hand held
-by an arc", "no attack").
+The rhythm draft that builds every first map (SM-036: `music rhythm --propose`, placed by
+`placement.py`) reads `difficulty.target_tier`. Loud bars that are not quiet carry the lead's
+attacks, then the secondary rhythm layers of change 3, with density scaled by bar loudness
+(`intensity_bars`). Quiet bars stay light. Doubles land on strong accents, and crossovers appear
+where flow allows. Placements vary, with no `repetitive_cycle` or `low_placement_variety`, and NJS
+follows change 1. A harder difficulty is drafted from the audio at its own tier, never derived by
+raising a finished map. The draft reports `tier_fit` and structured, actionable `unresolved`
+reasons, for example "hand held by an arc" or "no attack".
 
-### 5. Re-author Living a Lie ExpertPlus
+### 5. Living a Lie at the challenge tier
 
-After the spectrogram work lands: run `music analyze d002569949ef` so a new evidence run uses it.
-Then rebuild ExpertPlus with the raise-tier tool at `target_tier: challenge` (the user asked for
-harder; band is the fallback if challenge cannot be reached without filler). Keep Expert unchanged.
-Then:
+Once changes 1-4 are in, draft Living a Lie ExpertPlus at `target_tier: challenge` from the newest
+evidence run. The user asked for harder; `band` is the fallback if challenge cannot be reached
+without filler. Expert stays at `below_band`. Then:
 
 - Resolve or justify every critique warning. Expect no blocking errors, no `repetitive_cycle`, and
   no `note_without_audio` or `low_audio_support`.
@@ -132,7 +129,8 @@ Then:
 - The filler and secondary-layer definitions are implemented as checks with tests. They have been
   rerun on all projects, and the changes are reported per project.
 - Living a Lie ExpertPlus reads closest to its target tier, or the report explains exactly which
-  rule-bound sections keep it below, with numbers. Expert is untouched. Both are exported in one ZIP.
+  rule-bound sections keep it below, with numbers. Expert stays at `below_band`. Both are exported in
+  one ZIP.
 - Full test suite passes. Every code change is made in a worktree, then committed and merged into
   `main`, following `CLAUDE.md`.
 

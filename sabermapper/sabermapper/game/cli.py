@@ -66,9 +66,12 @@ def run_logs(args, emit):
 
 SUBCOMMANDS = {"lease": (register_lease, run_lease), "logs": (register_logs, run_logs)}
 
+from .bridge_cli import SUBCOMMANDS as _BRIDGE_SUBCOMMANDS  # noqa: E402
+SUBCOMMANDS.update(_BRIDGE_SUBCOMMANDS)
+
 
 def register_game(commands):
-    root = commands.add_parser("game", help="Beat Saber integration: lease, logs (errors print JSON and exit 2)")
+    root = commands.add_parser("game", help="Beat Saber integration: lease, logs, bridge control and capture (errors print JSON and exit 2)")
     actions = root.add_subparsers(dest="game_action", required=True)
     for register, _ in SUBCOMMANDS.values():
         register(actions)

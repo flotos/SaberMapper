@@ -32,7 +32,7 @@ class ProjectStudioIntegrationTests(unittest.TestCase):
         initial = self.store.get(project_id)
         self.assertTrue(Path(self.store.directory(project_id), "song.ogg").is_file())
         self.assertTrue(initial["notes"])
-        self.assertEqual(initial["movement"]["model_version"], "1.8")
+        self.assertEqual(initial["movement"]["model_version"], "1.9")
         old_revision = initial["revision"]
 
         arrangement = copy.deepcopy(initial["arrangement"])

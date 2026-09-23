@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from math import atan2, cos, degrees, hypot, isfinite, radians, sin
+from math import atan2, copysign, cos, degrees, hypot, isfinite, radians, sin
 
-MODEL_VERSION = "1.8"
+MODEL_VERSION = "1.9"
 # A same-hand swing arriving sooner than this must nearly reverse the previous
 # cut; a sideways (90-degree) or repeated cut this fast forces a wrist reset.
 FAST_BREAK_SECONDS = 0.3
@@ -13,6 +13,13 @@ REVERSAL_DEGREES = 135
 # forehand/backhand and turn at least this much: each cut starts where the
 # previous one left the saber.
 MIN_TURN_DEGREES = 90
+# A cut that turns short of a clean reversal rolls the wrist by the shortfall, signed by its side. Between
+# swings the wrist unwinds towards neutral at a steady rate, so the tolerated angle grows linearly with the
+# time between swings: angled cuts that keep turning the same way at speed spin the saber round the clock, and
+# once the roll passes the limit the hand has to flip its wrist mid-stream. Angled cuts that alternate sides
+# (a zig-zag about the reversal) or come slowly never build up.
+ROLL_LIMIT_DEGREES = 90
+UNWIND_DEGREES_PER_SECOND = 90
 # Only a hand idle this long returns to neutral and may start a fresh swing in any
 # direction. Measured in seconds, never beats: one beat at 180 BPM is 0.33 s,
 # far too short to raise the saber back without swinging.
@@ -173,6 +180,36 @@ def flow_break(previous, direction, hand, gap_seconds, reset, previous_angle=0.0
     return None
 
 
+def roll_degrees(previous, direction, previous_angle=0.0, angle=0.0):
+    """Signed turn of ``direction`` away from a clean reversal of ``previous`` (0 = reversal, + = anticlockwise)."""
+    a, b = _vector(_OPPOSITE[previous], previous_angle), _vector(direction, angle)
+    return (degrees(atan2(b[1], b[0])) - degrees(atan2(a[1], a[0])) + 180) % 360 - 180
+
+
+def next_roll(roll, effective, direction, gap_seconds, reset, previous_angle=0.0, angle=0.0):
+    """The hand's wrist roll after a swing and the blocking finding it raises, as ``(roll, (code, reason) | None)``.
+
+    ``roll`` is the roll after the hand's previous swing and ``effective`` that swing's effective direction. The
+    roll first unwinds by UNWIND_DEGREES_PER_SECOND over ``gap_seconds``, then takes this cut's turn away from a
+    clean reversal (a dot is cut as the reversal). A first swing or one after a rest starts from neutral. Past
+    ROLL_LIMIT_DEGREES the hand flips its wrist, so the roll returns to neutral with the finding.
+    """
+    if reset or effective is None or effective == 8:
+        return 0.0, None
+    roll = roll or 0.0
+    unwound = copysign(max(0.0, abs(roll) - UNWIND_DEGREES_PER_SECOND * gap_seconds), roll)
+    turned = unwound + (0.0 if direction == 8 else roll_degrees(effective, direction, previous_angle, angle))
+    if abs(turned) <= ROLL_LIMIT_DEGREES + 1e-9:
+        return turned, None
+    return 0.0, ("wrist_roll",
+                 f"this cut rolls the wrist {abs(turned):.0f} degrees from a clean pendulum: the cuts before it keep "
+                 f"turning the same way off each reversal faster than the wrist unwinds "
+                 f"({UNWIND_DEGREES_PER_SECOND} degrees per second between swings), so the saber spins round the "
+                 f"clock and the hand must flip its wrist mid-stream past {ROLL_LIMIT_DEGREES} degrees. Cut it as a "
+                 "clean reversal, angle it to the other side, or leave more time before it; unpin the cut to let the "
+                 "placer choose (project check lists edits that clear it)")
+
+
 def one_hand_bursts(swings: list) -> list:
     """Review warnings for runs of fast same-hand swings while the other hand idles."""
     found = []
@@ -293,6 +330,7 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
         raise ValueError("note seconds must increase with beat")
     clean.sort(key=lambda n: (n["seconds"], n["color"], n["id"]))
     swings, warnings, previous, flow = [], [], {0: None, 1: None}, {0: None, 1: None}
+    roll = {0: None, 1: None}  # each hand's wrist roll (next_roll) after its latest swing
     front = {}  # (x, y) -> latest note in that cell
     stacked = set()  # IDs of notes cut in a stack (same hand, same beat)
     distances, speed_pairs, recovery, angular_changes = [], [], [], []
@@ -350,6 +388,12 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
             if found:
                 warnings.append({"code": found[0], "note_ids": [prior["note_ids"][-1], note["id"]],
                                  "beat": note["beat"], "confidence": "high", "severity": "error", "reason": found[1]})
+            roll[note["color"]], rolled = next_roll(roll[note["color"]], effective and effective[0], note["direction"],
+                                                    gap, reset or not gap, effective[1] if effective else 0.0,
+                                                    note["angle"])
+            if rolled and not found:
+                warnings.append({"code": rolled[0], "note_ids": [prior["note_ids"][-1], note["id"]],
+                                 "beat": note["beat"], "confidence": "high", "severity": "error", "reason": rolled[1]})
             if gap and distance / gap > REACH_SPEED:
                 warnings.append({"code": "reach_proxy", "note_ids": [prior["note_ids"][-1], note["id"]],
                                  "beat": note["beat"], "confidence": "low", "reason": "large grid displacement in short time"})

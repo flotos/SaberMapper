@@ -1,4 +1,4 @@
-# Movement model 1.8 and implementation survey
+# Movement model 1.9 and implementation survey
 
 The shared `analyze_movement(notes, bpm, njs=..., spawn_offset_beats=...)` result contains versioned swings,
 aggregate proxies, review warnings, and an explicit unsupported-motion list.
@@ -14,7 +14,7 @@ crossover count, reaction-time estimate from NJS/spawn offset, and recovery
 time are descriptive proxies, not comfort, injury, ranked difficulty, or star
 ratings. Walls, bombs, arcs, chains and complex rotations are not inferred.
 
-Model 1.8 has two blocking flow rules, both defined once in `movement.flow_break`.
+Model 1.9 has two blocking flow rules, both defined once in `movement.flow_break`.
 They apply to consecutive same-hand swings unless the hand rested: every cut must
 start where the previous one left the saber. A rest (`movement.is_rest`) is an idle
 gap of `REST_SECONDS` (2 s) or more on that hand, measured in seconds and never in
@@ -28,7 +28,16 @@ beats:
   forehand/backhand unless they turn 135 degrees or more.
 
 A dot counts as the reversal of the swing before it, so down-dot-down is still
-caught. Model 1.7 (2026-09-23) adds the review warning `stack_shape`: same-hand
+caught. Model 1.9 (2026-09-23) adds the blocking `wrist_roll` (`movement.next_roll`): a
+cut that turns short of a clean reversal rolls the wrist by the shortfall, signed
+by its side, and between swings the wrist unwinds towards neutral at
+`UNWIND_DEGREES_PER_SECOND` (90 degrees per second). The tolerated angle therefore
+grows linearly with the time between swings. Past `ROLL_LIMIT_DEGREES` (90) the
+hand has to flip its wrist mid-stream. Angled cuts that keep turning the same way
+at speed (right, down-left, up, down-right, left... 0.25 s apart) spin the saber
+round the clock and are caught on their fourth swing; the same angles as a
+zig-zag about the reversal, or half a second apart, never build up. The roll
+returns to neutral after a rest and after each finding. Model 1.7 (2026-09-23) adds the review warning `stack_shape`: same-hand
 notes at one beat (a stack) read as one longer note only as two or three notes
 in an unbroken line along their cut (`movement.stack_line`), a column for an up
 or down cut and a diagonal for a diagonal one. Model 1.8 (2026-09-23) keeps a stack of
@@ -103,6 +112,10 @@ constant `reach_proxy` also reads). Two same-hand swings closer than
 1/`REACH_SPEED` s are impossible, because the second one needs its own cell. A
 greedy pass then chooses each note's cut and cell together, among the cuts that
 keep the flow from the hand's actual previous swing and into its next pinned one.
+Both passes track each hand's wrist roll: a cut past the limit is refused, the cut
+that leaves the wrist nearer neutral is cheaper (`ROLL_COST`), and repeating the
+cut of the swing before last costs nothing when it unwinds the wrist, so an
+angular style plays as a zig-zag about the reversal.
 It prefers short hand travel and placements the recent notes have not used, the
 SM-034 repetition metrics: distinct placements and strict cycles. The result is
 checked with `analyze_movement` itself. A broken rule that involves a

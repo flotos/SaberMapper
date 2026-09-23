@@ -102,6 +102,29 @@ A *placement* is the tuple `(x, y, color, direction)`.
 **`top_row_starved`** — `top_row_share` is below **0.05** in a map of at least
 **100** notes.
 
+### Recurrence (`metrics.recurrence`)
+
+The other side of repetition: a part of the song that returns should return in
+the map too (`sabermapper/recurrence.py`). An *audio repeat* is a listen section
+paired with the earliest section it repeats (repetition group similarity 0.5 or
+more, aligned at their starts over the shorter length, on whole bars), or two
+16-beat phrases at least 32 beats apart whose sixteenth attack grids (the drums
+and the busiest other instrument) reach cosine **0.85**. `project check` passes
+the newest listen run for the evidence run; without one only the rhythm is used.
+
+- `themes`: per declared echo, `rhythm` (share of note times that match the
+  statement at the same relative beat, within 0.13 beat) and `placement` (share
+  of the matched notes that repeat the statement's placement, mirrored when the
+  echo is).
+- `repeats`: per audio repeat, the same two scores (placement the better of
+  direct and mirrored) and whether a theme covers it.
+
+**`repeat_unechoed`**: an audio repeat no theme covers, with at least 8 matched
+notes and rhythm **0.5** or more but placement below **0.35**. Its `add_theme`
+suggestion declares the theme and reopens the echo's unlocked notes.
+**`theme_unechoed`**: a declared echo with at least 8 matched notes whose
+placement is below **0.35**.
+
 ### Boundary accents (`metrics.boundary_accents`)
 
 Only checked when a musical evidence report is supplied. For every section

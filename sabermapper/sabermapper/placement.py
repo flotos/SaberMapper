@@ -26,6 +26,13 @@ placements the recent notes have not used (the SM-034 repetition metrics: distin
 cycles). The result is checked with :func:`movement.analyze_movement` itself. A broken rule that involves a
 placer-chosen field raises :class:`PlacementError`, which names the beat, the notes, the rule and the
 alternatives verified to clear it. A conflict between fully pinned notes is left to validation.
+
+A recurring part of the song is played as a recurring pattern. The arrangement's ``themes`` pair a statement
+span with echo spans (:mod:`recurrence`); after a first placement, an open echo note whose time matches a
+statement note (a single on a single, a double on a double) prefers that note's hand, cut and cell (mirrored
+when the echo is), and the statement keeps its own. The preference (``ECHO``) outweighs comfort and novelty
+but yields to every movement rule and to stored values, so an echo deviates only where the flow into or out
+of it, or its own audio, differs.
 """
 
 from __future__ import annotations
@@ -56,6 +63,9 @@ TOP_ROW_SHARE = 0.15  # below this recent top-row share, the top row is preferre
 # A double reads as one accent only when both hands cut it on the same forehand/backhand: the beam then hands
 # the last single note before it to whichever hand leaves both hands on that parity.
 DOUBLE_PARITY_COST = 3.0
+# An echo note leaving its statement note's hand, cut or cell (half per coordinate): above every comfort cost,
+# far below the rules.
+ECHO = 4.0
 # Rules the placer satisfies; each maps to the note fields that can resolve it.
 RULE_FIELDS = {"fast_direction_break": ("direction", "color"), "flow_parity_break": ("direction", "color"),
                "one_hand_burst": ("color",), "arc_note_conflict": ("color",), "chain_note_conflict": ("color",),
@@ -76,13 +86,26 @@ class PlacementError(ValueError):
 
 class _Slot:
     __slots__ = ("index", "oid", "beat", "seconds", "fixed", "soft", "pinned", "note", "locked", "value",
-                 "anchored", "motif", "anchor", "held_cut", "stack")
+                 "anchored", "motif", "anchor", "held_cut", "stack", "echo", "themed")
 
     def __init__(self, oid, beat, fixed, soft, pinned, note, locked, motif=None, stack=False):
         self.oid, self.beat, self.fixed, self.soft, self.pinned = oid, beat, fixed, soft, pinned
         self.note, self.locked, self.motif, self.stack = note, locked, motif, stack
         self.value, self.anchored, self.index, self.seconds, self.anchor = {}, set(), 0, 0.0, None
         self.held_cut = None  # a cut pass 1 settled that pass 2 keeps (a double's parity)
+        self.echo = None  # the statement note's values a theme echo prefers
+        self.themed = False  # inside a theme echo span
+
+    def echoes(self, field, hand=None):
+        """The theme value this slot prefers for an open ``field`` (None when it has none).
+
+        A cut or cell is only echoed on the statement note's hand: on the other hand it would mean nothing.
+        """
+        if self.echo is None or field in self.fixed or field in self.soft:
+            return None
+        if hand is not None and self.echo["color"] != hand:
+            return None
+        return self.echo[field]
 
     @property
     def chosen(self):
@@ -290,14 +313,17 @@ def _cut_options(state, notes, hand, beat, seconds, other_last, bpm):
     beat_gap = None if last_b is None else beat - last_b
     reset = last_s is None or is_rest(gap)
     ids = tuple(s.index for s in notes)
+    echo = next((e for e in (s.echoes("direction", hand) for s in notes) if e is not None), None)
     if fixed:
         candidates = [(fixed[-1], 0.0)]
     else:
-        candidates = [(d, c + (SOFT if soft and d != soft[0] else 0))
+        candidates = [(d, c + (SOFT if soft and d != soft[0] else 0) + (ECHO if echo is not None and d != echo else 0))
                       for d, c in _free_cuts(effective, hand, gap is not None and gap < FAST_BREAK_SECONDS,
                                              reset, last_s is None)]
         if soft and all(d != soft[0] for d, _ in candidates):
             candidates.append((soft[0], 0.0))
+        if not soft and echo is not None and all(d != echo for d, _ in candidates):
+            candidates.append((echo, 0.0))
     options = []
     for direction, cost in candidates:
         if not fixed and direction == prev_dir:
@@ -341,6 +367,8 @@ def _assignments(group, busy):
             choices.append([(slot.fixed["color"], 0.0)])
         elif "color" in slot.soft:
             choices.append([(slot.soft["color"], 0.0), (1 - slot.soft["color"], SOFT)])
+        elif slot.echo is not None:
+            choices.append([(slot.echo["color"], 0.0), (1 - slot.echo["color"], ECHO)])
         else:
             choices.append([(0, 0.0), (1, 0.0)])
     combos = [((), 0.0)]
@@ -357,7 +385,9 @@ def _assignments(group, busy):
             cost += BLOCK  # a stack split across both hands (validation names pinned ones)
         if (len(group) > 1 and len(set(colors)) == 1 and any("color" not in s.fixed for s in group)
                 and not all(s.stack for s in group)):
-            cost += 2.0  # a same-hand chord where a double would do
+            # A same-hand chord where a double would do; inside an echo the neighbours' echoed hands never
+            # outweigh this occurrence's own two-hand accent.
+            cost += 2.0 + (ECHO if any(s.themed for s in group) else 0.0)
         result.append((colors, cost, violations))
     return result
 
@@ -532,10 +562,15 @@ def _cut_choices(slot, state, ahead, beat, seconds, bpm, joint):
     soft = slot.soft.get("direction")
     if soft is not None:
         choices.setdefault(soft, 0.0)
+    echo = slot.echoes("direction", hand)
+    if echo is not None:
+        choices.setdefault(echo, 0.0)
     result = []
     for direction, cost in choices.items():
         if soft is not None and direction != soft:
             cost += SOFT
+        if echo is not None and direction != echo:
+            cost += ECHO
         if direction == state.previous and not state.merges(beat, seconds, direction):
             cost += 0.2  # the same cut as this hand's swing before last: vary the angle
         if state.effective is not None and gap and not reset and not state.merges(beat, seconds, direction):
@@ -566,6 +601,8 @@ def _cell_options(slot, occupied, hands, front, fixed_cells, ahead_cell, ahead_s
             for field, value in (("x", x), ("y", y)):
                 if field in slot.soft and slot.soft[field] != value:
                     base += SOFT
+                if slot.echoes(field, hand) not in (None, value):
+                    base += ECHO / 2
             window = hidden_window(x, y)
             before = front.get((x, y))
             if before is not None and 0 < seconds - before[0] < window:
@@ -612,7 +649,8 @@ def _cell_options(slot, occupied, hands, front, fixed_cells, ahead_cell, ahead_s
                 placement = (x, y, hand, direction)
                 repeats = sum(1 for k in CYCLE_LOOKBACK if len(sequence) >= k and sequence[-k] == placement)
                 cost += 0.3 * repeats + 0.05 * recent.get(placement, 0)
-                cost -= 0.12 if placement not in context["used"] else 0  # a placement the map has not used yet
+                if slot.echo is None and placement not in context["used"]:
+                    cost -= 0.12  # a placement the map has not used yet (an echo repeats one on purpose)
                 cells.append((cost, x, y, direction, found))
     cells.sort(key=lambda c: (c[0], c[1], c[2], c[3]))
     return cells[:STACK_OPTIONS if slot.stack else 8]
@@ -752,6 +790,25 @@ def _place(arrangement, *, unpin=False, beams=BEAMS):
         if not any(_attributable(v, by_id) for v in violations):
             return trial, _report(slots, motifs), violations, by_id
     groups = _groups(slots)
+    outcome = _search(result, slots, groups, held, bpm, beams, by_id, motifs)
+    links = _echo_links(result, slots)
+    if links:
+        # Place again with every echo preferring its statement's first placement; a theme never costs a rule.
+        _set_echoes(links, outcome[1])
+        echoed = _search(result, slots, groups, held, bpm, beams, by_id, motifs, prefer=_echo_agreement)
+        if echoed[0] <= outcome[0]:
+            outcome = echoed
+        outcome[3]["themes"] = _theme_report(outcome[1])
+    return outcome[1], outcome[3], outcome[2], by_id
+
+
+def _search(result, slots, groups, held, bpm, beams, by_id, motifs, prefer=None):
+    """(attributable failures, placed copy, violations, report) of the best pass over ``beams``.
+
+    With ``prefer`` (a score of the placed copy) both cut passes of a beam are compared and the higher score
+    wins among equal failures: pass 2 re-chooses cuts greedily, which can flip the parity a hand enters an
+    echo with, while the beam planned the whole timeline.
+    """
     outcome = None
     for width, per_timing in beams:
         plan = _plan_cuts(groups, held, bpm, width, per_timing)
@@ -771,11 +828,60 @@ def _place(arrangement, *, unpin=False, beams=BEAMS):
             _write(trial, _collect_for(trial, slots))
             violations = rule_violations(trial)
             failures = sum(1 for v in violations if _attributable(v, by_id))
-            if outcome is None or failures < outcome[0]:
-                outcome = (failures, trial, violations, _report(slots, motifs))
-            if not failures:
-                return outcome[1], outcome[3], outcome[2], by_id
-    return outcome[1], outcome[3], outcome[2], by_id
+            score = prefer(trial) if prefer else 0.0
+            if outcome is None or (failures, -score) < (outcome[0], -outcome[4]):
+                outcome = (failures, trial, violations, _report(slots, motifs), score)
+            if not failures and not prefer:
+                return outcome
+        if not outcome[0]:
+            return outcome
+    return outcome
+
+
+def _echo_links(arrangement, slots):
+    """[(statement slots, echo slots, offset, mirror)] for declared themes whose echo has an open note."""
+    from .recurrence import theme_links
+    links = []
+    for link in theme_links(arrangement):
+        (a0, a1), (b0, b1) = link["statement"], link["echo"]
+        echo = [s for s in slots if b0 <= s.beat < b1]
+        if any(_free(s) for s in echo):
+            links.append(([s for s in slots if a0 <= s.beat < a1], echo, b0 - a0, link["mirror"]))
+    return links
+
+
+def _set_echoes(links, placed):
+    """Give each echo slot its matched statement note's placed values; the statement keeps its own."""
+    from .arrangement import expanded_notes
+    from .recurrence import mirrored, pair_by_time
+    values = {n["id"]: {f: n[f] for f in FIELDS} for n in expanded_notes(placed)}
+    for statement, echo, offset, mirror in links:
+        for slot in echo:
+            slot.themed = True
+        for slot in statement:
+            if _free(slot) and slot.oid in values:
+                slot.echo = values[slot.oid]
+        # A statement double pairs by its placed hands and cells, an echo double by note ID.
+        sources = [s for s in statement if s.oid in values]
+        placed_order = lambda s: (values[s.oid]["color"], values[s.oid]["x"], values[s.oid]["y"], s.oid)
+        for source, target in pair_by_time(sources, echo, offset, beat=lambda s: s.beat, same_size=True,
+                                           order=lambda s: placed_order(s) if s in sources else (0, 0, 0, s.oid)):
+            chosen = values[source.oid]
+            target.echo = mirrored(chosen) if mirror else chosen
+
+
+def _echo_agreement(placed):
+    """Matched echo notes that repeat their statement note's placement, over every declared echo."""
+    return sum(round(t["placement"] * t["matched"]) for t in _theme_report(placed))
+
+
+def _theme_report(placed):
+    """Per declared echo: how many of its notes matched a statement note and share its placement."""
+    from .arrangement import expanded_notes
+    from .recurrence import echo_score, theme_links
+    notes = expanded_notes(placed)
+    return [{"theme": link["theme"], "echo": [float(link["echo"][0]), float(link["echo"][1])],
+             **echo_score(notes, link["statement"], link["echo"], link["mirror"])} for link in theme_links(placed)]
 
 
 def _collect_for(copied, slots):

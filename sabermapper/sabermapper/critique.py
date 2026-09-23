@@ -17,6 +17,7 @@ from .arrangement import expanded_notes
 from .audio_grounding import DEFINITIONS as AUDIO_DEFINITIONS, audio_findings
 from .lighting import DEFINITIONS as LIGHT_DEFINITIONS, lighting_findings
 from .movement import analyze_movement
+from .recurrence import DEFINITIONS as RECURRENCE_DEFINITIONS, recurrence_findings
 from .tier_fit import DEFINITIONS as TIER_DEFINITIONS, tier_fit
 
 MODEL_VERSION = "1.0"
@@ -195,6 +196,7 @@ DEFINITIONS = {
     **AUDIO_DEFINITIONS,
     **LIGHT_DEFINITIONS,
     **TIER_DEFINITIONS,
+    **RECURRENCE_DEFINITIONS,
 }
 
 
@@ -1223,11 +1225,17 @@ def _movement_objects(arrangement, spans, report):
     return result
 
 
-def critique_arrangement(arrangement: dict, report: dict | None = None, tier_reference: dict | None = None) -> dict:
-    """Return warning-only density, repetition, seam, movement and star-tier metrics."""
+def critique_arrangement(arrangement: dict, report: dict | None = None, tier_reference: dict | None = None,
+                         listen: list | None = None) -> dict:
+    """Return warning-only density, repetition, recurrence, seam, movement and star-tier metrics.
+
+    ``listen`` is the listen run's section list (``listen.latest_listen``); without it recurring parts come from
+    the stems' rhythm alone.
+    """
     warnings = []
 
-    def warn(code, message, *, value, threshold, section_id=None, object_ids=(), beats=None, targets=None):
+    def warn(code, message, *, value, threshold, section_id=None, object_ids=(), beats=None, targets=None,
+             suggestions=None):
         warnings.append({"severity": "warning", "code": code, "message": message,
                          "section_id": section_id, "object_ids": list(object_ids),
                          "value": value, "threshold": threshold})
@@ -1235,6 +1243,8 @@ def critique_arrangement(arrangement: dict, report: dict | None = None, tier_ref
             warnings[-1]["beats"] = beats
         if targets is not None:  # [beat, strength] onsets the suggested edit maps
             warnings[-1]["targets"] = targets
+        if suggestions:  # structured edits that clear the warning (project check lists them)
+            warnings[-1]["suggestions"] = suggestions
 
     notes = expanded_notes(arrangement)
     spans = _sections(arrangement)
@@ -1242,6 +1252,8 @@ def critique_arrangement(arrangement: dict, report: dict | None = None, tier_ref
     metrics = {"note_count": len(notes), "section_count": len(spans),
                "density": _density(arrangement, notes, times, spans, warn) if notes else _empty_density(spans),
                "repetition": _repetition(notes, warn) if notes else _empty_repetition(),
+               "recurrence": recurrence_findings(arrangement, report, listen, warn) if notes else
+               {"themes": [], "repeats": []},
                "movement_objects": _movement_objects(arrangement, spans, report),
                "boundary_accents": _boundary_accents(arrangement, spans, notes, report, warn),
                "salience": _salience(arrangement, spans, notes, report, warn),

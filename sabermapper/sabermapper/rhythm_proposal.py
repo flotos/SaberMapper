@@ -23,6 +23,9 @@ functions the critique judges a map with, and the musical rules SM-036 records:
   double on the same sound, and the sixteenth before it stays empty too.
 * The declared lead's strongest attack per half-beat (per beat in a thin or soft bar) carries a note, as the
   lead check requires; every time is snapped to the coarsest grid that stays on its sound.
+* **A returning part returns as a theme.** Parts that repeat an earlier one (listen repetition groups, or the
+  stems' rhythm grid; :mod:`recurrence`) become ``themes``, and the placer plays each echo's notes with its
+  statement's hands, cuts and cells where the times match, mirrored on a transposed or alternate return.
 
 The draft is then placed and critiqued, and adjusted until none of the critique's rhythm findings remain:
 unsupported notes and one-hand bursts lose a time, a quiet passage or a soft bar sheds its weakest times, a
@@ -50,6 +53,7 @@ from .critique import (ENSEMBLE_MIX_STRENGTH, LOUD_RATIO, MELODY_ONSET_STRENGTH,
                        lead_onsets, melody_onsets, on_onset, quiet_bar, salient_onsets, strongest_per_slot,
                        unison_hits)
 from .placement import place_arrangement
+from .recurrence import propose_themes
 from .validation import _beat
 
 TARGET_CODES = ("note_without_audio", "density_exceeds_audio", "lead_rhythm_diluted", "lead_rhythm_unmapped",
@@ -613,13 +617,17 @@ def _place_draft(base, chosen, arcs):
 
 
 def propose_rhythm(arrangement: dict, report: dict, *, start: float | None = None, end: float | None = None,
-                   tier: str | None = None, tier_reference: dict | None = None, held=()) -> dict:
+                   tier: str | None = None, tier_reference: dict | None = None, held=(),
+                   listen: list | None = None) -> dict:
     """A rhythm draft for [start, end) (default: the whole song); see the module docstring.
 
-    Returns ``{"range", "tier", "bars", "arcs", "draft", "placement", "remaining", "rounds"}``. ``draft`` is the
-    arrangement with the range's free notes replaced by rhythm-only notes (``id`` and ``beat``, two on a double,
-    two or three marked ``stack`` on a stack)
-    and the drafted arcs, ready to edit and save. ``held`` names held vocals (source seconds) the user asked for.
+    Returns ``{"range", "tier", "bars", "arcs", "themes", "draft", "placement", "remaining", "rounds"}``.
+    ``draft`` is the arrangement with the range's free notes replaced by rhythm-only notes (``id`` and ``beat``,
+    two on a double, two or three marked ``stack`` on a stack) and the drafted arcs, ready to edit and save.
+    ``held`` names held vocals (source seconds) the user asked for. ``listen`` is the listen run's section list:
+    with the stems' rhythm it finds the song's recurring parts, and the draft declares a theme for each one
+    touching the range (``themes``, kept beside any the arrangement already declares), so the placer plays a
+    returning part like its first occurrence.
     """
     if not report:
         raise ValueError("No musical evidence run matches the current audio; run `music analyze` first")
@@ -633,6 +641,11 @@ def propose_rhythm(arrangement: dict, report: dict, *, start: float | None = Non
         raise ValueError(f"Unknown tier {tier!r}; use one of {', '.join(RUN_STRENGTH)}")
     base = copy.deepcopy(arrangement)
     fixed = _clear(base, first, last)
+    themes = [t for t in propose_themes(base, report, listen)
+              if any(_beat(span["start_beat"]) < last and first < _beat(span["end_beat"])
+                     for span in t["spans"])]
+    if themes:
+        base["themes"] = list(base.get("themes") or []) + themes
     evidence = _Evidence(base, report)
     # The rest of the map may itself be a rhythm-only draft: judge it as placed.
     context = place_arrangement(base, strict=False, alternatives=False)["arrangement"]
@@ -698,6 +711,7 @@ def propose_rhythm(arrangement: dict, report: dict, *, start: float | None = Non
     return {"range": [_relative(first), _relative(last)], "tier": tier,
             "note_count": sum(i.get("stack") or (2 if i.get("double") else 1) for i in chosen.values()),
             "bars": bars, "arcs": [{"head": _relative(h), "tail": _relative(t), "evidence": e} for h, t, e in live],
+            "themes": themes,
             "draft": draft, "placement": placed["report"], "rounds": rounds, "history": history,
             "remaining": [{k: w.get(k) for k in ("code", "beats", "message")} for w in issues]}
 

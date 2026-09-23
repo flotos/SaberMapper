@@ -109,10 +109,12 @@ and event IDs or a precise listened passage. Never invent an evidence reference.
 another run or explain the inference instead of silently substituting the mix.
 
 Choose a phrase's attacks, syncopation, accents and rests from its musical layer,
-then author literal notes or a motif with that specific rhythm. Reuse a motif when
-the musical phrase recurs; do not lay an evenly spaced stock motif over a vocal
-line merely because its density matches. Preserve recognizable movements when a
-riff returns and adapt its ending when the music changes. Select ensemble accents
+then author literal notes or a motif with that specific rhythm. When the musical
+phrase recurs, declare a theme (see the arrangement contract) so the returning
+part echoes the first one's hands, cuts and cells on its own rhythm; do not lay an
+evenly spaced stock motif over a vocal line merely because its density matches.
+Preserve recognizable movements when a riff returns and adapt its ending when the
+music changes. Select ensemble accents
 deliberately; two detectors or several stems observing one hit do not require
 several notes. Check handoff setup, parity, recovery and overall player calibration.
 

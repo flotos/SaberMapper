@@ -16,7 +16,8 @@ Two passes, both judged against one musical evidence run:
    note takes the hand and cut direction that add no flow break with either
    neighbouring swing of that hand; otherwise the onset is reported unresolved.
    ``lead_rhythm_unmapped`` adds notes on the declared lead's strongest attack
-   per half-beat.
+   per half-beat, and ``melody_unmapped`` on the strongest melody change per
+   half-beat of a melodic bar.
 3. **Follow the lead.** Each bar flagged ``lead_rhythm_diluted`` (notes filling
    the space between the lead's attacks) or ``lead_rhythm_unmapped`` (an even
    stream leaving no room for the lead's attacks) is rebuilt: its free notes are cleared,
@@ -33,7 +34,7 @@ Two passes, both judged against one musical evidence run:
 Between the two, ``density_exceeds_audio`` windows (thin, quiet audio mapped as
 densely as the full band) are thinned: note times with the weakest audio under
 them and the least room around them go first, off-beat before on-beat, until the window fits the density its
-audio support allows. Notes on vocal or drum onsets that the salience checks
+audio support allows. Notes on vocal, drum or melody onsets that the salience checks
 count are exempt from that density and kept, as are arc anchors and doubles.
 
 Locked sections, chain anchors and motif-expanded notes are never changed.
@@ -50,9 +51,10 @@ from fractions import Fraction
 from .arrangement import expanded_notes
 from .audio_grounding import SUPPORT_BEATS, SUPPORT_STRENGTH, ONSET_METHODS, ONSET_STRENGTH, _stem_onsets
 from .critique import (ACCENT_STRENGTH, DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT, LEAD_ONSET_STRENGTH,
-                       LEAD_SUPPORT_STRENGTH, QUIET_WINDOW_SECONDS, SALIENCE_BAR_BEATS, SALIENCE_MATCH_BEATS,
-                       VOCAL_ONSET_STRENGTH, _sections, beat_to_seconds, critique_arrangement, focus_lead,
-                       lead_onsets, on_onset, quiet_bar, quiet_windows, salient_onsets, strongest_per_slot)
+                       LEAD_SUPPORT_STRENGTH, MELODY_LAYER, MELODY_MATCH_BEATS, MELODY_ONSET_STRENGTH, QUIET_WINDOW_SECONDS,
+                       SALIENCE_BAR_BEATS, SALIENCE_MATCH_BEATS, VOCAL_ONSET_STRENGTH, _sections, beat_to_seconds,
+                       critique_arrangement, focus_lead, lead_onsets, on_onset, quiet_bar, quiet_windows,
+                       salient_onsets, strongest_per_slot)
 from .movement import turn_degrees, _OPPOSITE
 from .swing_repair import _count_breaks, _hand_swings
 from .validation import _beat, validate_arrangement
@@ -69,8 +71,8 @@ REACH_SPEED = 12  # grid cells per second; above this the movement model reports
 MAX_ROUNDS = 12
 THIN_STRENGTH_FLOOR = 0.25
 THIN_OFFBEAT_FACTOR = 0.8
-FILL_CODES = ("vocal_line_unmapped", "drum_rhythm_unmapped", "lead_rhythm_unmapped", "boundary_accent_unmapped",
-              "density_collapse")
+FILL_CODES = ("vocal_line_unmapped", "drum_rhythm_unmapped", "lead_rhythm_unmapped", "melody_unmapped",
+              "boundary_accent_unmapped", "density_collapse")
 REBUILD_MIN_NOTES = 4
 LEAD_RUN_STRENGTH = 0.6
 LANES = {0: (0, 1), 1: (2, 3)}
@@ -526,6 +528,9 @@ def _fill_targets(arrangement, report, warning):
         lead = focus_lead(_sections(arrangement), start + SALIENCE_BAR_BEATS / 2, layers)
         found = [(strength, beat) for beat, strength in
                  strongest_per_slot(lead_onsets(layers, lead, arrangement, LEAD_ONSET_STRENGTH))] if lead else []
+    elif code == "melody_unmapped":
+        found = [(strength, beat) for beat, strength in
+                 strongest_per_slot([(b, s) for s, b in events([MELODY_LAYER], MELODY_ONSET_STRENGTH, ("melody_change",))])]
     elif code == "boundary_accent_unmapped":
         return [(1.0, start)]
     else:
@@ -545,11 +550,15 @@ def fill_findings(arrangement: dict, report: dict) -> dict:
         added = 0
         for warning in warnings:
             beats = sorted(float(n["beat"]) for n in expanded_notes(result))
+            melody = warning["code"] == "melody_unmapped"
+            reach = MELODY_MATCH_BEATS if melody else SALIENCE_MATCH_BEATS
             for strength, onset in _fill_targets(result, report, warning):
-                index = bisect_left(beats, onset - SALIENCE_MATCH_BEATS)
-                if index < len(beats) and beats[index] <= onset + SALIENCE_MATCH_BEATS:
+                index = bisect_left(beats, onset - reach)
+                if index < len(beats) and beats[index] <= onset + reach:
                     continue  # already mapped
-                target = _grid_beat(onset)
+                # A legato pitch change lands just after the beat; melodic bars keep the half-beat grid.
+                half = Fraction(round(onset * 2), 2)
+                target = half if melody and abs(float(half) - onset) <= MELODY_MATCH_BEATS else _grid_beat(onset)
                 key = (warning["code"], target)
                 if key in tried:
                     continue

@@ -145,6 +145,24 @@ class RepairAudioTests(unittest.TestCase):
         self.assertNotIn("vocal_line_unmapped", {w["code"] for w in result["remaining"]})
         self.assertEqual(errors(result["arrangement"]), [])
 
+    def test_an_unmapped_melody_gains_notes_on_its_pitch_changes(self):
+        # A drumless, voiceless intro: the pad's line changes pitch six times in two bars, but the map
+        # plays only beats 0 and 7, then the band enters with drums from beat 8.
+        beats = [0, 7] + list(range(8, 40))
+        evidence = report(range(8, 64))
+        evidence["layers"]["mix"]["events"] = [
+            {"id": f"mix:melody_change:{b}", "seconds": b / 2, "method": "melody_change", "strength": 0.6}
+            for b in (1, 2.15, 3, 4.5, 5.5, 6.5)]
+        before = critique_arrangement(arrangement(beats), evidence)
+        flagged = [w for w in before["warnings"] if w["code"] == "melody_unmapped"]
+        self.assertEqual(flagged[0]["beats"], [0, 8])
+        result = repair_audio(arrangement(beats), evidence)
+        added = {c["beat"] for c in result["changes"] if c["action"] == "added" and c["code"] == "melody_unmapped"}
+        # The late legato change at 2.15 takes the half-beat grid.
+        self.assertTrue(added <= {1, 2, 3, 4.5, 5.5, 6.5} and len(added) >= 4, result["changes"])
+        self.assertNotIn("melody_unmapped", {w["code"] for w in result["remaining"]})
+        self.assertEqual(errors(result["arrangement"]), [])
+
     def test_missing_evidence_is_an_actionable_error(self):
         with self.assertRaisesRegex(ValueError, "music analyze"):
             repair_audio(arrangement([0, 1]), None)

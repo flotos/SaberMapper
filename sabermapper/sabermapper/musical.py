@@ -64,8 +64,20 @@ CHORD_MIN_GAP_SECONDS = .15
 CHORD_FLOOR = .1
 NON_HARMONIC_LAYERS = ("drums", "percussive")
 PITCH_CLASSES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+# Melody changes: the predominant pitch (harmonic-summed salience over a long window, so
+# polyphonic pads, choirs and layered voices still resolve to one line) settles on a new note.
+MELODY_WINDOW = 4096
+MELODY_HOP = 2 * HOP
+MELODY_MIDI = (60, 88)  # lower voices resolve through their harmonics
+MELODY_HARMONICS = (1.0, .6, .4, .3)
+MELODY_SMOOTH_FRAMES = 3
+MELODY_MEDIAN_FRAMES = 5
+MELODY_HOLD_SECONDS = .15
+MELODY_BRIDGE_SECONDS = .5
+MELODY_FLOOR = .15
+MELODY_ATTACK_BEFORE, MELODY_ATTACK_AFTER = .12, .05
 RHYTHM_DIVISIONS = (2, 3, 4, 6, 8, 12)
-RHYTHM_METHODS = ("spectral_flux", "pitch_change", "chord_change")
+RHYTHM_METHODS = ("spectral_flux", "pitch_change", "chord_change", "melody_change")
 RHYTHM_PATTERN_STRENGTH = .3
 PRESETS = {
     "balanced": {"minimum_gap_seconds": .09, "prominence": .10},
@@ -339,6 +351,67 @@ def _chord_changes(name, frequencies, times, magnitude, power, duration, attacks
             for p in peaks if times[p] < duration]
 
 
+def _melody_changes(name, samples, duration, attacks=()):
+    """Frames where the predominant pitch of a layer moves to a new, held note.
+
+    The monophonic f0 tracker flips octaves on pads, choirs and chords, and chroma novelty
+    over short windows misses single-voice steps inside a held chord. Here each frame scores
+    every semitone in MELODY_MIDI by the summed magnitude at its first harmonics (a long
+    window resolves semitones), smooths the scores over MELODY_SMOOTH_FRAMES, keeps the best
+    semitone and median-filters it over MELODY_MEDIAN_FRAMES. Runs of one semitone lasting MELODY_HOLD_SECONDS are held notes; a held
+    note that follows another at a different pitch within MELODY_BRIDGE_SECONDS is a
+    melody_change. The long window reports the change late, so it moves onto the layer's
+    own attack between MELODY_ATTACK_BEFORE s before and MELODY_ATTACK_AFTER s after it.
+    """
+    if len(samples) < MELODY_WINDOW:
+        return []
+    frequencies, times, spectrum = stft(samples, fs=RATE, nperseg=MELODY_WINDOW,
+                                        noverlap=MELODY_WINDOW - MELODY_HOP, boundary="zeros", padded=True)
+    magnitude = np.abs(spectrum)
+    step = frequencies[1]
+    notes = np.arange(MELODY_MIDI[0], MELODY_MIDI[1] + 1)
+    salience = np.zeros((len(notes), magnitude.shape[1]))
+    widened = np.maximum(magnitude, np.maximum(np.roll(magnitude, 1, axis=0), np.roll(magnitude, -1, axis=0)))
+    for row, midi in enumerate(notes):
+        for harmonic, weight in enumerate(MELODY_HARMONICS, start=1):
+            index = int(round(440 * 2 ** ((midi - 69) / 12) * harmonic / step))
+            if index < len(frequencies) - 1:
+                salience[row] += weight * widened[index]
+    kernel = np.ones(MELODY_SMOOTH_FRAMES) / MELODY_SMOOTH_FRAMES
+    salience = np.apply_along_axis(lambda values: np.convolve(values, kernel, mode="same"), 1, salience)
+    best, level = notes[np.argmax(salience, axis=0)], np.max(salience, axis=0)
+    best = median_filter(best, size=MELODY_MEDIAN_FRAMES, mode="nearest")  # accompaniment flickers through
+    audible = level[level > 0]
+    ceiling = float(np.percentile(audible, 95)) if len(audible) else 0.0
+    if ceiling <= 1e-12:
+        return []
+    voiced = level >= MELODY_FLOOR * ceiling
+    hold = max(1, round(MELODY_HOLD_SECONDS * RATE / MELODY_HOP))
+    runs, begin = [], None
+    for index in range(len(best) + 1):
+        if begin is not None and (index == len(best) or not voiced[index] or best[index] != best[begin]):
+            if index - begin >= hold:
+                runs.append((begin, index - 1))
+            begin = None
+        if index < len(best) and voiced[index] and begin is None:
+            begin = index
+    attacks = np.sort(np.asarray(attacks, dtype=float))
+    events = []
+    for (first, last), (start, end) in zip(runs, runs[1:]):
+        delta = int(best[start] - best[first])
+        if not delta or times[start] - times[last] > MELODY_BRIDGE_SECONDS or times[start] >= duration:
+            continue
+        seconds = float(times[start])
+        near = attacks[(attacks >= seconds - MELODY_ATTACK_BEFORE) & (attacks <= seconds + MELODY_ATTACK_AFTER)]
+        seconds = float(near[np.argmin(np.abs(near - seconds))]) if len(near) else seconds
+        events.append({"id": f"{name}:melody_change:{int(start)}", "seconds": round(seconds, 6),
+                       "method": "melody_change",
+                       "strength": round(min(1.0, float(np.mean(level[start:end + 1])) / ceiling), 5),
+                       "from_midi": int(best[first]), "to_midi": int(best[start]), "semitone_delta": delta,
+                       "hold_seconds": round(float(times[end] - times[start]) + MELODY_HOP / RATE, 3)})
+    return events
+
+
 def _lane(samples, name, settings, band=None):
     frequencies, times, spectrum = _spectrum(samples)
     magnitude = np.abs(spectrum)
@@ -370,6 +443,8 @@ def _lane(samples, name, settings, band=None):
     if band is None and name not in NON_HARMONIC_LAYERS:
         attacks = [e["seconds"] for e in events if e["method"] == "spectral_flux"]
         events += _chord_changes(name, frequencies, times, magnitude, power, duration, attacks)
+        rises = [e["seconds"] for e in events if e["method"] in ("spectral_flux", "energy_rise")]
+        events += _melody_changes(name, samples, duration, rises)
     return {"kind": "frequency_band" if band else "audio_layer", "band_hz": band,
             "events": sorted(events, key=lambda e: (e["seconds"], e["method"])),
             "energy_contour": contour, "sustains": sustains,
@@ -438,6 +513,10 @@ def analyze_layers(audio, output, *, backend="bands", preset="balanced", manifes
                               "chord_change events come from pitch-class (chroma) novelty over 0.2 s windows, moved onto "
                               "the layer's own attack within 80 ms; they mark harmony changes, not chord names, and "
                               "separator bleed can trigger them.",
+                              "melody_change events follow the predominant pitch (harmonic salience over a "
+                              f"{MELODY_WINDOW / RATE:.2f} s window, MIDI {MELODY_MIDI[0]}-{MELODY_MIDI[1]}) when it settles on "
+                              f"a new note held {MELODY_HOLD_SECONDS:g} s or more; on a dense mix the line can jump "
+                              "between instruments, so read it where one pitched part leads.",
                               "No human timing review or playtest is implied."]}
     settings = PRESETS[preset]
     report["layers"]["mix"] = _lane(samples, "mix", settings)

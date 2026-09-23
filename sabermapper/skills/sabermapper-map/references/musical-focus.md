@@ -124,6 +124,17 @@ three strongest classes, not chord names) and sits on the layer's own attack whe
 one is within 80 ms. Use them as placement triggers and as cues for a direction
 or position change: a new chord is a natural point to change the hand's figure.
 
+Every layer except drums and percussive (and the mix) also emits
+`method: "melody_change"` events. They follow the predominant pitch: each frame
+scores every semitone from MIDI 60 to 88 by its summed harmonics over a 0.19 s
+window, so one line resolves through a held chord, a choir or layered voices,
+where `pitch_change` flips octaves and `chord_change` misses a single-voice step.
+An event marks the line settling on a new note held at least 0.15 s; it carries
+`from_midi`, `to_midi`, `semitone_delta` and `hold_seconds`, and sits on the
+layer's own attack when one is 120 ms before to 50 ms after it. Lower voices show
+through their harmonics, so read the steps, not the octave. On a dense mix the
+line jumps between instruments; trust it where one pitched part leads.
+
 Each layer also emits events with `method: "pitch_change"` carrying `from_midi`,
 `to_midi` and `semitone_delta`, where the smoothed pitch moves at least 0.8
 semitone and holds the new value for at least 100 ms. A layer's `attack_profile`
@@ -140,7 +151,7 @@ with beats, and `music inspect --layer NAME` scopes the slice to one stem.
 
 Quiet-passage policy, a standing user rule (2026-09-22: "For passages with low
 musical intensity and rhythm, place notes mostly on note change"): inside windows
-where `low_intensity` is true, place mostly on `pitch_change` events and genuine
+where `low_intensity` is true, place mostly on `melody_change` and `pitch_change` events and genuine
 attacks (`spectral_flux` on layers that are not `sustained_layer`); never place
 from `energy_rise` on a `sustained_layer`; select the lead by rhythmic salience,
 such as a grid-locked piano, rather than loudness; quantize to 1/2 or whole
@@ -156,6 +167,28 @@ quiet passage to vocal or melodic pitch changes. Lullaby (2026-09-22) went 45 s
 with one note because an instrumental intro was labelled "quiet" and then
 searched only for vocal and melodic changes. Borrowed Waters' intro had the same
 defect. `audio_unmapped` now blocks that on save.
+
+## Follow the melody
+
+Standing user rule (2026-09-23, Living a Lie): "the notes aren't really matching
+the pitch change of the sound." When no voice, drum pattern or declared
+instrument lead carries a bar (a pad, choir or synth intro, an ambient bridge),
+the pitched line is what the player hears, and its pitch changes are the rhythm.
+`melody_unmapped` flags those bars when most strong mix `melody_change` events
+(0.3 or more, strongest per half-beat) have no note within a quarter beat.
+
+- List the changes with `music inspect ID --workspace workspace --run RUN --start A --end B --layer mix`
+  (method `melody_change`, with `from_midi`/`to_midi`), and `music rhythm --layers mix`.
+- Put a note on each change. A legato pad or voice reaches its new pitch just
+  after the beat, so quantize to the nearest half beat, never onto an even grid
+  that ignores the line.
+- Let the row follow the contour: the highest notes of the phrase on the top
+  row, the lowest on the bottom, and a step up or down moves the next note the
+  same way. Cut direction keeps the flow rules; the row carries the pitch.
+- A note held a beat or more is an arc, not a stream. The other hand takes the
+  next change.
+- Do not fill between changes. A line that changes pitch once per beat maps once
+  per beat.
 
 ## Rhythm, not a metronome
 

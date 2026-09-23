@@ -86,6 +86,16 @@ ENSEMBLE_MIN_ACCENTS = 3
 ENSEMBLE_MIN_NOTES = 4
 ENSEMBLE_MAPPED_THRESHOLD = 0.2
 ENSEMBLE_ALLOWANCE_PER_BAR = 1
+# A unison hit: the drums and at least two more separated stems attack together (each spectral_flux
+# UNISON_STEM_STRENGTH or more within UNISON_SECONDS) under a mix attack among the song's loudest
+# (UNISON_MIX_PERCENTILE of its mix attacks), in a loud bar. One hand cuts it as a stack, one longer note:
+# two notes, three when UNISON_TALL_STEMS or more stems join.
+UNISON_SECONDS = 0.05
+UNISON_STEM_STRENGTH = 0.4
+UNISON_MIN_STEMS = 3
+UNISON_TALL_STEMS = 4
+UNISON_MIX_PERCENTILE = 85
+UNISON_PER_BAR = 3
 ENTRY_LAYER = "drums"
 ENTRY_WINDOW_BEATS = 4
 ENTRY_MIN_HITS = 2
@@ -129,7 +139,7 @@ DEFINITIONS = {
     "drum_rhythm_unmapped": "One or more consecutive non-singing bars (voice holding or resting) without a declared non-drum instrument lead (bar_lead), with at least 6 drums spectral_flux events of strength 0.3 or more (only the strongest per half-beat slot counts), fewer than 60% of which have a note within 0.13 beat.",
     "bar_lead": "The layer whose rhythm a 4-beat bar follows: vocals in a singing bar, otherwise the lead of the musical_focus phrase covering the bar's middle when that lead is an analyzed stem other than mix. Other bars have no declared lead and skip the lead checks.",
     "lead_rhythm_unmapped": "One or more consecutive bars led by an instrument stem (not vocals, which vocal_line_unmapped covers), outside thin, soft passages (mean passage support_score below 0.6 and energy_ratio below 0.75, where density_exceeds_audio sets the density), with at least 3 lead onsets (spectral_flux, pitch_change or chord_change of strength 0.3 or more, strongest per half-beat slot), fewer than 60% of which have a note within 0.13 beat. In a bar softer than 0.8 of the heavy passages' loudness (difficulty_exceeds_intensity), the onsets judged are the strongest per beat.",
-    "lead_rhythm_diluted": "One or more consecutive bars with a declared lead, at least 3 lead onsets and at least 4 note times, where fewer than 75% of the note times follow the lead: a note follows it when a lead onset of strength 0.2 or more sits within 0.13 beat, when the lead is silent within 0.75 beat (a gap another layer may fill), or when an arc is held through it. Filler between the lead's attacks flattens its syncopation into a metronome stream.",
+    "lead_rhythm_diluted": "One or more consecutive bars with a declared lead, at least 3 lead onsets and at least 4 note times, where fewer than 75% of the note times follow the lead: a note follows it when a lead onset of strength 0.2 or more sits within 0.13 beat, when the lead is silent within 0.75 beat (a gap another layer may fill), or when an arc is held through it; a note on the bar's heaviest ensemble accent or on a unison_hit counts as following it. Filler between the lead's attacks flattens its syncopation into a metronome stream.",
     "melodic_bar": "A 4-beat bar that is not a singing bar, has no declared instrument lead (bar_lead) and fewer "
                    "than 6 strong drum hits: the drums do not carry it, so the pitched line is what the player hears.",
     "melody_unmapped": "One or more consecutive melodic bars with at least 3 mix melody_change events (the predominant "
@@ -154,6 +164,15 @@ DEFINITIONS = {
                          "least 3 ensemble accents, fewer than 20% of which have a note within 0.13 beat: the map follows "
                          "one layer alone instead of carrying the whole song's weight. A note on a bar's heaviest ensemble "
                          "accent also counts as following the lead for lead_rhythm_diluted (one per bar).",
+    "unison_hit": "A mix spectral_flux attack at or above the song's 85th percentile of mix attacks (strength 0.3 or "
+                  "more) where the drums and at least two other separated stems each attack (spectral_flux 0.4 or "
+                  "more) within 0.05 s, in a bar with relative_loudness 0.9 or more that is not thin and soft; at "
+                  "most the 3 strongest per 4-beat bar, a beat apart (within 0.13 beat), none while arcs or chains hold both sabers "
+                  "(under one hold the free hand cuts it). "
+                  "Its stack size is 3 when 4 or more stems join, else 2.",
+    "unison_hit_unstacked": "A unison_hit whose sound (notes within 0.13 beat) carries no stack: no two notes of one "
+                            "hand at one beat. Several instruments striking at once read as one heavier hit, cut by "
+                            "one hand as a stack of 2 or 3 notes in a line along the cut.",
     "layer_entry": "A separated stem becoming audible (within 20 dB of its own 90th-percentile level and within 30 dB of "
                    "the mix) after at least 4 s of absence and staying audible for most of the next 2 s; the entry sits on "
                    "its first strong attack.",
@@ -799,6 +818,7 @@ def _lead_rhythm(arrangement, spans, notes, report, salience, warn):
     # per beat, the resolution a thin, quiet bar is drafted at, so the two checks never ask for opposite things.
     soft = {b["start_beat"] for b in intensity_bars(arrangement, report, notes)[1] if b.get("relative", 1.0) < SOFT_RATIO}
     end = max(s["end_beat"] for s in spans)
+    loudness, unison_cache = bar_loudness(report, arrangement, 0, math.ceil(end)), {}
     for start in range(0, math.ceil(end), SALIENCE_BAR_BEATS):
         stop = start + SALIENCE_BAR_BEATS
         lead = ("vocals" if start in singing and isinstance(layers.get("vocals"), dict)
@@ -815,13 +835,17 @@ def _lead_rhythm(arrangement, spans, notes, report, salience, warn):
             strong = [b for b, s in strongest_per_slot(found, 1) if s >= LEAD_ONSET_STRENGTH and start <= b < stop]
         mapped = sum(1 for b in strong if within(times, b, SALIENCE_MATCH_BEATS))
         # A note on the bar's heaviest hit of the rest of the band is the ensemble's weight, not filler;
-        # more than ENSEMBLE_ALLOWANCE_PER_BAR of them is a second rhythm competing with the lead.
+        # more than ENSEMBLE_ALLOWANCE_PER_BAR of them is a second rhythm competing with the lead. A loud bar's
+        # unison hits, the whole band striking at once, are that weight too.
         heavy = sorted(ensemble_accents(layers, arrangement, lead, start, stop, accents_cache), key=lambda a: -a[1])
-        accents = sorted(b for b, _, _ in heavy[:ENSEMBLE_ALLOWANCE_PER_BAR])
+        code, quiet = None, quiet_bar(report, arrangement, start, stop)
+        accents = [b for b, _, _ in heavy[:ENSEMBLE_ALLOWANCE_PER_BAR]]
+        if loudness.get(start, 0.0) >= LOUD_RATIO and not quiet:
+            accents += [b for b, *_ in unison_hits(layers, arrangement, start, stop, unison_cache)]
+        accents.sort()
         stray = [t for t in inside if within(support, t, LEAD_GAP_BEATS) and not within(support, t, SALIENCE_MATCH_BEATS)
                  and not within(accents, t, SALIENCE_MATCH_BEATS)
                  and not any(head <= t <= tail for head, tail in arcs)]
-        code, quiet = None, quiet_bar(report, arrangement, start, stop)
         # A thin, soft bar takes the lead's strongest attacks, not all of them (density_exceeds_audio).
         if lead != "vocals" and not quiet and mapped < LEAD_MAPPED_THRESHOLD * len(strong):
             code = "lead_rhythm_unmapped"
@@ -895,6 +919,92 @@ def ensemble_accents(layers, arrangement, lead, start, stop, cache):
         if slot not in strongest or strongest[slot][1] < strength:
             strongest[slot] = (beat, strength, name)
     return sorted(strongest.values())
+
+
+def bar_loudness(report, arrangement, first, last):
+    """{bar start: loudness relative to the song's heavy bars}, as the intensity check measures it."""
+    passages = (report or {}).get("passages") or []
+    values = {}
+    for start in range(first, last, INTENSITY_BAR_BEATS):
+        a = beat_to_seconds(start, arrangement)
+        b = beat_to_seconds(start + INTENSITY_BAR_BEATS, arrangement)
+        weighted = [(min(b, p["end_seconds"]) - max(a, p["start_seconds"]), p["energy_ratio"])
+                    for p in passages if p["end_seconds"] > a and p["start_seconds"] < b]
+        weight = sum(w for w, _ in weighted)
+        if weight > 0:
+            values[start] = sum(w * e for w, e in weighted) / weight
+    loud = _percentile(list(values.values()), INTENSITY_LOUD_PERCENTILE) if values else 0.0
+    return {start: value / loud for start, value in values.items()} if loud > 1e-9 else {}
+
+
+def unison_hits(layers, arrangement, start, stop, cache):
+    """(beat, stack size, stems, mix strength) unison hits in the bar [start, stop), strongest first.
+
+    See UNISON_*: at most UNISON_PER_BAR, a beat apart. The caller decides whether the bar is loud.
+    """
+    if "unison" not in cache:
+        from .musical import seconds_to_beat
+        stems = separated_stems(layers)
+        mix = sorted((float(e["seconds"]), e["strength"]) for e in (layers.get("mix") or {}).get("events", [])
+                     if e.get("method") == "spectral_flux" and e.get("strength", 0) >= ENSEMBLE_MIX_STRENGTH)
+        found = []
+        if "drums" in stems and len(stems) >= UNISON_MIN_STEMS and mix:
+            floor = _percentile([strength for _, strength in mix], UNISON_MIX_PERCENTILE)
+            onsets = {name: sorted(float(e["seconds"]) for e in layers[name].get("events", [])
+                                   if e.get("method") == "spectral_flux" and e.get("strength", 0) >= UNISON_STEM_STRENGTH)
+                      for name in stems}
+            for seconds, strength in mix:
+                if strength < floor:
+                    continue
+                joined = []
+                for name, times in onsets.items():
+                    index = bisect_left(times, seconds - UNISON_SECONDS)
+                    if index < len(times) and times[index] <= seconds + UNISON_SECONDS:
+                        joined.append(name)
+                if "drums" in joined and len(joined) >= UNISON_MIN_STEMS:
+                    found.append((seconds_to_beat(seconds, arrangement),
+                                  3 if len(joined) >= UNISON_TALL_STEMS else 2, sorted(joined), strength))
+        cache["unison"] = found
+    hits = sorted((h for h in cache["unison"] if start <= h[0] < stop), key=lambda h: (-h[3], h[0]))
+    chosen = []
+    for hit in hits:
+        if len(chosen) < UNISON_PER_BAR and all(abs(hit[0] - other[0]) >= 1 - SALIENCE_MATCH_BEATS
+                                                for other in chosen):
+            chosen.append(hit)
+    return sorted(chosen)
+
+
+def _unison(arrangement, spans, notes, report, warn):
+    """Flag unison hits (see unison_hit) that the map cuts without a stack."""
+    layers = (report or {}).get("layers") or {}
+    if len(separated_stems(layers)) < UNISON_MIN_STEMS or not spans or not notes:
+        return {"checked": False, "hits": []}
+    end = max(s["end_beat"] for s in spans)
+    loudness = bar_loudness(report, arrangement, 0, math.ceil(end))
+    holds = [(s["start_beat"] + float(Fraction(str(item["beat"]))), s["start_beat"] + float(Fraction(str(item["tail_beat"]))))
+             for s in spans for kind in ("arcs", "chains") for item in s["section"].get(kind, [])]
+    beats = [float(n["beat"]) for n in notes]
+    cache, found = {}, []
+    for bar in range(0, math.ceil(end), SALIENCE_BAR_BEATS):
+        if loudness.get(bar, 0.0) < LOUD_RATIO or quiet_bar(report, arrangement, bar, bar + SALIENCE_BAR_BEATS):
+            continue
+        for beat, size, stems, strength in unison_hits(layers, arrangement, bar, bar + SALIENCE_BAR_BEATS, cache):
+            if sum(1 for head, tail in holds if head < beat < tail) >= 2:
+                continue  # both sabers held: no hand is free to cut a stack
+            near = [n for n, b in zip(notes, beats) if abs(b - beat) <= SALIENCE_MATCH_BEATS]
+            stacked = any(count >= 2 for count in Counter((n["beat"], n["color"]) for n in near).values())
+            found.append({"beat": _round(beat, 4), "size": size, "stems": stems, "stacked": stacked})
+            if stacked:
+                continue
+            section = next((s["id"] for s in spans if s["start_beat"] <= beat < s["end_beat"]), None)
+            what = f"{len(near)} unstacked note(s)" if near else "no note"
+            warn("unison_hit_unstacked",
+                 f"Beat {beat:.2f} ({beat_to_seconds(beat, arrangement):.2f} s): {', '.join(stems)} strike together "
+                 f"(mix {strength:.2f}), and the map puts {what} there. Cut it as a stack of {size} on one hand, in "
+                 "a line along the cut, so the heavier hit reads as one longer note.",
+                 section_id=section, value=0, threshold=2, object_ids=[n["id"] for n in near],
+                 beats=[_round(beat, 4), _round(beat, 4)], targets=[[_round(beat, 4), size]])
+    return {"checked": True, "hits": found}
 
 
 def bar_leads(arrangement, spans, report, salience):
@@ -1134,6 +1244,7 @@ def critique_arrangement(arrangement: dict, report: dict | None = None, tier_ref
     metrics["lead_rhythm"] = _lead_rhythm(arrangement, spans, notes, report, metrics["salience"], warn)
     metrics["melody"] = _melody(arrangement, spans, notes, report, metrics["salience"], warn)
     metrics["ensemble"] = _ensemble(arrangement, spans, notes, report, metrics["salience"], warn)
+    metrics["unison"] = _unison(arrangement, spans, notes, report, warn)
     metrics["layer_entries"] = _entries(arrangement, spans, notes, report, warn)
     metrics["grid_alignment"] = _grid(arrangement, report, warn)
     metrics["focus_stems"] = _focus_stems(arrangement, spans, report, warn)

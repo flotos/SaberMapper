@@ -1,4 +1,4 @@
-# Movement model 1.6 and implementation survey
+# Movement model 1.7 and implementation survey
 
 The shared `analyze_movement(notes, bpm, njs=..., spawn_offset_beats=...)` result contains versioned swings,
 aggregate proxies, review warnings, and an explicit unsupported-motion list.
@@ -14,7 +14,7 @@ crossover count, reaction-time estimate from NJS/spawn offset, and recovery
 time are descriptive proxies, not comfort, injury, ranked difficulty, or star
 ratings. Walls, bombs, arcs, chains and complex rotations are not inferred.
 
-Model 1.6 has two blocking flow rules, both defined once in `movement.flow_break`.
+Model 1.7 has two blocking flow rules, both defined once in `movement.flow_break`.
 They apply to consecutive same-hand swings unless the hand rested: every cut must
 start where the previous one left the saber. A rest (`movement.is_rest`) is an idle
 gap of `REST_SECONDS` (2 s) or more on that hand, measured in seconds and never in
@@ -28,7 +28,10 @@ beats:
   forehand/backhand unless they turn 135 degrees or more.
 
 A dot counts as the reversal of the swing before it, so down-dot-down is still
-caught. Simultaneous notes are exempt. Findings have severity `error`, so
+caught. Model 1.7 (2026-09-23) adds the review warning `stack_shape`: same-hand
+notes at one beat (a stack) read as one longer note only as two or three notes
+in an unbroken line along their cut (`movement.stack_line`), a column for an up
+or down cut and a diagonal for a diagonal one. Simultaneous notes are exempt. Findings have severity `error`, so
 project save and export refuse them. When every involved note is in a locked
 section, the finding is downgraded to a warning.
 

@@ -17,6 +17,10 @@ functions the critique judges a map with, and the musical rules SM-036 records:
 * **Doubles mark the heaviest accents** of a loud bar (kick or crash hits in a riff, the heaviest ensemble accent
   and the snare backbeat in a sung bar). The sixteenth before one stays empty, and the placer brings both hands
   to it on one parity.
+* **Stacks mark unison hits**: where the drums and two more instruments strike together on one of the song's
+  loudest attacks (``critique.unison_hits``), one hand cuts two notes (three when four instruments join) in a
+  line along the cut, one longer note. Under a held arc the free hand cuts it. A stack takes the place of a
+  double on the same sound, and the sixteenth before it stays empty too.
 * The declared lead's strongest attack per half-beat (per beat in a thin or soft bar) carries a note, as the
   lead check requires; every time is snapped to the coarsest grid that stays on its sound.
 
@@ -39,11 +43,12 @@ from collections import Counter
 
 from .movement import BURST_SECONDS, BURST_SWINGS, _OPPOSITE, _VECTORS
 from .critique import (ENSEMBLE_MIX_STRENGTH, LOUD_RATIO, MELODY_ONSET_STRENGTH, DRUM_ONSET_STRENGTH, DRUM_PATTERN_MIN_ONSETS, DRUM_SLOTS_PER_BEAT, INTENSITY_BAR_BEATS,
-                       INTENSITY_LOUD_PERCENTILE, LEAD_GAP_BEATS, LEAD_MAPPED_THRESHOLD, LEAD_MIN_ONSETS,
+                       LEAD_GAP_BEATS, LEAD_MAPPED_THRESHOLD, LEAD_MIN_ONSETS,
                        LEAD_ONSET_STRENGTH, LEAD_SUPPORT_STRENGTH,
                        MELODY_MIN_CHANGES, SALIENCE_BAR_BEATS, SALIENCE_MATCH_BEATS, SOFT_RATIO, VOCAL_ONSET_STRENGTH,
-                       _percentile, _sections, beat_to_seconds, critique_arrangement, ensemble_accents, focus_lead,
-                       lead_onsets, melody_onsets, on_onset, quiet_bar, salient_onsets, strongest_per_slot)
+                       _sections, bar_loudness, beat_to_seconds, critique_arrangement, ensemble_accents, focus_lead,
+                       lead_onsets, melody_onsets, on_onset, quiet_bar, salient_onsets, strongest_per_slot,
+                       unison_hits)
 from .placement import place_arrangement
 from .validation import _beat
 
@@ -56,7 +61,7 @@ MIN_GAP_BEATS = Fraction(1, 4)
 RUN_STRENGTH = {"below_band": None, "band": 0.6, "challenge": 0.5, "stretch": 0.45, "beyond": 0.4}
 ONSET_STRENGTH = 0.3
 MAX_ROUNDS = 16
-ROLE_RANK = {"arc": 0, "lead": 1, "vocals": 1, "double": 2, "drums": 2, "melody": 2, "riff": 3, "run": 3, "ensemble": 4,
+ROLE_RANK = {"arc": 0, "lead": 1, "vocals": 1, "double": 2, "stack": 1, "drums": 2, "melody": 2, "riff": 3, "run": 3, "ensemble": 4,
              "onset": 4, "band_gap": 5, "band_hold": 5, "fill": 5, "band": 6, "intensity": 7}
 MUST_ROLES = ("arc", "lead", "vocals")  # kept past a bar's cap: the lead and salience checks need them
 LEAD_METHODS = ("spectral_flux", "pitch_change", "chord_change")
@@ -141,18 +146,7 @@ class _Evidence:
 
 def _loudness(evidence, first, last):
     """{bar start: loudness relative to the song's heavy bars}, as the intensity check measures it."""
-    passages = evidence.report.get("passages") or []
-    values = {}
-    for start in range(first, last, INTENSITY_BAR_BEATS):
-        a = beat_to_seconds(start, evidence.arrangement)
-        b = beat_to_seconds(start + INTENSITY_BAR_BEATS, evidence.arrangement)
-        weighted = [(min(b, p["end_seconds"]) - max(a, p["start_seconds"]), p["energy_ratio"])
-                    for p in passages if p["end_seconds"] > a and p["start_seconds"] < b]
-        weight = sum(w for w, _ in weighted)
-        if weight > 0:
-            values[start] = sum(w * e for w, e in weighted) / weight
-    loud = _percentile(list(values.values()), INTENSITY_LOUD_PERCENTILE) if values else 0.0
-    return {start: value / loud for start, value in values.items()} if loud > 1e-9 else {}
+    return bar_loudness(evidence.report, evidence.arrangement, first, last)
 
 
 def _candidate(beat, strength, role, layer, method, onset, seconds, melodic=False):
@@ -289,8 +283,10 @@ def _bar_candidates(evidence, bar, stop, singing, tier, soft=False, holds=(), lo
             if not _near(lead_support, beat, LEAD_GAP_BEATS) or _near(lead_support, beat, SALIENCE_MATCH_BEATS):
                 primary.append(_candidate(beat, strength, "ensemble", name, "spectral_flux", beat,
                                           beat_to_seconds(beat, arrangement)))
-    if loud and role != "soft":
-        doubles = _double_candidates(evidence, bar, stop, role, lead, holds)
+    if loud and role != "soft" and not quiet:
+        doubles = _stack_candidates(evidence, bar, stop, holds)
+        stacked = {c["beat"] for c in doubles}
+        doubles += [c for c in _double_candidates(evidence, bar, stop, role, lead, holds) if c["beat"] not in stacked]
     # Reserve for heavier bars: the lead's (or the drum pattern's) sixteenths, then every stem's strongest attack
     # per half-beat that does not dilute the lead.
     rolling = riff or lead or "drums"
@@ -310,13 +306,27 @@ def _bar_candidates(evidence, bar, stop, singing, tier, soft=False, holds=(), lo
         # bar's heaviest ensemble accent may sit off the lead's attacks: that is what lead_rhythm_diluted counts.
         def on_lead(item):
             onset = float(item["beat"])
-            return (item["role"] in ("lead", "vocals", "ensemble", "band_hold", "band_gap", "band")
+            return (item["role"] in ("lead", "vocals", "ensemble", "stack", "band_hold", "band_gap", "band")
                     or not _near(judged_support, onset, LEAD_GAP_BEATS) or _near(judged_support, onset,
                                                                                  SALIENCE_MATCH_BEATS))
         primary = [c for c in primary if on_lead(c)]
         reserve = [c for c in reserve if on_lead(c)]
         doubles = [c for c in doubles if on_lead(c) or _near(judged_support, float(c["beat"]), SALIENCE_MATCH_BEATS)]
     return summary, primary, reserve, doubles
+
+
+def _stack_candidates(evidence, bar, stop, holds):
+    """The bar's unison hits as stacks (``stack``: 2 or 3 notes for one hand). A stack needs one hand: under a held
+    arc or chain the free hand cuts it; only while both sabers are held is there none."""
+    found = []
+    for beat, size, stems, strength in unison_hits(evidence.layers, evidence.arrangement, bar, stop,
+                                                   evidence.cache.setdefault("unison", {})):
+        item = _candidate(beat, strength, "stack", "mix", "spectral_flux", beat,
+                          beat_to_seconds(beat, evidence.arrangement))
+        item["evidence"]["stems"] = stems
+        if sum(1 for head, tail in holds if head < item["beat"] < tail) < 2:
+            found.append({**item, "stack": size})
+    return found
 
 
 def _double_candidates(evidence, bar, stop, role, lead, holds):
@@ -484,7 +494,8 @@ def _band_share(chosen, bars, evidence, holds):
         start = bar["start_beat"]
         support = [b for b, *_ in evidence.events(lead, LEAD_METHODS, LEAD_SUPPORT_STRENGTH)]
         inside = [b for b in chosen if start <= b < start + SALIENCE_BAR_BEATS]
-        stray = sorted((b for b in inside if chosen[b]["role"] not in ("arc", "ensemble", "band_hold")
+        stray = sorted((b for b in inside if chosen[b]["role"] not in ("arc", "ensemble", "stack", "band_hold")
+                        and not chosen[b].get("stack")
                         and not any(head <= b <= tail for head, tail in holds)
                         and _near(support, float(b), LEAD_GAP_BEATS) and not _near(support, float(b),
                                                                                   SALIENCE_MATCH_BEATS)),
@@ -495,19 +506,27 @@ def _band_share(chosen, bars, evidence, holds):
 
 
 def _mark_doubles(chosen, doubles, fixed, holds, seconds):
-    """Put a double on each accent: the time joins the draft (displacing a lesser note on the same sound) and the
-    sixteenth before it stays empty unless it carries the lead's strongest attack of that half beat."""
-    for item in doubles:
+    """Put a double (or a stack) on each accent: the time joins the draft (displacing a lesser note on the same
+    sound) and the sixteenth before it stays empty unless it carries the lead's strongest attack of that half beat.
+    A stack wins over a double on the same time, and over a note snapped to a neighbouring time on the same sound
+    (its onset within SALIENCE_MATCH_BEATS of the stack's)."""
+    for item in sorted(doubles, key=lambda c: "stack" not in c):
         beat = item["beat"]
         if beat not in chosen:
             crowd = [b for b in chosen if abs(b - beat) < MIN_GAP_BEATS]
-            if any(ROLE_RANK[chosen[b]["role"]] <= ROLE_RANK["double"] for b in crowd) or any(
+            onset = item["evidence"]["onset_beat"]
+            same = lambda b: (item.get("stack") and chosen[b]["role"] != "arc"
+                              and abs(chosen[b]["evidence"]["onset_beat"] - onset) <= SALIENCE_MATCH_BEATS)
+            if any(ROLE_RANK[chosen[b]["role"]] <= ROLE_RANK["double"] and not same(b) for b in crowd) or any(
                     abs(beat - f) < MIN_GAP_BEATS for f in fixed):
                 continue
             for b in crowd:
                 del chosen[b]
             chosen[beat] = item
-        chosen[beat] = {**chosen[beat], "double": True}
+        if item.get("stack"):
+            chosen[beat] = {**{k: v for k, v in chosen[beat].items() if k != "double"}, "stack": item["stack"]}
+        elif not chosen[beat].get("stack"):
+            chosen[beat] = {**chosen[beat], "double": True}
         before = beat - Fraction(1, 4)
         if before in chosen and chosen[before]["role"] not in ("lead", "arc"):
             del chosen[before]
@@ -528,7 +547,8 @@ def _bar_caps(bars, loudness, tier, tier_reference, seconds):
 
 
 def _with_notes(base, chosen, arcs=()):
-    """``base`` plus rhythm-only notes (two on a double) for the chosen times, in the unlocked section holding them.
+    """``base`` plus rhythm-only notes (two on a double, two or three marked ``stack`` on a stack) for the chosen
+    times, in the unlocked section holding them.
 
     ``arcs`` are (head, tail, arc fields) to add to the section holding the head.
     """
@@ -538,12 +558,14 @@ def _with_notes(base, chosen, arcs=()):
         for section, first, last in spans:
             if first <= beat < last and not section.get("locked"):
                 taken = {n["id"] for n in section["notes"]}
-                for suffix in ("", "-b")[:2 if chosen[beat].get("double") else 1]:
+                stack = chosen[beat].get("stack")
+                for suffix in ("", "-b", "-c")[:stack or (2 if chosen[beat].get("double") else 1)]:
                     note_id = "r-" + str(beat).replace("/", "_") + suffix
                     while note_id in taken:
                         note_id += "x"
                     taken.add(note_id)
-                    section["notes"].append({"id": note_id, "beat": _relative(beat - first)})
+                    section["notes"].append({"id": note_id, "beat": _relative(beat - first),
+                                             **({"stack": True} if stack else {})})
                 break
     for head, tail, fields in arcs:
         for section, first, last in spans:
@@ -595,7 +617,8 @@ def propose_rhythm(arrangement: dict, report: dict, *, start: float | None = Non
     """A rhythm draft for [start, end) (default: the whole song); see the module docstring.
 
     Returns ``{"range", "tier", "bars", "arcs", "draft", "placement", "remaining", "rounds"}``. ``draft`` is the
-    arrangement with the range's free notes replaced by rhythm-only notes (``id`` and ``beat``, two on a double)
+    arrangement with the range's free notes replaced by rhythm-only notes (``id`` and ``beat``, two on a double,
+    two or three marked ``stack`` on a stack)
     and the drafted arcs, ready to edit and save. ``held`` names held vocals (source seconds) the user asked for.
     """
     if not report:
@@ -666,13 +689,14 @@ def propose_rhythm(arrangement: dict, report: dict, *, start: float | None = Non
     for beat, item in sorted(chosen.items()):
         by_bar.setdefault(_bar_of(beat), []).append(
             {"beat": _relative(beat), "role": item["role"], "evidence": item["evidence"],
-             **({"double": True} if item.get("double") else {})})
+             **({"double": True} if item.get("double") else {}),
+             **({"stack": item["stack"]} if item.get("stack") else {})})
     for bar in bars:
         bar["relative_loudness"] = round(loudness.get(bar["start_beat"], 0.0), 3)
         bar["cap"] = caps.get(bar["start_beat"])
         bar["notes"] = by_bar.get(bar["start_beat"], [])
     return {"range": [_relative(first), _relative(last)], "tier": tier,
-            "note_count": sum(2 if i.get("double") else 1 for i in chosen.values()),
+            "note_count": sum(i.get("stack") or (2 if i.get("double") else 1) for i in chosen.values()),
             "bars": bars, "arcs": [{"head": _relative(h), "tail": _relative(t), "evidence": e} for h, t, e in live],
             "draft": draft, "placement": placed["report"], "rounds": rounds, "history": history,
             "remaining": [{k: w.get(k) for k in ("code", "beats", "message")} for w in issues]}
@@ -802,8 +826,11 @@ def _adjust(chosen, issues, placed, evidence, reserve, fixed, removed, critique,
                     drop(beat)
         elif code in ("one_hand_burst", "fast_direction_break", "flow_parity_break", "hidden_note",
                       "arc_note_conflict", "chain_note_conflict", "reach_proxy"):
-            targets = [b for b in _note_beats(placed, issue.get("object_ids") or []) if b in chosen]
-            victim = weakest(targets[1:-1] or targets) or (targets[1:-1] or targets or [None])[0]
+            targets = sorted({b for b in _note_beats(placed, issue.get("object_ids") or []) if b in chosen})
+            # Dropping any swing of a run exactly BURST_SWINGS long ends it, so the weakest sound goes; a longer
+            # run splits in the middle.
+            inner = targets if code == "one_hand_burst" and len(targets) <= BURST_SWINGS else targets[1:-1]
+            victim = weakest(inner or targets) or (inner or targets or [None])[0]
             if victim is not None:
                 drop(victim)
         elif code == "density_exceeds_audio":
@@ -883,7 +910,7 @@ def _lead_pool(evidence, span):
 AUDIO_SUGGESTED = ("audio_unmapped", "note_without_audio", "density_exceeds_audio", "difficulty_exceeds_intensity",
                    "lead_rhythm_diluted", "lead_rhythm_unmapped", "vocal_line_unmapped", "drum_rhythm_unmapped",
                    "drum_entry_unmapped", "melody_unmapped", "ensemble_unmapped", "boundary_accent_unmapped",
-                   "density_collapse", "intensity_underplayed", "focus_on_quiet_stem")
+                   "density_collapse", "intensity_underplayed", "focus_on_quiet_stem", "unison_hit_unstacked")
 RETIME_REACH = Fraction(1, 2)
 
 
@@ -891,7 +918,8 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
     """Attach concrete edits to audio and critique findings, drawn from the rhythm draft's own generators.
 
     ``arrangement`` is placed. Additions are rhythm-only notes (``beat`` plus the evidence) that the placer
-    places on save; removals and retimes name the notes; ``set_weights`` rewrites a focus phrase.
+    places on save; removals and retimes name the notes; ``set_weights`` rewrites a focus phrase; ``stack`` turns
+    the note on a unison hit into a stack (the other hand's note at that time leaves).
     """
     wanted = [f for f in findings if f["code"] in AUDIO_SUGGESTED and not f["suggestions"]]
     if not wanted or not report:
@@ -1032,6 +1060,21 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
             add(finding, pool, "map the band's heaviest accents")
         elif code == "focus_on_quiet_stem":
             finding["suggestions"] += focus_weights(arrangement, report, context, finding.get("section_id"))
+        elif code == "unison_hit_unstacked" and finding.get("targets"):
+            onset, size = finding["targets"][0]
+            target = grid_beat(float(onset))
+            literal = sorted((by_id[i] for i in finding["object_ids"] if i in by_id and "/note/" in i),
+                             key=lambda n: (abs(n["beat"] - target), n["beat"]))
+            why = "cut the unison hit as a stack: one hand, notes in a line along the cut"
+            if literal:
+                keep = literal[0]
+                others = [n["id"] for n in notes if n["beat"] == keep["beat"] and n["id"] != keep["id"]]
+                if all("/note/" in i for i in others):
+                    finding["suggestions"].append({"op": "stack", "object_id": keep["id"], "size": size,
+                                                   "remove": others, "reason": why})
+            elif not any(abs(target - t) < MIN_GAP_BEATS for t in times):
+                finding["suggestions"].append({"op": "stack", "beat": _relative(target), "size": size,
+                                               "reason": why})
 
 
 def focus_weights(arrangement, report, context=None, section_id=None):

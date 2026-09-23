@@ -10,6 +10,8 @@ Run commands from the application directory with its Python environment:
 
 ```text
 python -m sabermapper music backends
+python -m sabermapper music analyze ID --workspace workspace --backend ensemble
+python -m sabermapper music spectrogram ID --workspace workspace --start 64 --end 96 [--layers mix,drums,guitar]
 python -m sabermapper music analyze ID --workspace workspace --backend bands --preset metal
 python -m sabermapper music analyze ID --workspace workspace --backend hpss --preset electronic
 python -m sabermapper music analyze ID --workspace workspace --backend demucs --model htdemucs --python PATH_TO_SEPARATION_PYTHON
@@ -22,7 +24,8 @@ python -m sabermapper music analyze ID --workspace workspace --from-run RUN_ID
 
 `--from-run` (backend `rerun`) re-analyzes the stems an earlier run already
 separated with the current detectors, without separating again. Use it when a
-project's newest run predates schema 1.2 (no `chord_change` events).
+project's newest run predates schema 1.3 (no `bleed_gate` or `layer_entries`),
+or separate again with `--backend ensemble` when the stems came from a single model.
 
 Each analysis creates an immutable `musical/RUN_ID/report.json` beside the project
 arrangement. `music inspect` returns only the selected absolute beat range, with
@@ -38,6 +41,11 @@ saving through the CLI without requiring the user to operate the studio.
   bright attacks and ensemble accents; bands are not instrument isolation.
 - `hpss`: harmonic/percussive median-mask separation, with soloable mono audio.
   Useful when a sustained layer masks percussion; neither layer is an instrument.
+- `ensemble` (default choice): `htdemucs_ft` with 2 shifts gives vocals, drums
+  and bass; its `other` is split into guitar, piano and other with soft masks
+  from `htdemucs_6s`, so the six stems still sum to the mix. It runs in
+  `.venv-separation` on CUDA when available (about a minute per song on the
+  local GPU); `--python` and `--device` override the detection.
 - `demucs`: optional local neural separation in a separate Python environment.
   Four-source models expose vocals/drums/bass/other. `htdemucs_6s` also estimates
   guitar/piano; inspect bleed and artifacts before trusting these labels.
@@ -54,6 +62,16 @@ and energy rise. Strength is normalized per layer and detector; it is not a
 probability, and quiet bleed can still have a strong normalized peak. Use energy
 contours, full-mix context and listening to distinguish attacks, sustained notes,
 breaths, gaps and separator artifacts. Vocal onsets are not syllable transcription.
+
+Every separated stem passes a bleed gate: events and sustains where the stem
+sits 30 dB or more below the mix are dropped, and `bleed_gate` on the layer
+counts them. `htdemucs_6s` alone left a phantom piano stem 30-40 dB under the
+mix in five of eight songs (2026-09-23); its "onsets" were other instruments'
+leakage. A stem whose `present_share` is small is mostly absent: do not lead with it.
+
+Each report since schema 1.3 has `layer_entries`: where a stem becomes audible
+after 4 s or more of absence, on its first strong attack. `music rhythm` lists
+them per bar as `entering`, and spectrograms draw them in green.
 
 ## Author focus and rhythm before movement
 
@@ -261,6 +279,28 @@ guitar's sixteenth runs at 0:33-0:39.
 - `grid_drift` warns when a 32-beat window's percussive onsets sit more than
   30 ms from the song-wide grid offset (`metrics.grid_alignment`). Fix the BPM,
   offset or tempo events before placing notes there.
+
+## Focus moves; the whole band weighs in
+
+Standing user rule (2026-09-23, `focus_shifts` in `player-profile.json`): "allow
+track focus to change, sometimes being on drum when they start appearing, and
+always combine a bit of other tracks in addition to tracked one to make the map
+feel the whole song weight in addition of tracked thing."
+
+- The lead is chosen bar by bar (see the next section), and it moves when the
+  music does. When the drums enter or come back after a break, give them the
+  focus for that bar: put notes on their first hits, then hand the focus back
+  to the voice or the riff. `drum_entry_unmapped` flags an arrival the map ignores.
+  Other stems' entries (a guitar or synth coming in) are good moments for a
+  handoff too; check `entering` in `music rhythm` and the green lines in the spectrogram.
+- Following the lead is never following it alone. Under the lead, add a few of
+  the other stems' heaviest hits: a crash, a kick-and-bass accent, a stab on a
+  downbeat. About one per bar, never a second stream. `ensemble_unmapped`
+  flags 16 beats where fewer than 20% of those accents carry a note, and names
+  the heaviest to add. Declare this in `musical_focus` weights by giving the
+  supporting stems part of the weight (for example `{"vocals": 0.7, "drums": 0.2, "bass": 0.1}`).
+- `lead_rhythm_diluted` accepts one note per bar on the bar's heaviest ensemble
+  accent. More than that competes with the lead's rhythm and still counts as filler.
 
 ## Salience: who leads, bar by bar
 

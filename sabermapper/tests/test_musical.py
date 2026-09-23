@@ -99,7 +99,10 @@ class MusicalEvidenceTests(unittest.TestCase):
     def test_demucs_adapter_and_failed_run(self):
         out = self.root / "model"
         def fake_run(command, **kwargs):
+            if command[1] == "-c":  # device auto-detection probes the separation Python's torch
+                return type("Result", (), {"returncode": 0, "stdout": "cpu\n"})()
             self.assertEqual(command[:3], ["custom-python", "-m", "demucs.separate"])
+            self.assertEqual(command[command.index("-d") + 1], "cpu")
             folder = out / "separated/htdemucs/mix"
             folder.mkdir(parents=True)
             for name in ("vocals", "drums", "bass", "other"):
@@ -111,7 +114,7 @@ class MusicalEvidenceTests(unittest.TestCase):
         with patch("sabermapper.musical.subprocess.run") as runner:
             runner.return_value.returncode = 1
             with self.assertRaisesRegex(ValueError, "Demucs failed"):
-                analyze_layers(self.audio, self.root / "failed", backend="demucs")
+                analyze_layers(self.audio, self.root / "failed", backend="demucs", python="custom-python", device="cpu")
         self.assertFalse((self.root / "failed/report.json").exists())
 
     def test_tiny_audio(self):
@@ -339,7 +342,7 @@ class PitchAndPassageTests(unittest.TestCase):
         self.assertGreater(report["passages"][-1]["drum_onset_density"], 5)
         self.assertEqual(report["passage_thresholds"]["window_seconds"], 2.0)
         self.assertIn(report["passage_thresholds"]["drum_layer"], report["layers"])
-        self.assertEqual(report["schema_version"], "1.2")
+        self.assertEqual(report["schema_version"], "1.3")
 
     def test_slice_returns_sustains_passages_and_one_layer(self):
         arrangement = copy.deepcopy(self.initial["arrangement"])

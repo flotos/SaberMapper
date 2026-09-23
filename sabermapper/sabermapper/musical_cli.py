@@ -12,8 +12,9 @@ def register_musical(commands):
     actions.add_parser("backends", help="List techniques, dependencies, and authoring boundaries")
     helps = {"analyze": "Create an immutable evidence run (stems, onsets, pitch and chord changes)",
              "list": "List evidence runs", "inspect": "Evidence and mapped notes for a beat range",
-             "rhythm": "Per-bar onset grids per layer beside the mapped notes, with the bar's lead"}
-    for action in ("analyze", "list", "inspect", "rhythm"):
+             "rhythm": "Per-bar onset grids per layer beside the mapped notes, with the bar's lead",
+             "spectrogram": "PNG of the mix and stems over a beat range with grid, notes, attacks and entries"}
+    for action in ("analyze", "list", "inspect", "rhythm", "spectrogram"):
         parser = actions.add_parser(action, help=helps[action])
         parser.add_argument("project")
         parser.add_argument("--workspace", type=Path, default=Path("workspace"))
@@ -23,9 +24,10 @@ def register_musical(commands):
             parser.add_argument("--from-run", dest="from_run",
                                 help="Re-analyze the stems this run already separated (backend rerun)")
             parser.add_argument("--manifest", type=Path, help="Aligned stems and producer/model provenance")
-            parser.add_argument("--python", type=Path, help="Python environment with Demucs installed")
+            parser.add_argument("--python", type=Path,
+                                help="Python with Demucs; default: this one if it has Demucs, else .venv-separation")
             parser.add_argument("--model", default="htdemucs")
-            parser.add_argument("--device", default="cpu")
+            parser.add_argument("--device", default="auto", help="cuda, cpu or auto (cuda when available)")
         if action == "rhythm":
             parser.add_argument("--run", help="Evidence run ID; default: newest run for the current audio")
             parser.add_argument("--start", type=float, required=True, help="Absolute start beat")
@@ -33,6 +35,12 @@ def register_musical(commands):
             parser.add_argument("--layers", help="Comma-separated layers; default: every stem")
             parser.add_argument("--division", type=int, default=4, help="Grid cells per beat: 2, 3, 4, 6, 8 or 12")
             parser.add_argument("--output", type=Path)
+        if action == "spectrogram":
+            parser.add_argument("--run", help="Evidence run ID; default: newest run for the current audio")
+            parser.add_argument("--start", type=float, help="Absolute start beat; omit with --end for the whole song")
+            parser.add_argument("--end", type=float, help="Exclusive end beat")
+            parser.add_argument("--layers", help="Comma-separated layers; default: mix and every separated stem")
+            parser.add_argument("--output", type=Path, help="PNG path; default: views/ in the project")
         if action == "inspect":
             parser.add_argument("--run", required=True)
             parser.add_argument("--start", type=float, required=True, help="Absolute start beat")
@@ -54,13 +62,16 @@ def dispatch_musical(args, emit):
             {"id": "demucs", "available_in_current_python": importlib.util.find_spec("demucs") is not None,
              "setup": "Install Demucs in a compatible environment; pass its executable with --python",
              "models": ["htdemucs", "htdemucs_ft", "htdemucs_6s", "hdemucs_mmi"]},
+            {"id": "ensemble", "models": ["htdemucs_ft", "htdemucs_6s"],
+             "description": "Recommended. htdemucs_ft vocals/drums/bass (shifts 2) with its other split into "
+                            "guitar/piano/other by htdemucs_6s masks; uses .venv-separation and CUDA automatically"},
             {"id": "import", "available": True,
              "setup": "Run any separator (e.g. BS-RoFormer) externally, then provide --manifest with source_sha256, producer and stems"},
             {"id": "rerun", "available": True,
              "setup": "Pass --from-run RUN_ID to re-analyze that run's separated stems with the current detectors"}],
             "presets": PRESETS, "authoring": "An independently invoked Codex or Claude Code agent authors all notes and focus changes."})
         return True
-    from .musical import analyze_project, evidence_slice, latest_run, project_runs, rhythm_grid
+    from .musical import analyze_project, evidence_slice, project_runs, rhythm_grid
     from .projects import ProjectStore
     store = ProjectStore(args.workspace)
     directory = store.directory(args.project)
@@ -69,17 +80,18 @@ def dispatch_musical(args, emit):
              ("backend", "preset", "manifest", "python", "model", "device", "from_run")}))
     elif args.music_action == "list":
         emit(project_runs(directory))
+    elif args.music_action == "spectrogram":
+        from .spectrogram import project_view
+        with store.lock:
+            arrangement = read_json(directory / "arrangement.json")
+        run_id, report = _run(directory, args.run)
+        layers = [name.strip() for name in args.layers.split(",") if name.strip()] if args.layers else None
+        emit(project_view(directory, arrangement, report, run_id, start_beat=args.start, end_beat=args.end,
+                          layers=layers, output=args.output))
     elif args.music_action == "rhythm":
         with store.lock:
             arrangement = read_json(directory / "arrangement.json")
-        if args.run is None:
-            run_id, report = latest_run(directory)
-            if report is None:
-                raise ValueError("No evidence run matches the current audio; run `music analyze` first")
-        else:
-            if not re.fullmatch(r"[a-f0-9]{32}", args.run):
-                raise ValueError("Invalid musical evidence run ID")
-            run_id, report = args.run, read_json(directory / "musical" / args.run / "report.json")
+        run_id, report = _run(directory, args.run)
         layers = [name.strip() for name in args.layers.split(",") if name.strip()] if args.layers else None
         emit({"run_id": run_id, **rhythm_grid(report, arrangement, args.start, args.end,
                                               layers=layers, division=args.division)}, args.output)
@@ -95,3 +107,16 @@ def dispatch_musical(args, emit):
         emit({"run_id": args.run,
               **evidence_slice(report, arrangement, args.start, args.end, args.layer)}, args.output)
     return True
+
+
+def _run(directory, run_id):
+    """(run ID, report): the named run, else the newest run for the current audio."""
+    from .musical import latest_run
+    if run_id is None:
+        run_id, report = latest_run(directory)
+        if report is None:
+            raise ValueError("No evidence run matches the current audio; run `music analyze` first")
+        return run_id, report
+    if not re.fullmatch(r"[a-f0-9]{32}", run_id):
+        raise ValueError("Invalid musical evidence run ID")
+    return run_id, read_json(directory / "musical" / run_id / "report.json")

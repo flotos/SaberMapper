@@ -17,7 +17,9 @@ Two passes, both judged against one musical evidence run:
    neighbouring swing of that hand; otherwise the onset is reported unresolved.
    ``lead_rhythm_unmapped`` adds notes on the declared lead's strongest attack
    per half-beat, and ``melody_unmapped`` on the strongest melody change per
-   half-beat of a melodic bar.
+   half-beat of a melodic bar. ``drum_entry_unmapped`` maps the arriving drums'
+   strongest hit per half-beat, and ``ensemble_unmapped`` the heaviest accents
+   of the other stems that the finding names.
 3. **Follow the lead.** Each bar flagged ``lead_rhythm_diluted`` (notes filling
    the space between the lead's attacks) or ``lead_rhythm_unmapped`` (an even
    stream leaving no room for the lead's attacks) is rebuilt: its free notes are cleared,
@@ -72,7 +74,7 @@ MAX_ROUNDS = 12
 THIN_STRENGTH_FLOOR = 0.25
 THIN_OFFBEAT_FACTOR = 0.8
 FILL_CODES = ("vocal_line_unmapped", "drum_rhythm_unmapped", "lead_rhythm_unmapped", "melody_unmapped",
-              "boundary_accent_unmapped", "density_collapse")
+              "boundary_accent_unmapped", "density_collapse", "drum_entry_unmapped", "ensemble_unmapped")
 REBUILD_MIN_NOTES = 4
 LEAD_RUN_STRENGTH = 0.6
 LANES = {0: (0, 1), 1: (2, 3)}
@@ -515,9 +517,11 @@ def _fill_targets(arrangement, report, warning):
                 for e in (layers.get(name) or {}).get("events", [])
                 if e.get("method") in methods and e.get("strength", 0) >= threshold]
 
+    if "targets" in warning:  # the finding names the onsets itself (ensemble_unmapped: the heaviest few)
+        return sorted(((strength, beat) for beat, strength in warning["targets"]), reverse=True)
     if code == "vocal_line_unmapped":
         found = events(["vocals"], VOCAL_ONSET_STRENGTH)
-    elif code == "drum_rhythm_unmapped":
+    elif code in ("drum_rhythm_unmapped", "drum_entry_unmapped"):
         strongest = {}
         for strength, beat in events(["drums"], DRUM_ONSET_STRENGTH):
             slot = int(beat * DRUM_SLOTS_PER_BEAT + 0.5)

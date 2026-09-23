@@ -19,8 +19,16 @@ candidate to seek. Use **Listen** to solo an available stem at the same playhead
 or return to the full mix. **Mute** silences preview audio. The main waveform
 continues to show the full mix. Analysis never changes the saved arrangement.
 
-For individual instruments, the agent can invoke the optional Demucs adapter, or
+For individual instruments, the agent runs the `ensemble` backend: Demucs
+`htdemucs_ft` (vocals, drums, bass) with its remainder split into guitar, piano
+and other by `htdemucs_6s` masks, in the separate `.venv-separation` environment
+on the GPU when one is available. It can also run a single Demucs model, or
 import aligned outputs from other tools such as BS-RoFormer or Mel-Band RoFormer.
+Every separated stem is bleed-gated: its events are dropped where it sits 30 dB
+or more below the mix. Each run records `layer_entries` (a stem becoming audible
+after silence) and writes `overview.png`, a spectrogram of the mix and every
+stem; `music spectrogram` draws any beat range with the current notes, so the
+agent can see the song it cannot hear.
 All completed runs are retained; **Refresh** discovers new agent runs.
 Model environments are separate from the studio's base Python dependencies.
 

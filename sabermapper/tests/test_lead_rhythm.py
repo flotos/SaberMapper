@@ -250,7 +250,7 @@ class ChordChangeTests(unittest.TestCase):
         first = min(changes, key=lambda e: abs(e["seconds"] - 1.0))
         self.assertIn("C", first["from_pitch_classes"])
         self.assertIn("F", first["to_pitch_classes"])
-        self.assertEqual(report["schema_version"], "1.2")
+        self.assertEqual(report["schema_version"], "1.3")
         self.assertFalse([e for layer in ("low", "mid", "high")
                           for e in report["layers"][layer]["events"] if e["method"] == "chord_change"],
                          "frequency bands share the mix signal")

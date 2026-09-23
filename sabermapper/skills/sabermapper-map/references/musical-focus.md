@@ -10,6 +10,8 @@ Run commands from the application directory with its Python environment:
 
 ```text
 python -m sabermapper music backends
+python -m sabermapper music analyze ID --workspace workspace --backend ensemble
+python -m sabermapper music spectrogram ID --workspace workspace --start 64 --end 96 [--layers mix,drums,guitar]
 python -m sabermapper music analyze ID --workspace workspace --backend bands --preset metal
 python -m sabermapper music analyze ID --workspace workspace --backend hpss --preset electronic
 python -m sabermapper music analyze ID --workspace workspace --backend demucs --model htdemucs --python PATH_TO_SEPARATION_PYTHON
@@ -22,7 +24,8 @@ python -m sabermapper music analyze ID --workspace workspace --from-run RUN_ID
 
 `--from-run` (backend `rerun`) re-analyzes the stems an earlier run already
 separated with the current detectors, without separating again. Use it when a
-project's newest run predates schema 1.2 (no `chord_change` events).
+project's newest run predates schema 1.3 (no `bleed_gate` or `layer_entries`),
+or separate again with `--backend ensemble` when the stems came from a single model.
 
 Each analysis creates an immutable `musical/RUN_ID/report.json` beside the project
 arrangement. `music inspect` returns only the selected absolute beat range, with
@@ -38,6 +41,11 @@ saving through the CLI without requiring the user to operate the studio.
   bright attacks and ensemble accents; bands are not instrument isolation.
 - `hpss`: harmonic/percussive median-mask separation, with soloable mono audio.
   Useful when a sustained layer masks percussion; neither layer is an instrument.
+- `ensemble` (default choice): `htdemucs_ft` with 2 shifts gives vocals, drums
+  and bass; its `other` is split into guitar, piano and other with soft masks
+  from `htdemucs_6s`, so the six stems still sum to the mix. It runs in
+  `.venv-separation` on CUDA when available (about a minute per song on the
+  local GPU); `--python` and `--device` override the detection.
 - `demucs`: optional local neural separation in a separate Python environment.
   Four-source models expose vocals/drums/bass/other. `htdemucs_6s` also estimates
   guitar/piano; inspect bleed and artifacts before trusting these labels.
@@ -54,6 +62,16 @@ and energy rise. Strength is normalized per layer and detector; it is not a
 probability, and quiet bleed can still have a strong normalized peak. Use energy
 contours, full-mix context and listening to distinguish attacks, sustained notes,
 breaths, gaps and separator artifacts. Vocal onsets are not syllable transcription.
+
+Every separated stem passes a bleed gate: events and sustains where the stem
+sits 30 dB or more below the mix are dropped, and `bleed_gate` on the layer
+counts them. `htdemucs_6s` alone left a phantom piano stem 30-40 dB under the
+mix in five of eight songs (2026-09-23); its "onsets" were other instruments'
+leakage. A stem whose `present_share` is small is mostly absent: do not lead with it.
+
+Each report since schema 1.3 has `layer_entries`: where a stem becomes audible
+after 4 s or more of absence, on its first strong attack. `music rhythm` lists
+them per bar as `entering`, and spectrograms draw them in green.
 
 ## Author focus and rhythm before movement
 
@@ -155,7 +173,9 @@ where `low_intensity` is true, place mostly on `melody_change` and `pitch_change
 attacks (`spectral_flux` on layers that are not `sustained_layer`); never place
 from `energy_rise` on a `sustained_layer`; select the lead by rhythmic salience,
 such as a grid-locked piano, rather than loudness; quantize to 1/2 or whole
-beats, never 1/4; check section seams so a strong accent on a seam still gets a
+beats and never stream quarters, but let a single note take the quarter beat where
+the sound itself lands there (a legato pitch change arriving just after the beat,
+Living a Lie 2026-09-23); check section seams so a strong accent on a seam still gets a
 note; and keep density well below the body of the song.
 
 A passage is quiet only where the evidence says so (`low_intensity` true, mix
@@ -179,9 +199,10 @@ the pitched line is what the player hears, and its pitch changes are the rhythm.
 
 - List the changes with `music inspect ID --workspace workspace --run RUN --start A --end B --layer mix`
   (method `melody_change`, with `from_midi`/`to_midi`), and `music rhythm --layers mix`.
-- Put a note on each change. A legato pad or voice reaches its new pitch just
-  after the beat, so quantize to the nearest half beat, never onto an even grid
-  that ignores the line.
+- Put a note on each change, within 0.13 beat of it: the whole or half beat when
+  the change is on it, else the nearest quarter. A legato pad or voice reaches its
+  new pitch just after the beat; a note on the beat before it misses the sound.
+  Keep the line's own spacing; never an even grid that ignores it.
 - Let the row follow the contour: the highest notes of the phrase on the top
   row, the lowest on the bottom, and a step up or down moves the next note the
   same way. Cut direction keeps the flow rules; the row carries the pitch.
@@ -223,6 +244,42 @@ bass and synth figures that were plainly present in the stems.
   Carry hand state across section seams and check the first notes of the next
   section.
 
+## Heavier plays harder
+
+Standing user rule (2026-09-23, `intensity_difficulty` in `player-profile.json`),
+from Living a Lie feedback: "the intro is kinda hard but not that much, and it
+gets easier once the music starts and the sound gets heavier. Heavier, louder,
+more compressed sound should use harder parts overall." The soft intro ended in
+sixteenth alternations with two-row jumps (beats 28-31 and 52-55). Then the heavy
+guitar gallop entered at beat 56 and the map followed only the drums, on quarters.
+
+- Difficulty follows loudness, not section order. Map soft passages clearly
+  easier than the heavy ones, and give the loudest, most compressed passages the
+  hardest parts: the densest attacks, the widest swings and the bursts.
+- Difficulty is more than note count. Fast same-hand alternations and long hand
+  travel (two-row jumps, top-to-bottom) make a sparse soft bar hard. Keep soft
+  passages compact: strongest onsets, short travel, no sixteenth trills.
+- In a heavy riff passage where the voice rests, check `music rhythm`. If the
+  guitar or bass plays many more strong attacks than the drums, declare that
+  riff as the `musical_focus` lead. The default "drums lead while the voice
+  rests" maps a gallop riff as sparse quarters.
+- `critique` checks this with `metrics.intensity`. Each 4-beat bar has a
+  `relative` loudness (mix `energy_ratio` over the 75th percentile of the mapped
+  bars) and a `demand`: swings per second, each weighted by 1 plus the grid
+  distance from the same hand's previous swing within a beat.
+  `difficulty_exceeds_intensity`: a bar below 0.8 loudness asks more than the
+  loud bars' median demand times (0.5 + 0.5 x loudness).
+  `intensity_underplayed`: loud bars (0.9 or more) average less demand than the
+  soft bars' 90th percentile.
+- `project repair-audio` raises flagged heavy runs first, toward the demand the
+  soft passages reach, so soft notes are removed only where the heavy passages
+  cannot be raised. It adds flow-safe notes on the lead's attacks, then on other
+  stems' attacks, and restores a bar where those notes would dilute the lead. Otherwise it moves vertical and diagonal
+  cuts to the far row (down cuts high, up cuts low), keeping the rhythm. It then
+  removes the weakest note times from flagged soft bars. Notes on salient vocal
+  and drum onsets go last, and a removal is kept only when no salience finding
+  appears. An unresolved heavy bar usually needs its riff declared as the lead.
+
 ## Follow the lead instrument's rhythm
 
 Standing user rule (2026-09-23, `lead_rhythm` in `player-profile.json`), from
@@ -261,6 +318,28 @@ guitar's sixteenth runs at 0:33-0:39.
 - `grid_drift` warns when a 32-beat window's percussive onsets sit more than
   30 ms from the song-wide grid offset (`metrics.grid_alignment`). Fix the BPM,
   offset or tempo events before placing notes there.
+
+## Focus moves; the whole band weighs in
+
+Standing user rule (2026-09-23, `focus_shifts` in `player-profile.json`): "allow
+track focus to change, sometimes being on drum when they start appearing, and
+always combine a bit of other tracks in addition to tracked one to make the map
+feel the whole song weight in addition of tracked thing."
+
+- The lead is chosen bar by bar (see the next section), and it moves when the
+  music does. When the drums enter or come back after a break, give them the
+  focus for that bar: put notes on their first hits, then hand the focus back
+  to the voice or the riff. `drum_entry_unmapped` flags an arrival the map ignores.
+  Other stems' entries (a guitar or synth coming in) are good moments for a
+  handoff too; check `entering` in `music rhythm` and the green lines in the spectrogram.
+- Following the lead is never following it alone. Under the lead, add a few of
+  the other stems' heaviest hits: a crash, a kick-and-bass accent, a stab on a
+  downbeat. About one per bar, never a second stream. `ensemble_unmapped`
+  flags 16 beats where fewer than 20% of those accents carry a note, and names
+  the heaviest to add. Declare this in `musical_focus` weights by giving the
+  supporting stems part of the weight (for example `{"vocals": 0.7, "drums": 0.2, "bass": 0.1}`).
+- `lead_rhythm_diluted` accepts one note per bar on the bar's heaviest ensemble
+  accent. More than that competes with the lead's rhythm and still counts as filler.
 
 ## Salience: who leads, bar by bar
 

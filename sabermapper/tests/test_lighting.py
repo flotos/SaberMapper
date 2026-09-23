@@ -354,6 +354,20 @@ class ProjectLightingTests(unittest.TestCase):
         self.assertEqual(info["_environmentName"], "BigMirrorEnvironment")
         self.assertEqual(len(beatmap["basicBeatmapEvents"]), exported["report"]["lighting"]["basic_events"])
 
+    def test_each_difficulty_keeps_its_own_lights_and_environment(self):
+        first = self.store.save(self.project_id, self.arrangement, self.revision)
+        added = self.store.add_difficulty(self.project_id, "ExpertPlus")
+        self.assertEqual(added["arrangement"]["lightshow"]["generated"], first["arrangement"]["lightshow"]["generated"])
+        other = copy.deepcopy(added["arrangement"])
+        other["lightshow"]["environment"] = "NiceEnvironment"
+        self.store.save(self.project_id, other, added["revision"], difficulty="ExpertPlus")
+        exported = self.store.export(self.project_id)
+        with ZipFile(self.directory / "exports" / exported["filename"]) as archive:
+            info = json.loads(archive.read("Info.dat"))
+        self.assertEqual(info["_environmentNames"], ["BigMirrorEnvironment", "NiceEnvironment"])
+        indexes = {d["_difficulty"]: d["_environmentNameIdx"] for d in info["_difficultyBeatmapSets"][0]["_difficultyBeatmaps"]}
+        self.assertEqual(indexes, {"Expert": 0, "ExpertPlus": 1})
+
     def test_cli_requires_evidence(self):
         other = self.store.create(demo=True)
         with redirect_stdout(io.StringIO()):

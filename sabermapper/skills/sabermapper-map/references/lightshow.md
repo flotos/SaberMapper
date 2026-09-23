@@ -78,6 +78,7 @@ Edit `arrangement.lightshow` and save with `project save` as usual. Only change 
   naming the sound they answer. Groups: `back`, `ring`, `left`, `right`, `center`.
 - `auto: false` freezes `generated`. Saves keep it even when inputs change, and critique reports
   `lightshow_stale`. `project lights ID --workspace workspace --revision REV` rebuilds on demand.
+- Each difficulty carries its own lightshow. `add-difficulty` copies it, and every difficulty generates the same show from the same sections. Repeat a cue in each difficulty that should have it, and pass `--difficulty NAME` to `project lights` / `lights-inspect`. Export lists each difficulty's environment in Info.dat.
 - An arrangement saved without a `lightshow` key keeps the stored one, cues included. Locked sections
   keep their lights through regeneration. A cue that changes a locked section's lights is refused.
 

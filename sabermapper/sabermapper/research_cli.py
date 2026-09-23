@@ -10,6 +10,7 @@ from .evaluation import SplitRegistry
 from .learning import LabelStore, label_report, train_and_record
 from .patterns import retrieve_patterns
 from .profile import player_profile, summarize_scores
+from .star_tiers import TIER_IDS, load_profile, player_tiers
 
 
 def _read(path):
@@ -38,6 +39,10 @@ def register_subcommands(subparsers):
     analyze.add_argument("--min-stars", type=float, default=6.5)
     analyze.add_argument("--max-stars", type=float, default=8)
     analyze.add_argument("--shortlist-limit", type=int, default=60)
+    analyze.add_argument("--tier-shortlist-limit", type=int, default=40,
+                         help="References per star tier in tier-pattern-shortlist.json")
+    tiers = _leaf(c, "tiers")
+    tiers.add_argument("--tier", choices=TIER_IDS, help="Show one tier in full")
     local = _leaf(c, "import")
     local.add_argument("archive", type=Path)
     local.add_argument("--hash", required=True)
@@ -63,6 +68,8 @@ def register_subcommands(subparsers):
     retrieve.add_argument("--min-stars", type=float)
     retrieve.add_argument("--max-stars", type=float)
     retrieve.add_argument("--pattern-tag", help="Observable category such as varied_spacing or alternating_hands")
+    retrieve.add_argument("--tier", choices=TIER_IDS,
+                          help="Player star tier of the source chart (see `corpus tiers`)")
     cleanup = _leaf(c, "cleanup")
     cleanup.add_argument("hash")
     profile = subparsers.add_parser("profile", help="Historical calibration and explicit preferences")
@@ -105,7 +112,24 @@ def dispatch(args) -> bool:
             elif action == "analyze":
                 from .corpus_analysis import analyze_corpus
                 result = analyze_corpus(store, min_stars=args.min_stars, max_stars=args.max_stars,
-                                        shortlist_limit=args.shortlist_limit)
+                                        shortlist_limit=args.shortlist_limit,
+                                        tier_shortlist_limit=args.tier_shortlist_limit)
+            elif action == "tiers":
+                reference_path = workspace / "corpus" / "tier-reference.json"
+                reference = _read(reference_path) if reference_path.exists() else None
+                rows = reference["tiers"] if reference else player_tiers(load_profile(workspace))
+                if args.tier:
+                    result = next(row for row in rows if row["id"] == args.tier)
+                else:
+                    result = {"generated_utc": reference and reference["generated_utc"],
+                              "note": None if reference else "No tier-reference.json yet; run `corpus analyze`.",
+                              "tiers": [{k: row.get(k) for k in ("id", "label", "role", "charts", "windows")} |
+                                        ({"median_window_nps": row["window_nps"].get("median"),
+                                          "median_swings_per_second": row["window_movement"]["swing_rate_per_second"].get("median"),
+                                          "median_peak_one_second_swings": row["window_movement"]["peak_one_second_swing_count"].get("median"),
+                                          "median_chart_nps": row["chart_nps"].get("median"),
+                                          "median_chart_njs": row["chart_njs"].get("median")} if reference else {})
+                                        for row in rows]}
             elif action == "import":
                 result = store.import_archive(args.archive.read_bytes(), version_hash=args.hash,
                                               retain_audio=args.retain_audio,
@@ -133,7 +157,7 @@ def dispatch(args) -> bool:
                     lower = 6.5 if lower is None else lower
                     upper = 8 if upper is None else upper
                 patterns = filter_patterns(store.catalog_patterns(), charts, min_stars=lower, max_stars=upper,
-                                           tag=getattr(args, "pattern_tag", None))
+                                           tag=getattr(args, "pattern_tag", None), tier=getattr(args, "tier", None))
                 result = retrieve_patterns(patterns, bpm=args.bpm, target_nps=args.nps,
                                            length_beats=args.length_beats,
                                            forbidden_song_families=set(args.forbid_song_family),
@@ -141,6 +165,7 @@ def dispatch(args) -> bool:
                 for item in result:
                     pattern = item["pattern"]
                     item["source_chart"] = charts.get((pattern["version_hash"], pattern["difficulty"]))
+                    item["star_tier"] = (item["source_chart"] or {}).get("star_tier")
                     item["pattern_tags"] = pattern_tags(pattern)
                     item["review_status"] = "unreviewed"
             elif action == "cleanup":

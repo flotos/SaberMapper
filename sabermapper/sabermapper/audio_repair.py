@@ -1,6 +1,6 @@
 """Deterministic repair of audio-grounding and salience findings.
 
-Two passes, both judged against one musical evidence run:
+Passes, all judged against one musical evidence run:
 
 1. **Ground notes on sounds.** Every note time with no supporting onset (the
    ``note_support`` rule of :mod:`audio_grounding`) moves to the nearest
@@ -14,10 +14,15 @@ Two passes, both judged against one musical evidence run:
    half-beat), ``boundary_accent_unmapped`` (the accent) and
    ``density_collapse`` (strong stem onsets inside the sparse window). A new
    note takes the hand and cut direction that add no flow break with either
-   neighbouring swing of that hand; otherwise the onset is reported unresolved.
+   neighbouring swing of that hand, in a cell where it neither hides behind
+   nor hides another note (``hidden_note``); otherwise the onset is reported
+   unresolved.
    ``lead_rhythm_unmapped`` adds notes on the declared lead's strongest attack
    per half-beat, and ``melody_unmapped`` on the strongest melody change per
-   half-beat of a melodic bar.
+   half-beat of a melodic bar, on the whole, half or quarter beat nearest it.
+   ``drum_entry_unmapped`` maps the arriving drums' strongest hit per
+   half-beat, and ``ensemble_unmapped`` the heaviest accents of the other
+   stems that the finding names.
 3. **Follow the lead.** Each bar flagged ``lead_rhythm_diluted`` (notes filling
    the space between the lead's attacks) or ``lead_rhythm_unmapped`` (an even
    stream leaving no room for the lead's attacks) is rebuilt: its free notes are cleared,
@@ -27,7 +32,23 @@ Two passes, both judged against one musical evidence run:
    rebuilt bar that adds a blocking diagnostic, a ``reach_proxy`` warning,
    keeps fewer than min(4, old count) notes, or puts no more notes on the lead's
    attacks than before (for ``lead_rhythm_unmapped``) is restored.
-4. **Settle density.** The quiet-passage thinning runs once more, so notes the
+4. **Heavier plays harder.** Loud bars flagged ``intensity_underplayed`` get
+   flow-safe notes on their lead's strongest attack per half-beat, then on other
+   stems', until they reach the softer passages' peak swing demand; a bar whose
+   additions bury the lead (``lead_rhythm_diluted``) or thicken a thin window is
+   restored. A bar still below that peak widens its movement: vertical and
+   diagonal cuts move to the far row (down cuts high, up cuts low), keeping the
+   rhythm and every direction. Soft bars flagged ``difficulty_exceeds_intensity`` then lose their
+   cheapest note times (weak support, crowded, off-beat; salient vocal and drum
+   onsets last) until they fit the demand their loudness allows.
+5. **Split one-hand bursts.** A ``one_hand_burst`` (three or more same-hand
+   swings, each under 0.2 s after the last, while the other hand idles) loses
+   its notes that sit on none of the bar's declared lead attacks, keeping the
+   best-supported one when none does. A burst that remains has its weakest inner
+   note handed to the idle hand when it sits on a strong sound outside a thin,
+   soft passage or a bar softer than the heavy passages, and removed otherwise. New notes from the other passes never
+   create a burst.
+6. **Settle density.** The quiet-passage thinning runs once more, so notes the
    lead rebuild or the fills added never leave a ``density_exceeds_audio``
    window behind.
 
@@ -45,17 +66,20 @@ Every change is re-validated; one that introduces a blocking diagnostic or a
 from __future__ import annotations
 
 import copy
+import math
 from bisect import bisect_left
 from fractions import Fraction
 
 from .arrangement import expanded_notes
-from .audio_grounding import SUPPORT_BEATS, SUPPORT_STRENGTH, ONSET_METHODS, ONSET_STRENGTH, _stem_onsets
-from .critique import (ACCENT_STRENGTH, DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT, LEAD_ONSET_STRENGTH,
-                       LEAD_SUPPORT_STRENGTH, MELODY_LAYER, MELODY_MATCH_BEATS, MELODY_ONSET_STRENGTH, QUIET_WINDOW_SECONDS,
-                       SALIENCE_BAR_BEATS, SALIENCE_MATCH_BEATS, VOCAL_ONSET_STRENGTH, _sections, beat_to_seconds,
-                       critique_arrangement, focus_lead, lead_onsets, on_onset, quiet_bar, quiet_windows,
-                       salient_onsets, strongest_per_slot)
-from .movement import turn_degrees, _OPPOSITE
+from .audio_grounding import (SUPPORT_BEATS, SUPPORT_STRENGTH, ONSET_METHODS, ONSET_STRENGTH, _stem_onsets,
+                              audio_findings)
+from .critique import (ACCENT_STRENGTH, DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT, INTENSITY_BAR_BEATS,
+                       LEAD_ONSET_STRENGTH, LEAD_SUPPORT_STRENGTH, MELODY_LAYER, MELODY_ONSET_STRENGTH,
+                       QUIET_WINDOW_SECONDS, SALIENCE_BAR_BEATS, SALIENCE_MATCH_BEATS, SOFT_RATIO, VOCAL_ONSET_STRENGTH,
+                       _sections,
+                       beat_to_seconds, critique_arrangement, focus_lead, intensity_bars, lead_onsets, on_onset,
+                       quiet_bar, quiet_windows, salient_onsets, strongest_per_slot, underplayed_runs)
+from .movement import BURST_SECONDS, BURST_SWINGS, hidden_window, turn_degrees, _OPPOSITE
 from .swing_repair import _count_breaks, _hand_swings
 from .validation import _beat, validate_arrangement
 
@@ -72,7 +96,7 @@ MAX_ROUNDS = 12
 THIN_STRENGTH_FLOOR = 0.25
 THIN_OFFBEAT_FACTOR = 0.8
 FILL_CODES = ("vocal_line_unmapped", "drum_rhythm_unmapped", "lead_rhythm_unmapped", "melody_unmapped",
-              "boundary_accent_unmapped", "density_collapse")
+              "boundary_accent_unmapped", "density_collapse", "drum_entry_unmapped", "ensemble_unmapped")
 REBUILD_MIN_NOTES = 4
 LEAD_RUN_STRENGTH = 0.6
 LANES = {0: (0, 1), 1: (2, 3)}
@@ -86,6 +110,19 @@ def _grid_beat(beat: float) -> Fraction:
         if abs(float(candidate) - beat) <= SNAP_TOLERANCE:
             return candidate
     return Fraction(round(beat * 16), 16)
+
+
+def _melody_beat(beat: float) -> Fraction:
+    """A whole or half beat within SNAP_TOLERANCE of a melody change, else the nearest quarter.
+
+    A legato line reaches its new pitch just after the beat; the note sits on the sound, but a
+    melodic passage never takes the triplet or sixteenth grids.
+    """
+    for denominator in (1, 2):
+        candidate = Fraction(round(beat * denominator), denominator)
+        if abs(float(candidate) - beat) <= SNAP_TOLERANCE:
+            return candidate
+    return Fraction(round(beat * 4), 4)
 
 
 def _relative(beat: Fraction):
@@ -410,13 +447,22 @@ def _revert_breaking(result, original, changes, unresolved, baseline):
 
 
 def _cells(view, hand, direction, beat, anchor):
-    """Candidate (cost, x, y) cells for a new note, nearest the hand's previous position first."""
-    occupied = {(n["x"], n["y"]) for n in expanded_notes(view.arrangement) if n["beat"] == beat}
-    other = [n["x"] for n in expanded_notes(view.arrangement) if n["beat"] == beat and n["color"] != hand]
+    """Candidate (cost, x, y) cells for a new note, nearest the hand's previous position first.
+
+    A cell whose note would hide behind, or hide, a nearby note in that cell (``hidden_note``) is skipped.
+    """
+    notes = expanded_notes(view.arrangement)
+    occupied = {(n["x"], n["y"]) for n in notes if n["beat"] == beat}
+    other = [n["x"] for n in notes if n["beat"] == beat and n["color"] != hand]
+    seconds = beat_to_seconds(beat, view.arrangement)
+    near = [(n["x"], n["y"], abs(beat_to_seconds(n["beat"], view.arrangement) - seconds))
+            for n in notes if n["beat"] != beat and abs(n["beat"] - beat) <= 4]
     cells = []
     for x in LANES[hand]:
         for y in range(3):
             if (x, y) in occupied or any((x > o) if hand == 0 else (x < o) for o in other):
+                continue
+            if any((nx, ny) == (x, y) and gap < hidden_window(x, y) for nx, ny, gap in near):
                 continue
             cost = abs(x - anchor[0]) + abs(y - anchor[1])
             cost += 1.5 if (direction in UP_CUTS and y == 2) or (direction in DOWN_CUTS and y == 0 and anchor[1] == 0) else 0
@@ -425,8 +471,20 @@ def _cells(view, hand, direction, beat, anchor):
     return sorted(cells)
 
 
-def insert_note(arrangement: dict, beat: Fraction, note_id: str) -> dict | None:
-    """Add a flow-safe note at ``beat`` in place; return the change or None."""
+def _makes_burst(arrangement, hand, seconds):
+    """True when a ``hand`` swing at ``seconds`` would join a one_hand_burst (see movement.one_hand_bursts)."""
+    own = sorted([s["seconds"] for s in _hand_swings(arrangement, hand)] + [seconds])
+    other = [s["seconds"] for s in _hand_swings(arrangement, 1 - hand)]
+    lo = hi = own.index(seconds)
+    while lo and own[lo] - own[lo - 1] < BURST_SECONDS:
+        lo -= 1
+    while hi + 1 < len(own) and own[hi + 1] - own[hi] < BURST_SECONDS:
+        hi += 1
+    return hi - lo + 1 >= BURST_SWINGS and not any(own[lo] < t < own[hi] for t in other)
+
+
+def insert_note(arrangement: dict, beat: Fraction, note_id: str, hands=(0, 1)) -> dict | None:
+    """Add a flow-safe note at ``beat`` in place, on one of ``hands``; return the change or None."""
     view = _Map(arrangement)
     section, start = view.section_at(beat)
     if section is None or section["locked"]:
@@ -438,8 +496,8 @@ def insert_note(arrangement: dict, beat: Fraction, note_id: str) -> dict | None:
         return None
     seconds = beat_to_seconds(beat, arrangement)
     options = []
-    for hand in (0, 1):
-        if view.held(hand, beat):
+    for hand in hands:
+        if view.held(hand, beat) or _makes_burst(arrangement, hand, seconds):
             continue
         swings = _hand_swings(arrangement, hand)
         at = bisect_left([s["beat"] for s in swings], beat)
@@ -515,9 +573,11 @@ def _fill_targets(arrangement, report, warning):
                 for e in (layers.get(name) or {}).get("events", [])
                 if e.get("method") in methods and e.get("strength", 0) >= threshold]
 
+    if "targets" in warning:  # the finding names the onsets itself (ensemble_unmapped: the heaviest few)
+        return sorted(((strength, beat) for beat, strength in warning["targets"]), reverse=True)
     if code == "vocal_line_unmapped":
         found = events(["vocals"], VOCAL_ONSET_STRENGTH)
-    elif code == "drum_rhythm_unmapped":
+    elif code in ("drum_rhythm_unmapped", "drum_entry_unmapped"):
         strongest = {}
         for strength, beat in events(["drums"], DRUM_ONSET_STRENGTH):
             slot = int(beat * DRUM_SLOTS_PER_BEAT + 0.5)
@@ -550,15 +610,11 @@ def fill_findings(arrangement: dict, report: dict) -> dict:
         added = 0
         for warning in warnings:
             beats = sorted(float(n["beat"]) for n in expanded_notes(result))
-            melody = warning["code"] == "melody_unmapped"
-            reach = MELODY_MATCH_BEATS if melody else SALIENCE_MATCH_BEATS
             for strength, onset in _fill_targets(result, report, warning):
-                index = bisect_left(beats, onset - reach)
-                if index < len(beats) and beats[index] <= onset + reach:
+                index = bisect_left(beats, onset - SALIENCE_MATCH_BEATS)
+                if index < len(beats) and beats[index] <= onset + SALIENCE_MATCH_BEATS:
                     continue  # already mapped
-                # A legato pitch change lands just after the beat; melodic bars keep the half-beat grid.
-                half = Fraction(round(onset * 2), 2)
-                target = half if melody and abs(float(half) - onset) <= MELODY_MATCH_BEATS else _grid_beat(onset)
+                target = _melody_beat(onset) if warning["code"] == "melody_unmapped" else _grid_beat(onset)
                 key = (warning["code"], target)
                 if key in tried:
                     continue
@@ -692,6 +748,223 @@ def follow_lead(arrangement: dict, report: dict) -> dict:
     return {"arrangement": result, "changes": changes, "unresolved": unresolved}
 
 
+def _demand_at(arrangement, report, start):
+    """The swing demand of the intensity bar starting at ``start``, or None when it is not rated."""
+    context, bars = intensity_bars(arrangement, report)
+    bar = next((b for b in bars if b["start_beat"] == start), None)
+    return None if context is None or bar is None else bar
+
+
+def _overlapping(warnings, codes, first, last):
+    return sum(1 for w in warnings if w["code"] in codes and "beats" in w
+               and w["beats"][0] < last and w["beats"][1] > first)
+
+
+def _harden_targets(arrangement, report, lead, first, last):
+    """(beat, strength) attacks for a loud bar: the lead's strongest per half-beat first, then other stems'."""
+    layers = report.get("layers") or {}
+    ordered = [lead] if lead and lead != "mix" and lead in layers else []
+    ordered += sorted(n for n in layers if n not in ("mix", *ordered) and (n != "vocals" or not ordered))
+    targets, seen = [], set()
+    for name in ordered:
+        found = strongest_per_slot(lead_onsets(layers, name, arrangement, LEAD_ONSET_STRENGTH))
+        for beat, strength in sorted(((b, s) for b, s in found if first <= b < last), key=lambda t: -t[1]):
+            slot = round(beat * DRUM_SLOTS_PER_BEAT)
+            if slot not in seen:
+                seen.add(slot)
+                targets.append((beat, strength))
+    return targets
+
+
+def _widen(arrangement, report, first, last, target):
+    """Move a loud bar's vertical and diagonal cuts to the far row (down cuts high, up cuts low), one at a time.
+
+    The rhythm and every cut direction stay; only hand travel grows. A move that adds a blocking diagnostic or a
+    ``reach_proxy`` warning, or lands on an occupied cell, is undone. Stops once the bar's demand reaches ``target``.
+    Returns the moved note IDs.
+    """
+    view, baseline, moved = _Map(arrangement), _errors(arrangement), []
+    occupied = {}
+    for note in expanded_notes(arrangement):
+        occupied.setdefault(note["beat"], set()).add((note["x"], note["y"]))
+    for section, note, beat in sorted(view.entries(), key=lambda e: e[2]):
+        if not first <= beat < last or section["locked"] or note["direction"] not in UP_CUTS + DOWN_CUTS:
+            continue
+        start = view.section_at(beat)[1]
+        if view.arcs_at(section, start, note, beat) or view.chain_anchored(section, start, note, beat):
+            continue
+        row = 2 if note["direction"] in DOWN_CUTS else 0
+        if note["y"] == row or (note["x"], row) in occupied.get(beat, set()):
+            continue
+        before, demand = note["y"], _demand_at(arrangement, report, first)["demand"]
+        note["y"] = row
+        if _errors(arrangement) - baseline or _demand_at(arrangement, report, first)["demand"] <= demand + 1e-9:
+            note["y"] = before  # a breaking move, or one whose hand had reset anyway
+            continue
+        occupied[beat].discard((note["x"], before))
+        occupied[beat].add((note["x"], row))
+        moved.append(f'{section["id"]}/note/{note["id"]}')
+        if _demand_at(arrangement, report, first)["demand"] >= target:
+            break
+    return moved
+
+
+def harden_loud(arrangement: dict, report: dict) -> dict:
+    """Raise loud bars flagged ``intensity_underplayed`` toward the softer passages' peak swing demand.
+
+    Each bar first takes flow-safe notes on real attacks: the declared lead's strongest attack per half-beat,
+    then the other stems'. Those additions are restored when they add a blocking diagnostic or a
+    ``lead_rhythm_diluted`` or ``density_exceeds_audio`` finding. A bar still below the peak then widens its
+    movement (``_widen``) without changing its rhythm.
+    """
+    result = copy.deepcopy(arrangement)
+    context, bars = intensity_bars(result, report)
+    runs = underplayed_runs(bars, context)
+    changes, unresolved = [], []
+    if not runs:
+        return {"arrangement": result, "changes": changes, "unresolved": unresolved}
+    target = context["soft_peak_demand"]
+    critique = critique_arrangement(result, report)
+    leads = {bar["start_beat"]: bar["lead"] for bar in critique["metrics"]["lead_rhythm"].get("bars", [])}
+    warnings, baseline, counter = critique["warnings"], _errors(result), 0
+    guarded = ("lead_rhythm_diluted", "density_exceeds_audio")
+    for bar in (b for run in runs for b in run):
+        first, last = bar["start_beat"], bar["start_beat"] + INTENSITY_BAR_BEATS
+        current = _demand_at(result, report, first)
+        if current is None or current["demand"] >= target:
+            continue
+        record = {"beat": float(first), "code": "intensity_underplayed"}
+        snapshot, added = copy.deepcopy(result), []
+        for onset, _ in _harden_targets(result, report, leads.get(first), first, last):
+            beats = sorted(float(n["beat"]) for n in expanded_notes(result))
+            index = bisect_left(beats, onset - SALIENCE_MATCH_BEATS)
+            if index < len(beats) and beats[index] <= onset + SALIENCE_MATCH_BEATS:
+                continue  # already mapped
+            if not first <= _grid_beat(onset) < last:
+                continue  # snaps into the neighbouring bar
+            counter += 1
+            change = insert_note(result, _grid_beat(onset), f"int-{counter:03d}")
+            if change is None:
+                continue
+            added.append(change)
+            if _demand_at(result, report, first)["demand"] >= target:
+                break
+        buried = False
+        if added:
+            after = critique_arrangement(result, report)["warnings"]
+            if (_errors(result) - baseline
+                    or _overlapping(after, guarded, first, last) > _overlapping(warnings, guarded, first, last)):
+                result.clear()
+                result.update(snapshot)
+                added, buried = [], True
+            else:
+                warnings = after
+        if added:
+            demand = _demand_at(result, report, first)["demand"]
+            changes.append({**record, "action": "added", "object_ids": [i for c in added for i in c["object_ids"]],
+                            "reason": f'maps loud attacks: swing demand {current["demand"]:.2f} to {demand:.2f} '
+                                      f'(softer passages reach {target:.2f})'})
+        reached = _demand_at(result, report, first)["demand"]
+        moved = _widen(result, report, first, last, target) if reached < target else []
+        if moved:
+            changes.append({**record, "action": "moved", "object_ids": moved,
+                            "reason": f'widens movement (down cuts high, up cuts low): swing demand {reached:.2f} to '
+                                      f'{_demand_at(result, report, first)["demand"]:.2f} (softer passages reach '
+                                      f'{target:.2f})'})
+        if _demand_at(result, report, first)["demand"] < target:
+            unresolved.append({**record, "object_ids": [],
+                               "reason": ("notes on the loud attacks would bury the declared lead's rhythm"
+                                          if buried else "no unmapped attack takes a flow-safe note")
+                                         + " and wider movement is not enough; declare the riff carrying this heavy "
+                                           "bar as the musical_focus lead or re-author it"})
+    return {"arrangement": result, "changes": changes, "unresolved": unresolved}
+
+
+EASE_SALIENT_FACTOR = 4.0
+EASE_GUARDED = ("vocal_line_unmapped", "drum_rhythm_unmapped", "lead_rhythm_unmapped", "melody_unmapped")
+
+
+def ease_soft(arrangement: dict, report: dict) -> dict:
+    """Remove note times from bars flagged ``difficulty_exceeds_intensity`` until each fits its allowance.
+
+    The cheapest removal goes first: weak audio support, a crowded spot, off the beat. Notes on the vocal or
+    drum onsets the salience checks count go last, and their removal is kept only when no vocal, drum or lead
+    finding appears there. Arc anchors, chain anchors, motif notes and locked sections stay. A removal that adds a
+    blocking diagnostic, an unmapped audio span, or no drop in the bar's demand is restored.
+    """
+    result = copy.deepcopy(arrangement)
+    view = _Map(result)
+    baseline = _errors(result)
+    tolerance = SUPPORT_BEATS * 60 / view.bpm
+    support = _strength_near(report, SUPPORT_STRENGTH)
+    support_seconds = [t for t, _ in support]
+    keep, match = salient_onsets(result, report)
+    spans = len(audio_findings(result, report)[0].get("unmapped_spans", []))
+
+    def strength(seconds):
+        lo, hi = bisect_left(support_seconds, seconds - tolerance), bisect_left(support_seconds, seconds + tolerance)
+        return max((s for _, s in support[lo:hi]), default=0.0)
+
+    changes, unresolved, tried, blocked = [], [], set(), set()
+    while True:
+        context, bars = intensity_bars(result, report)
+        bar = next((b for b in bars if b.get("excess") and b["start_beat"] not in blocked), None) if context else None
+        if bar is None:
+            break
+        first, last = bar["start_beat"], bar["start_beat"] + INTENSITY_BAR_BEATS
+        times = sorted(beat_to_seconds(n["beat"], result) for n in expanded_notes(result))
+        expanded, groups = {}, {}
+        for note in expanded_notes(result):
+            expanded[note["beat"]] = expanded.get(note["beat"], 0) + 1
+        for section, note, beat in view.entries():
+            groups.setdefault(beat, []).append((section, note))
+        candidates = []
+        for beat, group in groups.items():
+            if not first <= beat < last or beat in tried or expanded.get(beat, 0) != len(group):
+                continue
+            section, start = view.section_at(beat)
+            if (section is None or section["locked"]
+                    or any(view.arcs_at(s, start, n, beat) or view.chain_anchored(s, start, n, beat) for s, n in group)):
+                continue
+            seconds = beat_to_seconds(beat, result)
+            index = bisect_left(times, seconds)
+            previous = times[index - 1] if index else seconds - QUIET_WINDOW_SECONDS
+            following = times[index + len(group)] if index + len(group) < len(times) else seconds + QUIET_WINDOW_SECONDS
+            salient = on_onset(keep, match, seconds)
+            cost = (strength(seconds) + THIN_STRENGTH_FLOOR) * (following - previous)
+            cost *= (1.0 if beat.denominator == 1 else THIN_OFFBEAT_FACTOR) * (EASE_SALIENT_FACTOR if salient else 1.0)
+            candidates.append((cost, beat, group, salient))
+        if not candidates:
+            blocked.add(first)
+            unresolved.append({"beat": float(first), "code": "difficulty_exceeds_intensity", "object_ids": [],
+                               "reason": f'swing demand {bar["demand"]:.2f} stays above the {bar["allowed"]:.2f} '
+                                         "this loudness allows; the remaining notes are arc or chain anchors, motif "
+                                         "notes, in locked sections, or their removal would break flow or open an "
+                                         "unmapped span. Shorten hand travel by hand"})
+            continue
+        _, beat, group, salient = min(candidates, key=lambda c: (c[0], c[1]))
+        tried.add(beat)
+        before = critique_arrangement(result, report)["warnings"] if salient else None
+        for section, note in group:
+            section["notes"].remove(note)
+        demand = _demand_at(result, report, first)
+        reverted = (_errors(result) - baseline
+                    or len(audio_findings(result, report)[0].get("unmapped_spans", [])) > spans
+                    or demand is None or demand["demand"] >= bar["demand"] - 1e-9
+                    or (salient and _overlapping(critique_arrangement(result, report)["warnings"], EASE_GUARDED,
+                                                 first, last) > _overlapping(before, EASE_GUARDED, first, last)))
+        if reverted:
+            for section, note in group:
+                section["notes"].append(note)
+                section["notes"].sort(key=lambda n: _beat(n["beat"]))
+            continue
+        changes.append({"beat": float(beat), "object_ids": [f'{s["id"]}/note/{n["id"]}' for s, n in group],
+                        "action": "removed", "code": "difficulty_exceeds_intensity",
+                        "reason": f'eases a soft bar ({bar["relative"]:.2f}x the heavy loudness) from swing demand '
+                                  f'{bar["demand"]:.2f} toward the {bar["allowed"]:.2f} allowed'})
+    return {"arrangement": result, "changes": changes, "unresolved": unresolved}
+
+
 def reweight_focus(arrangement: dict, report: dict) -> dict:
     """Drop stems that are absent from a focus phrase (focus_on_quiet_stem) from its weights.
 
@@ -731,6 +1004,109 @@ def reweight_focus(arrangement: dict, report: dict) -> dict:
     return {"arrangement": result, "changes": changes, "unresolved": []}
 
 
+def _remove(arrangement, object_ids):
+    """Remove the literal notes named by ``section/note/id`` object IDs, in place."""
+    for section in arrangement["sections"]:
+        section["notes"] = [n for n in section["notes"] if f'{section["id"]}/note/{n["id"]}' not in object_ids]
+
+
+def split_bursts(arrangement: dict, report: dict) -> dict:
+    """Pass 4: thin or hand over the notes of one_hand_burst runs (see the module docstring)."""
+    result = copy.deepcopy(arrangement)
+    view = _Map(result)
+    layers = report.get("layers") or {}
+    baseline = _errors(result)
+    spans = _sections(result)
+    singing = {bar["start_beat"] for bar in critique_arrangement(result, report)["metrics"]["salience"].get("bars", [])
+               if bar["salient"] == "vocals"}
+    tolerance = SUPPORT_BEATS * 60 / view.bpm
+    support = _strength_near(report, SUPPORT_STRENGTH)
+    support_seconds = [t for t, _ in support]
+    attacks = {}
+    # Softer audio plays easier (difficulty_exceeds_intensity): a soft bar sheds the note rather than adding travel.
+    soft = {bar["start_beat"] for bar in intensity_bars(result, report)[1] if bar.get("relative", 1.0) < SOFT_RATIO}
+
+    def on_lead(beat):
+        """Strength of the declared lead's attack at ``beat``: 0.0 off its attacks, None when no lead is declared."""
+        bar = math.floor(beat / SALIENCE_BAR_BEATS) * SALIENCE_BAR_BEATS
+        lead = ("vocals" if bar in singing and isinstance(layers.get("vocals"), dict)
+                else focus_lead(spans, bar + SALIENCE_BAR_BEATS / 2, layers))
+        if lead is None:
+            return None
+        if lead not in attacks:
+            attacks[lead] = lead_onsets(layers, lead, result, LEAD_SUPPORT_STRENGTH)
+        return max((s for b, s in attacks[lead] if abs(b - float(beat)) <= SALIENCE_MATCH_BEATS), default=0.0)
+
+    def strength(beat):
+        seconds = beat_to_seconds(beat, result)
+        lo = bisect_left(support_seconds, seconds - tolerance)
+        hi = bisect_left(support_seconds, seconds + tolerance)
+        return max((s for _, s in support[lo:hi]), default=0.0)
+
+    def split(arrangement, swing, color):
+        """Hand ``swing`` to the idle hand when it carries a strong sound outside a quiet bar, else remove it."""
+        _remove(arrangement, swing["ids"])
+        bar = math.floor(swing["beat"] / SALIENCE_BAR_BEATS) * SALIENCE_BAR_BEATS
+        if (swing["strength"] >= LEAD_ONSET_STRENGTH and bar not in soft
+                and not quiet_bar(report, arrangement, bar, bar + SALIENCE_BAR_BEATS)):
+            moved = insert_note(arrangement, swing["beat"], f'hand-{len(changes) + 1:03d}', hands=(1 - color,))
+            if moved:
+                return [{**moved, "action": "moved_hand", "removed_ids": swing["ids"],
+                         "reason": "one hand streamed alone; the idle hand takes this sound"}]
+        return [{"beat": float(swing["beat"]), "action": "removed", "object_ids": swing["ids"],
+                 "reason": "one hand streamed alone; removed its weakest note that keeps the flow"}]
+
+    def drop(arrangement, swings):
+        _remove(arrangement, [i for swing in swings for i in swing["ids"]])
+        return [{"beat": float(swing["beat"]), "action": "removed", "object_ids": swing["ids"],
+                 "reason": "one hand streamed alone; this note sits on none of the lead's attacks"} for swing in swings]
+
+    changes, unresolved, skipped = [], [], set()
+    for _ in range(len(expanded_notes(result)) + 1):
+        bursts = [d for d in validate_arrangement(result)
+                  if d["code"] == "one_hand_burst" and tuple(d["object_ids"]) not in skipped]
+        if not bursts:
+            break
+        ids = tuple(bursts[0]["object_ids"])
+        literal = {f'{s["id"]}/note/{n["id"]}': (s, n, b) for s, n, b in view.entries()}
+        swings = {}
+        for note in expanded_notes(result):
+            if note["id"] not in ids:
+                continue
+            swing = swings.setdefault(note["beat"], {"beat": note["beat"], "ids": [], "free": True})
+            swing["ids"].append(note["id"])
+            entry = literal.get(note["id"])
+            section, start = view.section_at(note["beat"])
+            if (entry is None or section["locked"] or view.arcs_at(section, start, entry[1], entry[2])
+                    or view.chain_anchored(section, start, entry[1], entry[2])):
+                swing["free"] = False  # motif-expanded, locked, or anchoring an arc or chain
+        swings = [dict(s, lead=on_lead(s["beat"]), strength=strength(s["beat"])) for _, s in sorted(swings.items())]
+        color = next(n["color"] for n in expanded_notes(result) if n["id"] in ids)
+        off_lead = [s for s in swings if s["lead"] == 0.0]
+        if len(off_lead) == len(swings):
+            off_lead.remove(max(off_lead, key=lambda s: (s["strength"], -s["beat"])))
+        # Weakest sound first, off-beat before on-beat; inner notes before the run's ends.
+        weakest = lambda s: (s["lead"] or s["strength"], s["beat"].denominator == 1, s["beat"])
+        plans = [(drop, [s for s in off_lead if s["free"]])] if any(s["free"] for s in off_lead) else []
+        plans += [(split, s) for s in sorted(swings[1:-1], key=weakest) + sorted((swings[0], swings[-1]), key=weakest)
+                  if s["free"]]
+        for action, target in plans:
+            trial = copy.deepcopy(result)
+            made = action(trial, target) if action is drop else action(trial, target, color)
+            if not _errors(trial) - baseline:
+                result.clear()
+                result.update(trial)
+                changes.extend({"code": "one_hand_burst", "color": color, **change} for change in made)
+                break
+        else:
+            skipped.add(ids)
+            unresolved.append({"code": "one_hand_burst", "color": color, "beat": float(swings[0]["beat"]),
+                               "object_ids": list(ids),
+                               "reason": "burst notes are locked, arc or chain anchors or motif notes, or every "
+                                         "split adds a blocking diagnostic; re-author by hand"})
+    return {"arrangement": result, "changes": changes, "unresolved": unresolved}
+
+
 def repair_audio(arrangement: dict, report: dict | None) -> dict:
     """Return ``{"arrangement", "changes", "unresolved", "remaining"}`` without mutating the input."""
     if not report:
@@ -747,12 +1123,21 @@ def repair_audio(arrangement: dict, report: dict | None) -> dict:
                 "unresolved": grounded["unresolved"] + thinned["unresolved"]}
     led = follow_lead(grounded["arrangement"], report)
     filled = fill_findings(led["arrangement"], report)
+    # Heavier audio plays harder: raise underplayed loud bars first, so the soft bars are judged against them.
+    hardened = harden_loud(filled["arrangement"], report)
+    eased = ease_soft(hardened["arrangement"], report)
+    filled = {"arrangement": eased["arrangement"],
+              "changes": filled["changes"] + hardened["changes"] + eased["changes"],
+              "unresolved": filled["unresolved"] + hardened["unresolved"] + eased["unresolved"]}
+    split = split_bursts(filled["arrangement"], report)
     # Notes added for the lead or for unmapped onsets can push a thin window (or the map's full-band
     # reference) past its allowance again; intensity keeps the last word on density.
-    settled = thin_quiet(filled["arrangement"], report)
+    settled = thin_quiet(split["arrangement"], report)
     remaining = [{k: w[k] for k in ("code", "message", "section_id")}
                  for w in critique_arrangement(settled["arrangement"], report)["warnings"]]
     return {"arrangement": settled["arrangement"],
-            "changes": grounded["changes"] + led["changes"] + filled["changes"] + settled["changes"],
-            "unresolved": grounded["unresolved"] + led["unresolved"] + filled["unresolved"] + settled["unresolved"],
+            "changes": grounded["changes"] + led["changes"] + filled["changes"] + split["changes"]
+                       + settled["changes"],
+            "unresolved": grounded["unresolved"] + led["unresolved"] + filled["unresolved"] + split["unresolved"]
+                          + settled["unresolved"],
             "remaining": remaining}

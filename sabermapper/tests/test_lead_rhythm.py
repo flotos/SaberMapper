@@ -188,14 +188,15 @@ class FollowLeadRepairTests(unittest.TestCase):
     def test_arc_anchors_survive_the_rebuild(self):
         source = arrangement(STREAM)
         section = source["sections"][0]
-        head, tail = section["notes"][0], section["notes"][4]
+        # Consecutive left-hand cuts: no left note may sit inside the hold.
+        head, tail = section["notes"][0], section["notes"][2]
         section["arcs"] = [{"id": "a1", "beat": head["beat"], "color": 0, "x": head["x"], "y": head["y"],
                             "direction": head["direction"], "tail_beat": tail["beat"], "tail_x": tail["x"],
                             "tail_y": tail["y"], "tail_direction": tail["direction"]}]
         result = repair_audio(source, report())
         notes = {(float(Fraction(str(n["beat"]))), n["color"]) for n in result["arrangement"]["sections"][0]["notes"]}
         self.assertIn((0.0, 0), notes)
-        self.assertIn((2.0, 0), notes)
+        self.assertIn((1.0, 0), notes)
 
 
 class RhythmGridTests(unittest.TestCase):
@@ -250,7 +251,7 @@ class ChordChangeTests(unittest.TestCase):
         first = min(changes, key=lambda e: abs(e["seconds"] - 1.0))
         self.assertIn("C", first["from_pitch_classes"])
         self.assertIn("F", first["to_pitch_classes"])
-        self.assertEqual(report["schema_version"], "1.2")
+        self.assertEqual(report["schema_version"], "1.3")
         self.assertFalse([e for layer in ("low", "mid", "high")
                           for e in report["layers"][layer]["events"] if e["method"] == "chord_change"],
                          "frequency bands share the mix signal")

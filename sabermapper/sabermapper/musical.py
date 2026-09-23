@@ -17,7 +17,7 @@ import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 import soundfile as sf
 from scipy.fft import irfft, next_fast_len, rfft
-from scipy.ndimage import median_filter, percentile_filter
+from scipy.ndimage import maximum_filter1d, median_filter, percentile_filter
 from scipy.signal import find_peaks, istft, resample_poly, stft
 
 from .audio import _decode, _hash
@@ -26,7 +26,7 @@ from .storage import now, read_json, write_json
 RATE = 22050
 HOP = 220
 WINDOW = 1024
-BACKENDS = ("bands", "hpss", "demucs", "import", "rerun")
+BACKENDS = ("bands", "hpss", "demucs", "ensemble", "import", "rerun")
 # Monophonic f0 search range and YIN geometry; the comparison window is centred on the frame.
 MINIMUM_HZ, MAXIMUM_HZ = 70.0, 1100.0
 MAXIMUM_LAG, MINIMUM_LAG = int(RATE / MINIMUM_HZ), max(2, int(RATE / MAXIMUM_HZ))
@@ -83,6 +83,26 @@ MELODY_ATTACK_BEFORE, MELODY_ATTACK_AFTER = .12, .05
 RHYTHM_DIVISIONS = (2, 3, 4, 6, 8, 12)
 RHYTHM_METHODS = ("spectral_flux", "pitch_change", "chord_change", "melody_change")
 RHYTHM_PATTERN_STRENGTH = .3
+# Separator bleed: a stem event where the stem sits this far below the mix is leakage of another
+# instrument (htdemucs_6s routinely leaves a phantom piano stem 30-40 dB under the mix).
+BLEED_DB = 30.0
+# Layer entries: a stem becomes audible (within ENTRY_ACTIVE_DB of its own 90th-percentile level and
+# not bleed) after ENTRY_SILENCE_SECONDS of absence and stays audible for most of ENTRY_HOLD_SECONDS.
+ENTRY_ACTIVE_DB = 20.0
+ENTRY_SILENCE_SECONDS = 4.0
+ENTRY_HOLD_SECONDS = 2.0
+ENTRY_HOLD_SHARE = .5
+ENTRY_SMOOTH_SECONDS = .5
+ENTRY_ONSET_STRENGTH = .3
+ENTRY_SNAP = (-.2, 1.0)
+DEMUCS_MODELS = ("htdemucs", "htdemucs_ft", "htdemucs_6s", "hdemucs_mmi")
+# The ensemble backend: htdemucs_ft (a bag of four fine-tuned models, the strongest Demucs vocals,
+# drums and bass) supplies those stems; its "other" is split into guitar, piano and other with
+# soft masks from htdemucs_6s, so the six stems still sum to htdemucs_ft's estimate of the mix.
+ENSEMBLE_MODELS = ("htdemucs_ft", "htdemucs_6s")
+ENSEMBLE_SPLIT = ("guitar", "piano", "other")
+ENSEMBLE_SHIFTS = 2
+MASK_WINDOW = 4096
 PRESETS = {
     "balanced": {"minimum_gap_seconds": .09, "prominence": .10},
     "metal": {"minimum_gap_seconds": .065, "prominence": .12},
@@ -472,8 +492,169 @@ def _hpss(samples):
         yield name, signal[:len(samples)]
 
 
+APP_DIRECTORY = Path(__file__).resolve().parents[1]
+
+
+def separation_python(python=None):
+    """The Python that runs Demucs: --python, this interpreter when it has Demucs, else .venv-separation."""
+    import importlib.util
+    if python is not None:
+        return Path(python)
+    if importlib.util.find_spec("demucs") is not None:
+        return Path(sys.executable)
+    for relative in ("Scripts/python.exe", "bin/python"):
+        candidate = APP_DIRECTORY / ".venv-separation" / relative
+        if candidate.exists():
+            return candidate
+    raise ValueError("No Python with Demucs found. Create one with `python -m venv .venv-separation` in the "
+                     "application directory, install torch and demucs into it, or pass --python PATH.")
+
+
+def separation_device(python, device="auto"):
+    """Resolve ``auto`` to cuda when the separation Python's torch sees a GPU, else cpu."""
+    if device != "auto":
+        return device
+    probe = subprocess.run([str(python), "-c", "import torch;print('cuda' if torch.cuda.is_available() else 'cpu')"],
+                           capture_output=True, text=True, check=False)
+    return probe.stdout.strip() if probe.returncode == 0 and probe.stdout.strip() in ("cuda", "cpu") else "cpu"
+
+
+def _run_demucs(python, model, device, audio, output, *, shifts=None):
+    """Separate ``audio`` with one Demucs model; returns (stem folder, command)."""
+    command = [str(python), "-m", "demucs.separate", "-n", model, "-d", device, "--float32",
+               *(["--shifts", str(shifts)] if shifts else []), "-o", str(output / "separated"), str(audio)]
+    # shell=False; optional ML dependencies can live in another Python environment.
+    with (output / "separation.log").open("a", encoding="utf-8") as log:
+        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=False)
+    if result.returncode:
+        raise ValueError(f"Demucs failed ({model}); inspect {output / 'separation.log'}. "
+                         "Install Demucs in a compatible environment and pass --python.")
+    return output / "separated" / model / audio.stem, command
+
+
+def split_by_masks(target, guides):
+    """Split ``target`` (frames x channels) into len(guides) parts with Wiener-style power masks.
+
+    Each part takes the share of target's STFT that its guide (same shape) holds in that bin; the
+    parts sum to ``target``. Bins where every guide is silent go to the last part.
+    """
+    length, channels = target.shape
+    parts = [np.zeros_like(target) for _ in guides]
+    options = dict(fs=1.0, nperseg=MASK_WINDOW, noverlap=MASK_WINDOW * 3 // 4)
+    for channel in range(channels):
+        _, _, mixed = stft(target[:, channel].astype(np.float32), **options)
+        powers = [np.abs(stft(guide[:, channel].astype(np.float32), **options)[2]) ** 2 for guide in guides]
+        total = np.sum(powers, axis=0)
+        silent = total <= 1e-12
+        for index, power in enumerate(powers):
+            mask = np.divide(power, total, out=np.zeros_like(power), where=~silent)
+            if index == len(guides) - 1:
+                mask[silent] = 1.0
+            _, signal = istft(mixed * mask, **options)
+            parts[index][:, channel] = np.pad(signal, (0, max(0, length - len(signal))))[:length]
+    return parts
+
+
+def _ensemble_stems(ft_folder, six_folder, destination):
+    """htdemucs_ft vocals/drums/bass plus its other split into guitar/piano/other by htdemucs_6s masks."""
+    destination.mkdir(parents=True, exist_ok=True)
+    stems = {name: ft_folder / f"{name}.wav" for name in ("drums", "bass", "vocals")}
+    other, rate = sf.read(ft_folder / "other.wav", dtype="float32", always_2d=True)
+    guides = []
+    for name in ENSEMBLE_SPLIT:
+        guide, guide_rate = sf.read(six_folder / f"{name}.wav", dtype="float32", always_2d=True)
+        if guide_rate != rate or guide.shape[1] != other.shape[1]:
+            raise ValueError("Demucs models produced stems with different sample rates or channel counts")
+        guides.append(np.pad(guide, ((0, max(0, len(other) - len(guide))), (0, 0)))[:len(other)])
+    for name, part in zip(ENSEMBLE_SPLIT, split_by_masks(other, guides)):
+        sf.write(destination / f"{name}.wav", part, rate, subtype="FLOAT")
+        stems[name] = destination / f"{name}.wav"
+    return stems
+
+
+def _share_db(layer, mix):
+    """Per contour frame: the layer's level against the mix in dB, max over neighbouring frames."""
+    stem = np.array([p["energy"] for p in layer.get("energy_contour", [])], dtype=float)
+    reference = np.array([p["energy"] for p in mix.get("energy_contour", [])], dtype=float)
+    count = min(len(stem), len(reference))
+    share = 20 * np.log10(np.maximum(stem[:count], 1e-12) / np.maximum(reference[:count], 1e-12))
+    return (np.array([p["seconds"] for p in layer["energy_contour"][:count]]),
+            maximum_filter1d(share, 3, mode="nearest") if count else share)
+
+
+def gate_bleed(layers):
+    """Drop events and sustains of separated stems where the stem sits BLEED_DB or more below the mix."""
+    mix = layers.get("mix")
+    if not isinstance(mix, dict) or not mix.get("energy_contour"):
+        return
+    for name, layer in layers.items():
+        if name == "mix" or layer.get("kind") != "audio_layer" or not layer.get("energy_contour"):
+            continue
+        times, share = _share_db(layer, mix)
+        if not len(times):
+            continue
+
+        def present(seconds):
+            return share[max(0, min(len(share) - 1, int(np.searchsorted(times, seconds, side="right")) - 1))] > -BLEED_DB
+        kept = [e for e in layer["events"] if present(e["seconds"])]
+        sustains = [s for s in layer.get("sustains", []) if present((s["start_seconds"] + s["end_seconds"]) / 2)]
+        layer["bleed_gate"] = {"threshold_db": -BLEED_DB, "removed_events": len(layer["events"]) - len(kept),
+                               "kept_events": len(kept),
+                               "removed_sustains": len(layer.get("sustains", [])) - len(sustains),
+                               "present_share": round(float(np.mean(share > -BLEED_DB)), 4)}
+        layer["events"], layer["sustains"] = kept, sustains
+
+
+def layer_entries(report):
+    """Where each separated stem becomes audible after at least ENTRY_SILENCE_SECONDS of absence.
+
+    Computed from energy contours, so every evidence run has it. A stem is active in a contour frame
+    when its level (maximum over ENTRY_SMOOTH_SECONDS) is within ENTRY_ACTIVE_DB of its own
+    90th-percentile level and within BLEED_DB of the mix. The entry moves onto the stem's first
+    spectral_flux event of strength ENTRY_ONSET_STRENGTH or more in ENTRY_SNAP seconds around it.
+    """
+    layers = (report or {}).get("layers") or {}
+    mix = layers.get("mix")
+    if not isinstance(mix, dict) or not mix.get("energy_contour"):
+        return []
+    found = []
+    for name, layer in layers.items():
+        if name == "mix" or not isinstance(layer, dict) or layer.get("kind") != "audio_layer":
+            continue
+        contour = layer.get("energy_contour") or []
+        if len(contour) < 3:
+            continue
+        times, share = _share_db(layer, mix)
+        energy = np.array([p["energy"] for p in contour[:len(times)]], dtype=float)
+        step = float(times[1] - times[0]) if len(times) > 1 else .1
+        span = max(1, round(ENTRY_SMOOTH_SECONDS / step))
+        smooth = sliding_window_view(np.pad(energy, (span // 2, span - span // 2 - 1), mode="edge"), span).max(axis=1)
+        audible = smooth[smooth > 0]
+        if not len(audible):
+            continue
+        reference = float(np.percentile(audible, 90))
+        active = (20 * np.log10(np.maximum(smooth, 1e-12) / reference) > -ENTRY_ACTIVE_DB) & (share > -BLEED_DB)
+        silence, hold = round(ENTRY_SILENCE_SECONDS / step), max(1, round(ENTRY_HOLD_SECONDS / step))
+        onsets = sorted((e["seconds"], e["id"], e["strength"]) for e in layer.get("events", [])
+                        if e.get("method") == "spectral_flux" and e.get("strength", 0) >= ENTRY_ONSET_STRENGTH)
+        quiet = silence  # the song's start counts as silence before it
+        for index in range(len(active)):
+            if not active[index]:
+                quiet += 1
+                continue
+            if quiet >= silence and np.mean(active[index:index + hold]) >= ENTRY_HOLD_SHARE:
+                seconds = float(times[index])
+                near = [o for o in onsets if seconds + ENTRY_SNAP[0] <= o[0] <= seconds + ENTRY_SNAP[1]]
+                entry = {"layer": name, "seconds": round(near[0][0] if near else seconds, 6),
+                         "silent_before_seconds": round(min(quiet, index) * step, 3),
+                         "event_id": near[0][1] if near else None}
+                found.append(entry)
+            quiet = 0
+    return sorted(found, key=lambda e: (e["seconds"], e["layer"]))
+
+
 def analyze_layers(audio, output, *, backend="bands", preset="balanced", manifest=None,
-                   python=None, model="htdemucs", device="cpu", source_run=None):
+                   python=None, model="htdemucs", device="auto", source_run=None, arrangement=None):
     """Write an immutable run, publishing report.json only after full success.
 
     ``rerun`` re-analyzes the stems an earlier run (``source_run``, its directory) already
@@ -499,10 +680,13 @@ def analyze_layers(audio, output, *, backend="bands", preset="balanced", manifes
             raise ValueError("Stem manifest needs a nonempty stems object")
         if not isinstance(imported.get("producer"), str) or not imported["producer"].strip():
             raise ValueError("Stem manifest must identify its producer/model")
-    if backend == "demucs" and model not in {"htdemucs", "htdemucs_ft", "htdemucs_6s", "hdemucs_mmi"}:
+    if backend == "demucs" and model not in DEMUCS_MODELS:
         raise ValueError("Unsupported Demucs model")
+    if backend in ("demucs", "ensemble"):
+        python = separation_python(python)
+        device = separation_device(python, device)
     output.mkdir(parents=True)
-    report = {"schema_version": "1.2", "created_at": now(), "backend": backend,
+    report = {"schema_version": "1.3", "created_at": now(), "backend": backend,
               "preset": preset, "settings": PRESETS[preset], "source": source,
               "analysis_sample_rate": RATE, "hop_seconds": HOP/RATE,
               "window_seconds": WINDOW/RATE, "layers": {},
@@ -526,6 +710,10 @@ def analyze_layers(audio, output, *, backend="bands", preset="balanced", manifes
                               f"a new note held {MELODY_HOLD_SECONDS:g} s or more; strength is relative to the surrounding "
                               f"{MELODY_CONTEXT_SECONDS:g} s, so soft passages score like loud ones. On a dense mix the "
                               "line can jump between instruments, so read it where one pitched part leads.",
+                              f"Separated stems drop events and sustains where the stem sits {BLEED_DB:g} dB or more below "
+                              "the mix (bleed_gate per layer); an instrument routed to the wrong stem is still there.",
+                              "layer_entries mark where a stem becomes audible after silence; they come from energy, "
+                              "not from recognizing the instrument.",
                               "No human timing review or playtest is implied."]}
     settings = PRESETS[preset]
     report["layers"]["mix"] = _lane(samples, "mix", settings)
@@ -540,18 +728,17 @@ def analyze_layers(audio, output, *, backend="bands", preset="balanced", manifes
         report["limitations"].append("Harmonic/percussive layers are mono estimates, not individual instruments.")
     else:
         if backend == "demucs":
-            command = [str(python or sys.executable), "-m", "demucs.separate", "-n", model,
-                       "-d", device, "--float32", "-o", str(output / "separated"), str(audio)]
-            # shell=False; optional ML dependencies can live in another Python environment.
-            with (output / "separation.log").open("w", encoding="utf-8") as log:
-                result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=False)
-            if result.returncode:
-                raise ValueError(f"Demucs failed; inspect {output / 'separation.log'}. "
-                                 "Install Demucs in a compatible environment and pass --python.")
-            folder = output / "separated" / model / audio.stem
+            folder, command = _run_demucs(python, model, device, audio, output)
             names = ["drums", "bass", "other", "vocals"] + (["guitar", "piano"] if model == "htdemucs_6s" else [])
             stems = {name: folder / f"{name}.wav" for name in names}
             report["producer"] = {"model": model, "command": command}
+        elif backend == "ensemble":
+            fine, fine_command = _run_demucs(python, ENSEMBLE_MODELS[0], device, audio, output, shifts=ENSEMBLE_SHIFTS)
+            six, six_command = _run_demucs(python, ENSEMBLE_MODELS[1], device, audio, output)
+            stems = _ensemble_stems(fine, six, output / "separated" / "ensemble")
+            report["producer"] = {"models": list(ENSEMBLE_MODELS), "commands": [fine_command, six_command],
+                                  "method": "htdemucs_ft drums/bass/vocals; htdemucs_ft other split into "
+                                            "guitar/piano/other by htdemucs_6s power masks"}
         elif backend == "rerun":
             source_run = Path(source_run).resolve()
             previous = read_json(source_run / "report.json")
@@ -582,7 +769,11 @@ def analyze_layers(audio, output, *, backend="bands", preset="balanced", manifes
             report["layers"][name] = {**_lane(signal, name, settings), "source": identity,
                                       "audio_file": f"{name}.wav",
                                       "alignment": "duration checked; internal delay requires listening review"}
+    gate_bleed(report["layers"])
+    report["layer_entries"] = layer_entries(report)
     report["passages"], report["passage_thresholds"] = _passages(report["layers"], len(samples) / RATE)
+    from .spectrogram import render_overview
+    report["views"] = {"overview": render_overview(report, output, audio, arrangement).name}
     write_json(output / "report.json", report)
     return report
 
@@ -738,11 +929,14 @@ def rhythm_grid(report, arrangement, start, end, *, layers=None, division=4):
     singing = {b["start_beat"] for b in critique_arrangement(arrangement, report)["metrics"]["salience"]["bars"]
                if b["salient"] == "vocals"}
     letters = {name: {} for name in names}
+    entering = [(seconds_to_beat(e["seconds"], arrangement), e["layer"])
+                for e in (report["layer_entries"] if "layer_entries" in report else layer_entries(report))]
     bars = []
     for bar in range(first, last, SALIENCE_BAR_BEATS):
         row = {"start_beat": bar, "seconds": round(_beat_seconds(bar, arrangement), 3),
                "lead": "vocals" if bar in singing else focus_lead(spans, bar + SALIENCE_BAR_BEATS / 2, available),
-               "notes": "", "layers": {}, "patterns": {}}
+               "notes": "", "layers": {}, "patterns": {},
+               "entering": sorted({layer for beat, layer in entering if bar <= beat < bar + SALIENCE_BAR_BEATS})}
         grid = ["."] * cells
         for beat in notes:
             index = cell(beat) - (bar - first) * division
@@ -766,10 +960,13 @@ def rhythm_grid(report, arrangement, start, end, *, layers=None, division=4):
                        "normalized to the layer's strongest attack in this range",
                        "patterns": "bars sharing a letter repeat the same strong cells (0.3 or more)",
                        "lead": "vocals in a singing bar, else the musical_focus lead stem; null means undeclared",
+                       "entering": "stems that become audible after 4 s or more of silence in this bar; a drum entry "
+                                   "takes the focus for its bar (drum_entry_unmapped)",
                        "grid_fit": "share of strong attacks within 0.05 beat of the sixteenth or triplet grid; "
                                    "a higher triplet share means author on 1/3 or 1/6 beats"},
             "authoring": "Put notes on the lead's attacks, keep its rests and syncopation, and fill only the lead's "
-                         "gaps of a beat or more from another layer."}
+                         "gaps of a beat or more from another layer. Add the heaviest hits of the other stems (a few "
+                         "per 16 beats) so the map carries the whole band, and let arriving drums take their bar."}
 
 
 def _beat_seconds(beat, arrangement):
@@ -808,6 +1005,11 @@ def analyze_project(store, project_id, from_run=None, **options):
                        preset=options.get("preset") or previous["preset"])
     options["preset"] = options.get("preset") or "balanced"
     run_id = uuid.uuid4().hex
-    report = analyze_layers(directory / "song.ogg", directory / "musical" / run_id, **options)
+    arrangement = read_json(directory / "arrangement.json") if (directory / "arrangement.json").exists() else None
+    report = analyze_layers(directory / "song.ogg", directory / "musical" / run_id, arrangement=arrangement, **options)
     return {"id": run_id, "path": str(directory / "musical" / run_id / "report.json"),
-            "backend": report["backend"], "layers": list(report["layers"])}
+            "backend": report["backend"], "layers": list(report["layers"]),
+            "overview_image": str(directory / "musical" / run_id / report["views"]["overview"]),
+            "bleed_gate": {name: layer["bleed_gate"] for name, layer in report["layers"].items() if "bleed_gate" in layer},
+            "layer_entries": report["layer_entries"],
+            "next": "Read overview_image to see the song's structure, then `music spectrogram` per passage."}

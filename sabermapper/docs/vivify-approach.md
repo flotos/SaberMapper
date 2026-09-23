@@ -1,5 +1,10 @@
 # Vivified maps: approach draft
 
+> Superseded in part by [tickets/vivify/base-ticket.md](../../tickets/vivify/base-ticket.md)
+> (2026-09-23): the agent owns a build–verify–refine loop, the real game (via a bridge mod) replaces
+> the show sheet as the preview, the studio becomes a one-click verification console, and a Unity
+> asset forge adds per-map custom assets. The schema, compiler and validation below remain Phase A.
+
 Status: proposal, 2026-09-22. Goal: the user says "Create a vivified map of YYY.flac" and the agent
 delivers a map whose scene, lighting and note chart were composed together as one artistic piece,
 playable in the installed game. Builds on the EXSII study in

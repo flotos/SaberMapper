@@ -73,7 +73,10 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
         if not _finite_number(song["audio_offset_seconds"]) or song["audio_offset_seconds"] < 0:
             add("error", "invalid_offset", "audio_offset_seconds must be finite and nonnegative")
     difficulty = arrangement["difficulty"]
-    if keys(difficulty, {"name", "rank", "njs", "spawn_offset_beats"}, "difficulty"):
+    if keys(difficulty, {"name", "rank", "njs", "spawn_offset_beats"}, "difficulty", optional={"target_tier"}):
+        from .star_tiers import TIER_IDS
+        if "target_tier" in difficulty and difficulty["target_tier"] not in TIER_IDS:
+            add("error", "invalid_target_tier", f"difficulty.target_tier must be one of {', '.join(TIER_IDS)}")
         ranks = {"Easy": 1, "Normal": 3, "Hard": 5, "Expert": 7, "ExpertPlus": 9}
         if not isinstance(difficulty["name"], str) or difficulty["name"] not in ranks or difficulty["rank"] != ranks.get(difficulty["name"]):
             add("error", "invalid_difficulty", "difficulty name/rank must match Easy/1, Normal/3, Hard/5, Expert/7, or ExpertPlus/9")
@@ -316,6 +319,23 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
                     add("error", f"{kind[:-1]}_{role}_direction_mismatch",
                         f"{oid} {role} direction {direction} does not match note {note[-1]} direction {note[4]}",
                         sid, [oid, note[-1]])
+        # A held arc or chain occupies its saber from head to tail: a note of the same
+        # color strictly between them cannot be cut without abandoning the hold.
+        locked_ids = {s.get("id") for s in sections if isinstance(s, dict) and s.get("locked") is True}
+        for kind, sid, start, item in held:
+            oid = f'{sid}/{kind}/{item["id"]}'
+            head, tail = start + _beat(item["beat"]), start + _beat(item["tail_beat"])
+            for note in expanded:
+                if note[3] != item["color"] or not head < note[0] < tail:
+                    continue
+                severity, advice = "error", (f"give the note to the other hand, split the {kind[:-1]} at it, "
+                                             "or remove it (project repair-swings does this)")
+                if sid in locked_ids and note[-2] in locked_ids:
+                    severity, advice = "warning", "section is locked, unlock it to repair"
+                add(severity, f"{kind[:-1]}_note_conflict",
+                    f"{oid} holds color {item['color']} from beat {float(head):g} to {float(tail):g}, but note "
+                    f"{note[-1]} of that color sits inside the hold at beat {float(note[0]):g}; {advice}",
+                    note[-2], [oid, note[-1]])
 
     if "tempo_events" in arrangement:
         events = arrangement["tempo_events"]

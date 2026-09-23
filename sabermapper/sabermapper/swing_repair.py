@@ -297,7 +297,7 @@ def repair_fast_breaks(arrangement: dict, max_steps: int = 5000) -> dict:
         if not findings:
             break
         blocking = [d for d in diagnostics
-                    if d["severity"] == "error" and d["code"] not in BLOCKING_CODES + ("unresolved_section",)]
+                    if d["severity"] == "error" and d["code"] not in BLOCKING_CODES + ("unresolved_section", "hidden_note")]
         if blocking:
             raise ValueError("Fix structural errors before repairing swings: "
                              + "; ".join(d["message"] for d in blocking[:5]))

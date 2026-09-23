@@ -73,7 +73,10 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
         if not _finite_number(song["audio_offset_seconds"]) or song["audio_offset_seconds"] < 0:
             add("error", "invalid_offset", "audio_offset_seconds must be finite and nonnegative")
     difficulty = arrangement["difficulty"]
-    if keys(difficulty, {"name", "rank", "njs", "spawn_offset_beats"}, "difficulty"):
+    if keys(difficulty, {"name", "rank", "njs", "spawn_offset_beats"}, "difficulty", optional={"target_tier"}):
+        from .star_tiers import TIER_IDS
+        if "target_tier" in difficulty and difficulty["target_tier"] not in TIER_IDS:
+            add("error", "invalid_target_tier", f"difficulty.target_tier must be one of {', '.join(TIER_IDS)}")
         ranks = {"Easy": 1, "Normal": 3, "Hard": 5, "Expert": 7, "ExpertPlus": 9}
         if not isinstance(difficulty["name"], str) or difficulty["name"] not in ranks or difficulty["rank"] != ranks.get(difficulty["name"]):
             add("error", "invalid_difficulty", "difficulty name/rank must match Easy/1, Normal/3, Hard/5, Expert/7, or ExpertPlus/9")

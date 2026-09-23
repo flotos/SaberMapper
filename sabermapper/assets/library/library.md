@@ -169,6 +169,24 @@ the game clears to black otherwise), surface and particle materials inside prefa
 | `_Stars` | Float | `0.3` | 0 to 0.8 | Star density |
 | `_Glow` | Float | `0` | 0 to 0.3 | Alpha written for Beat Saber's bloom |
 
+### `sm_sky_panorama`: SaberMapper/Sky/Panorama
+
+- **Kinds:** skybox, material
+- **Intent:** A real place or painted world as the backdrop: a fetched sky panorama (assets fetch get --kind sky) behind the whole map or one section.
+- **Looks like:** The equirectangular photo or painting surrounds the player at infinity, like standing inside it. Exposure and tint push it into the palette, rotation turns the world slowly, and a softly darker cone straight ahead keeps the notes readable.
+
+| Property | Type | Default | Safe range | Meaning |
+|---|---|---|---|---|
+| `_Tex` | Texture | `"black"` | any | The panorama texture asset (2:1 equirectangular, srgb, wrap clamp) |
+| `_Tint` | Color | `[1, 1, 1, 1]` | any | Multiplied into the image; use a palette colour to pull the photo into the concept |
+| `_Exposure` | Float | `0` | -3 to 1 | Brightness in stops; photos usually want -1 to -2 behind notes |
+| `_Saturation` | Float | `1` | 0 to 1.5 | 0 is monochrome |
+| `_Rotation` | Float | `0` | 0 to 360 | Turns the world around the up axis; animate very slowly (under 1 degree per second) |
+| `_Horizon` | Float | `0` | -0.3 to 0.3 | Moves the horizon up (positive) or down |
+| `_LaneDim` | Float | `0.35` | 0 to 0.8 | How much darker the cone straight ahead is |
+| `_LaneWidth` | Float | `28` | 15 to 45 | Half-angle of that cone in degrees |
+| `_Glow` | Float | `0` | 0 to 0.1 | Alpha written for Beat Saber's bloom; keep 0 for a sky |
+
 ### `sm_unlit_emissive`: SaberMapper/Surface/UnlitEmissive
 
 - **Kinds:** material

@@ -23,6 +23,24 @@ listen -> concept -> forge assets -> choreograph (show) -> compile/export -> gam
 
 Iterate until `project verify` is `ready_for_human`, then hand over. Never hand over a revision that failed a check, and never open the studio, ArcViewer or a browser preview yourself.
 
+## Toolbox
+
+Everything the loop needs is a command or a file in this skill. Each command prints JSON; errors carry a `code` and a `fix`.
+
+| Need | Command or file | Details |
+|---|---|---|
+| Song structure, moments, mood, lyrics | `music analyze`, `music listen`, `music lyrics` | step 1 |
+| Reference treatments | `concept corpus`, `concept template`, `concept save` | step 2 |
+| How the visuals should look and why | [shader craft](references/shader-craft.md), [EXSII shaders](references/exsii-shaders.md) | step 3 |
+| Shader functions and starting shaders | [cookbook](references/shader-cookbook.md), `templates/*.shader` | compile-checked, rendered in game |
+| Library shaders and mesh generators | `assets library` (`assets/library/library.md`) | step 3 |
+| Models, textures and photo skies (CC0) | `assets fetch search` → `info` → `get --add` | step 3, `docs/asset-forge.md` "fetched media" |
+| Validate and build the bundle | `assets lint`, `assets build` (Unity 2021.3.45f1, batchmode) | step 3 |
+| Show choreography | `show validate`, `show save`, `show compile` (`docs/vivify-show.md`) | step 4 |
+| Export and see it in the game | `project export`, `game capture`, `frames sheet`, `frames summary` | step 5 |
+| Handover gate | `project verify --record` | step 6 |
+| User notes | `project feedback list` | step 7 |
+
 ### 1. Listen
 
 1. `music analyze ID --backend ensemble` (stems; required for lyrics and mood). Read `musical/RUN/overview.png`.
@@ -48,9 +66,16 @@ Rules that hold for every shader:
 - A skybox needs `setup.camera_properties` `{"clearFlags": "Skybox"}` or it stays black (`skybox_not_cleared`).
 
 1. `assets library` lists tier-1 shaders (post-process, skyboxes, emissive surfaces, particles) with typed properties, safe ranges and a description of how each looks. Compose the library for supporting layers.
-2. `assets init ID`, edit `<project>/assets/assets.json`, then `assets lint ID`. Tier 2: write per-map shaders for the concept's central image, starting from the nearest template, plus mesh or particle generators as needed. Every shader must pass the single-pass-instanced stereo lint. Tier 3 (generated textures/meshes) returns `generator_unavailable` until a local model is set up.
-3. `assets build ID` runs Unity batchmode and writes `<project>/assets/bundleinfo.json` and `bundleWindows2021.vivify`. If it returns `unity_missing`, tell the user the one-time install in its `fix`; you can still write and validate the show, but export and capture need the bundle.
-4. When a per-map asset is worth keeping, `assets promote ID ASSET` and fill its library entry.
+2. `assets init ID`, edit `<project>/assets/assets.json`, then `assets lint ID`. Tier 2: write per-map shaders for the concept's central image, starting from the nearest template, plus mesh or particle generators as needed. Every shader must pass the single-pass-instanced stereo lint.
+3. When the concept needs real-world shapes or a photographed sky, fetch them (tier 3, all CC0; `assets generate` has no local model yet):
+   - `assets fetch search "pine tree" --kind model` (also `--kind texture`, `--kind sky`) lists Poly Haven, ambientCG and Kenney candidates with triangle counts, sizes and `fits_budget`.
+   - `assets fetch info REF` caches the candidate and returns local preview PNGs. **Read the previews before choosing.** A Poly Haven set lists its mesh nodes; a Kenney pack lists every model.
+   - `assets fetch get REF ID --add [--model NAME | --node NAME] [--height M]` writes `models/<id>.obj` (reduced to the triangle budget, vertex colours from the materials) or `textures/<id>.jpg`, with provenance, and appends the tier-3 entry. Put the model in a prefab child with `{"mesh": {"asset": "<id>"}}`.
+   - Restyle every fetched model with a scene shader. `templates/stage_surface.shader` with `_VertexColor 1` and grey `_Base`/`_Lit` shows a model's own colours; without vertex colours it gives banded light, rim and fog in the palette. Stock-looking assets break the concept.
+   - Kenney models face the player at rotation `[0, 0, 0]`; for other sources, turn a child `[0, 180, 0]` if a capture shows its back. Decimated models lose UV detail, so use object- or world-space shading on them.
+   - Photo skies: a skybox material on the library shader `sm_sky_panorama` (`"_Tex": {"texture": "<id>"}`, `_Exposure` around -0.5 to -2 behind notes) and setup `camera_properties` `{"clearFlags": "Skybox"}`.
+4. `assets build ID` runs Unity batchmode and writes `<project>/assets/bundleinfo.json` and `bundleWindows2021.vivify`. If it returns `unity_missing`, tell the user the one-time install in its `fix`; you can still write and validate the show, but export and capture need the bundle.
+5. When a per-map asset is worth keeping, `assets promote ID ASSET` and fill its library entry.
 
 ### 4. Choreograph the show
 

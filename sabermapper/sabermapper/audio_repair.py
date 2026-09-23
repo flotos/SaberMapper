@@ -14,7 +14,9 @@ Two passes, both judged against one musical evidence run:
    half-beat), ``boundary_accent_unmapped`` (the accent) and
    ``density_collapse`` (strong stem onsets inside the sparse window). A new
    note takes the hand and cut direction that add no flow break with either
-   neighbouring swing of that hand; otherwise the onset is reported unresolved.
+   neighbouring swing of that hand, in a cell where it neither hides behind
+   nor hides another note (``hidden_note``); otherwise the onset is reported
+   unresolved.
    ``lead_rhythm_unmapped`` adds notes on the declared lead's strongest attack
    per half-beat, and ``melody_unmapped`` on the strongest melody change per
    half-beat of a melodic bar, on the whole, half or quarter beat nearest it.
@@ -55,7 +57,7 @@ from .critique import (ACCENT_STRENGTH, DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT
                        SALIENCE_BAR_BEATS, SALIENCE_MATCH_BEATS, VOCAL_ONSET_STRENGTH, _sections, beat_to_seconds,
                        critique_arrangement, focus_lead, lead_onsets, on_onset, quiet_bar, quiet_windows,
                        salient_onsets, strongest_per_slot)
-from .movement import turn_degrees, _OPPOSITE
+from .movement import hidden_window, turn_degrees, _OPPOSITE
 from .swing_repair import _count_breaks, _hand_swings
 from .validation import _beat, validate_arrangement
 
@@ -423,13 +425,22 @@ def _revert_breaking(result, original, changes, unresolved, baseline):
 
 
 def _cells(view, hand, direction, beat, anchor):
-    """Candidate (cost, x, y) cells for a new note, nearest the hand's previous position first."""
-    occupied = {(n["x"], n["y"]) for n in expanded_notes(view.arrangement) if n["beat"] == beat}
-    other = [n["x"] for n in expanded_notes(view.arrangement) if n["beat"] == beat and n["color"] != hand]
+    """Candidate (cost, x, y) cells for a new note, nearest the hand's previous position first.
+
+    A cell whose note would hide behind, or hide, a nearby note in that cell (``hidden_note``) is skipped.
+    """
+    notes = expanded_notes(view.arrangement)
+    occupied = {(n["x"], n["y"]) for n in notes if n["beat"] == beat}
+    other = [n["x"] for n in notes if n["beat"] == beat and n["color"] != hand]
+    seconds = beat_to_seconds(beat, view.arrangement)
+    near = [(n["x"], n["y"], abs(beat_to_seconds(n["beat"], view.arrangement) - seconds))
+            for n in notes if n["beat"] != beat and abs(n["beat"] - beat) <= 4]
     cells = []
     for x in LANES[hand]:
         for y in range(3):
             if (x, y) in occupied or any((x > o) if hand == 0 else (x < o) for o in other):
+                continue
+            if any((nx, ny) == (x, y) and gap < hidden_window(x, y) for nx, ny, gap in near):
                 continue
             cost = abs(x - anchor[0]) + abs(y - anchor[1])
             cost += 1.5 if (direction in UP_CUTS and y == 2) or (direction in DOWN_CUTS and y == 0 and anchor[1] == 0) else 0

@@ -15,6 +15,7 @@ from sabermapper.export import ExportError, export_arrangements
 from sabermapper.projects import ConflictError, ProjectStore
 from sabermapper.server import make_server
 from sabermapper.star_tiers import TIER_IDS, default_tiers, player_tiers, tier_for
+from sabermapper.tier_fit import missing_reference_warning
 from sabermapper.validation import validate_arrangement
 
 
@@ -221,8 +222,12 @@ class TierFitTests(unittest.TestCase):
         self.assertFalse({"tier_below_target", "tier_above_target"} & {w["code"] for w in result["warnings"]})
 
     def test_missing_reference_or_target_is_reported_not_guessed(self):
+        # Repairs call critique without a reference: no tier warning leaks into their remaining warnings.
         result = critique_arrangement(_arrangement(0.5, "challenge"), None, None)
-        self.assertIn("tier_reference_missing", [w["code"] for w in result["warnings"]])
+        self.assertEqual(result["metrics"]["tier_fit"], {"checked": False, "target_tier": "challenge",
+                                                          "reason": "no tier reference"})
+        self.assertFalse([w for w in result["warnings"] if w["code"].startswith("tier_")])
+        self.assertEqual(missing_reference_warning(_arrangement(0.5, "challenge"))["code"], "tier_reference_missing")
         arrangement = _arrangement(0.5, "challenge")
         del arrangement["difficulty"]["target_tier"]
         self.assertFalse(critique_arrangement(arrangement, None, _reference())["metrics"]["tier_fit"]["checked"])

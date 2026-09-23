@@ -20,7 +20,8 @@ from .revisions import arrangement_revision
 from .storage import now, read_json, write_json
 
 # Unresolved audio findings are never handed over (AGENTS.md); the rest of the critique is descriptive.
-AUDIO_BLOCKING = {"audio_unmapped", "note_without_audio", "low_audio_support", "audio_evidence_missing"}
+AUDIO_BLOCKING = {"audio_unmapped", "note_without_audio", "note_off_sound", "low_audio_support",
+                  "audio_evidence_missing"}
 
 
 def _check(check_id, status, blocking=(), warnings=(), **detail):

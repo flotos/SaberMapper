@@ -251,6 +251,8 @@ def apply_suggestion(arrangement: dict, suggestion: dict) -> dict:
     ``add`` inserts rhythm-only notes (the placer places them), ``remove`` takes ``object_id`` or
     ``object_ids``, ``set_weights`` rewrites a focus phrase's lead and weights, ``stack`` marks the note
     ``object_id`` (or new notes at ``beat``) as a stack of ``size`` notes and removes the notes in ``remove``,
+    ``retime`` moves the note ``object_id`` to the song beat ``to_beat`` inside its own section, with the arc or
+    chain end it anchors,
     ``add_theme`` declares a theme and reopens its echo notes for the placer.
     """
     import copy
@@ -321,8 +323,15 @@ def apply_suggestion(arrangement: dict, suggestion: dict) -> dict:
     elif suggestion["op"] == "unpin":
         for field in suggestion["fields"]:
             note.pop(field, None)
-    elif suggestion["op"] == "retime":
-        note["beat"] = suggestion["to_beat"]
+    elif suggestion["op"] == "retime":  # to_beat is a song beat, like add's; the note keeps its section
+        offset = Fraction(str(suggestion["to_beat"])) - Fraction(str(section["start_beat"]))
+        before, after = Fraction(str(note["beat"])), int(offset) if offset.denominator == 1 else str(offset)
+        for kind, ends in (("arcs", ("beat", "tail_beat")), ("chains", ("beat",))):
+            for item in section.get(kind, []):
+                for end in ends:
+                    if Fraction(str(item[end])) == before and note.get("color", item["color"]) == item["color"]:
+                        item[end] = after
+        note["beat"] = after
     else:
         raise ValueError(f"Unknown suggestion op {suggestion['op']!r}")
     return result

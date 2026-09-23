@@ -12,7 +12,8 @@ from sabermapper.audio import _hash
 from sabermapper.critique import critique_arrangement
 from sabermapper.placement import place_arrangement
 from sabermapper.projects import ProjectStore
-from sabermapper.rhythm_proposal import TARGET_CODES, propose_rhythm
+from sabermapper.rhythm_proposal import (SNAP_SECONDS, TARGET_CODES, grid_beat, melody_beat, propose_rhythm,
+                                         snap_reach)
 from sabermapper.validation import validate_arrangement
 
 BEATS = 128  # 120 BPM: beat b sits at b / 2 seconds
@@ -219,6 +220,48 @@ class AudioSuggestionTests(unittest.TestCase):
             fixed = self.apply(fixed, suggestion)
         self.assertFalse([f for f in self.check(fixed, evidence)["findings"] if f["code"] == "note_without_audio"])
 
+    def test_notes_beside_their_sounds_move_onto_them(self):
+        evidence = song()
+        draft = propose_rhythm(song_arrangement(), evidence)["draft"]
+        riff = next(s for s in draft["sections"] if s["id"] == "riff")  # starts at beat 16: retimes stay relative
+        for note in riff["notes"]:
+            if Fraction(str(note["beat"])) < 8:
+                note["beat"] = str(Fraction(str(note["beat"])) + Fraction(1, 10))  # 50 ms after its kick
+        found = [f for f in self.check(draft, evidence)["findings"] if f["code"] == "note_off_sound"]
+        self.assertTrue(found)
+        fixed = draft
+        for finding in found:
+            self.assertTrue(finding["suggestions"])
+            for suggestion in finding["suggestions"]:
+                self.assertEqual(suggestion["op"], "retime")
+                fixed = self.apply(fixed, suggestion)
+        moved = next(s for s in fixed["sections"] if s["id"] == "riff")["notes"]
+        self.assertTrue(all(Fraction(str(n["beat"])) < 32 for n in moved))
+        self.assertFalse([f for f in self.check(fixed, evidence)["findings"] if f["code"] == "note_off_sound"])
+
+    def test_an_arc_end_moves_with_its_note_onto_the_sound(self):
+        evidence = song()
+        draft = propose_rhythm(song_arrangement(), evidence, held=[36.0])["draft"]
+        verse = next(s for s in draft["sections"] if s["id"] == "verse")
+        arc = next(a for a in verse["arcs"] if a["id"] == "va-56")  # held from beat 8 of the verse
+        head, shift = Fraction(str(arc["beat"])), Fraction(1, 10)  # 50 ms after the held syllable
+        arc["beat"] = str(head + shift)
+        for note in verse["notes"]:
+            if 6 <= Fraction(str(note["beat"])) < 10:
+                note["beat"] = str(Fraction(str(note["beat"])) + shift)
+        anchor = next(f'verse/note/{n["id"]}' for n in verse["notes"] if Fraction(str(n["beat"])) == head + shift)
+        found = [f for f in self.check(draft, evidence)["findings"] if f["code"] == "note_off_sound"]
+        suggestions = [s for f in found for s in f["suggestions"]]
+        self.assertEqual([s["op"] for s in suggestions if s["object_id"] == anchor], ["retime"])
+        fixed = draft
+        for suggestion in suggestions:
+            fixed = self.apply(fixed, suggestion)
+        moved = next(a for s in fixed["sections"] if s["id"] == "verse" for a in s["arcs"] if a["id"] == "va-56")
+        self.assertEqual(Fraction(str(moved["beat"])), head)
+        after = self.check(fixed, evidence)["findings"]
+        self.assertFalse([f["code"] for f in after if f["blocking"]])
+        self.assertFalse([f for f in after if f["code"] == "note_off_sound"])
+
     def test_a_focus_on_an_absent_stem_gets_new_weights(self):
         evidence = report()
         contour = [{"seconds": i / 10, "energy": 0.5} for i in range(BEATS * 5)]
@@ -292,6 +335,43 @@ class MusicalRuleTests(unittest.TestCase):
 
     def test_each_bar_has_one_role(self):
         self.assertEqual([self.bars[b]["role"] for b in (0, 20, 52)], ["soft", "riff", "sung"])
+
+    def test_a_free_time_melody_keeps_each_change_on_its_own_time(self):
+        # A rubato choir before the drums: changes that follow no grid. The nearest quarter beat would sit up to
+        # 62 ms off at 120 BPM; every drafted time stays within SNAP_SECONDS of its sound.
+        evidence = song()
+        free = [0.37, 1.61, 2.9, 4.13, 5.38, 6.62, 7.87, 9.1, 10.35, 11.64, 12.88, 14.12]
+        evidence["layers"]["mix"]["events"] = [e for e in evidence["layers"]["mix"]["events"]
+                                               if e["method"] != "melody_change" or e["seconds"] >= 8]
+        evidence["layers"]["mix"]["events"] += [{"id": f"mix:free:{i}", "seconds": b / 2, "method": "melody_change",
+                                                 "strength": 0.6} for i, b in enumerate(free)]
+        result = propose_rhythm(song_arrangement(), evidence)
+        intro = [n for bar in result["bars"] for n in bar["notes"] if Fraction(str(n["beat"])) < 16]
+        self.assertTrue(intro)
+        for note in intro:
+            self.assertLessEqual(abs(float(Fraction(str(note["beat"]))) / 2 - note["evidence"]["seconds"]),
+                                 SNAP_SECONDS + 1e-9, note)
+        from sabermapper.check import check_arrangement
+        self.assertFalse([f for f in check_arrangement(result["draft"], evidence)["findings"]
+                          if f["code"] == "note_off_sound"])
+
+    def test_an_arc_starts_on_the_sung_attack_not_the_pitch_trackers_late_start(self):
+        # The pitch tracker finds the held note 40 ms after its syllable (beat 56): the arc starts on the syllable.
+        evidence = song()
+        for sustain in evidence["layers"]["vocals"]["sustains"]:
+            sustain["start_seconds"] += 0.04
+        arcs = propose_rhythm(song_arrangement(), evidence)["arcs"]
+        self.assertIn(56, [Fraction(str(a["head"])) for a in arcs])
+
+    def test_snapping_prefers_the_coarsest_grid_that_stays_on_the_sound(self):
+        self.assertEqual(melody_beat(2.03), 2)  # on the beat: 15 ms at 120 BPM
+        self.assertEqual(melody_beat(2.9), Fraction(23, 8))  # not the nearest quarter (3), 62 ms away
+        self.assertEqual(grid_beat(2.9, 0.07), Fraction(23, 8))
+        self.assertEqual(grid_beat(2.335, 0.01), Fraction(112, 48))  # nothing in GRIDS reaches: its own time
+        # A slow song's reach shrinks so a snapped note is never SNAP_SECONDS or more off its sound.
+        slow = {"song": {"bpm": 80}}
+        self.assertAlmostEqual(snap_reach(slow) * 60 / 80, SNAP_SECONDS)
+        self.assertEqual(snap_reach({"song": {"bpm": 180}}), 0.07)
 
     def test_soft_bars_map_changes_half_a_beat_apart(self):
         soft = sorted(t for t in self.times if t < 16)

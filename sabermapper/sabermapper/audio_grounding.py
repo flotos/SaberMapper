@@ -1,12 +1,15 @@
 """Audio grounding: the map exists to put the song's audio under the player's sabers.
 
-Two checks compare an arrangement with a musical evidence run:
+Three checks compare an arrangement with a musical evidence run:
 
 * underfilled audio: a stretch where the mix is audibly active and the stems carry strong
   onsets, yet the map holds at most one note per 4-second window. A stretch of
   BLOCKING_SECONDS or more is an error: saving refuses it.
 * unsupported notes: notes with no onset, pitch or melody change in any layer near their time,
   meaning they were placed on a grid rather than on a sound.
+* notes off their sound: a sound sits under the note, but OFF_SOUND_SECONDS or more away. One such note in a
+  steady groove passes, since the drums carry the beat; several close together, or one where no drum plays (a
+  free-time choir snapped to a grid it does not follow), are heard as off-rhythm.
 """
 
 from __future__ import annotations
@@ -32,6 +35,10 @@ SUPPORT_BEATS = 0.13
 SUPPORT_SHARE = 0.9
 UNSUPPORTED_RUN = 4
 ONSET_METHODS = ("spectral_flux", "pitch_change", "melody_change")
+OFF_SOUND_SECONDS = 0.04
+OFF_SOUND_RUN = 3
+OFF_SOUND_WINDOW = 6
+PULSE_BEATS = 2  # a drum attack this close carries the beat for a note off its sound
 
 DEFINITIONS = {
     "active_audio": f"A mix energy frame at or above {ACTIVE_LEVEL:g} times the median of audible mix frames "
@@ -46,6 +53,9 @@ DEFINITIONS = {
     "low_audio_support": f"Fewer than {SUPPORT_SHARE:.0%} of the map's note times are supported by an audio event.",
     "note_without_audio": f"{UNSUPPORTED_RUN} or more consecutive note times with no supporting audio event: "
                           "notes placed on the grid rather than on a sound.",
+    "note_off_sound": f"{OFF_SOUND_RUN} or more of {OFF_SOUND_WINDOW} consecutive note times, or any one with no drum "
+                      f"attack within {PULSE_BEATS} beats, sit {OFF_SOUND_SECONDS * 1000:g} ms or more from the nearest "
+                      "supporting audio event: notes near a sound but off its time, heard as off-rhythm.",
     "audio_evidence_missing": "No musical evidence run matches the project's current audio, so the audio checks "
                               "did not run.",
 }
@@ -118,9 +128,14 @@ def underfilled_spans(arrangement: dict, report: dict) -> list[dict]:
 
 def note_support(arrangement: dict, report: dict) -> dict:
     """Which note times sit on an audio event, and the runs that do not."""
+    from .critique import DRUM_ONSET_STRENGTH
     onsets = sorted(t for values in _stem_onsets(report, SUPPORT_STRENGTH, include_mix=True).values()
                     for t in values)
     to_seconds, tempo = _beat_seconds(arrangement), float(arrangement["song"]["bpm"])
+    drum_layer = (report.get("layers") or {}).get("drums")
+    drums = sorted(float(e["seconds"]) for e in drum_layer.get("events", []) if e.get("method") == "spectral_flux"
+                   and e.get("strength", 0) >= DRUM_ONSET_STRENGTH) if isinstance(drum_layer, dict) else None
+    pulse_reach = PULSE_BEATS * 60 / tempo
     by_beat = {}
     for note in expanded_notes(arrangement):
         by_beat.setdefault(Fraction(str(note["beat"])), []).append(note["id"])
@@ -129,8 +144,13 @@ def note_support(arrangement: dict, report: dict) -> dict:
         seconds = to_seconds(beat)
         tolerance = SUPPORT_BEATS * 60 / tempo
         index = bisect_left(onsets, seconds - tolerance)
+        after = bisect_left(onsets, seconds)
+        nearest = min((abs(onsets[i] - seconds) for i in (after - 1, after) if 0 <= i < len(onsets)), default=None)
         rows.append({"beat": float(beat), "seconds": seconds, "ids": by_beat[beat],
-                     "supported": index < len(onsets) and onsets[index] <= seconds + tolerance})
+                     "supported": index < len(onsets) and onsets[index] <= seconds + tolerance,
+                     "offset": None if nearest is None or nearest > tolerance else nearest,
+                     # Without a drum stem there is no telling; the beat is taken as carried.
+                     "pulse": drums is None or _count(drums, seconds - pulse_reach, seconds + pulse_reach + 1e-9) > 0})
     runs, current = [], []
     for row in rows + [{"supported": True}]:
         if not row["supported"]:
@@ -142,7 +162,29 @@ def note_support(arrangement: dict, report: dict) -> dict:
         current = []
     supported = sum(1 for r in rows if r["supported"])
     return {"note_times": len(rows), "supported": supported,
-            "share": round(supported / len(rows), 4) if rows else 1.0, "unsupported_runs": runs}
+            "share": round(supported / len(rows), 4) if rows else 1.0, "unsupported_runs": runs,
+            "off_sound_runs": _off_sound_runs(rows)}
+
+
+def _off_sound_runs(rows):
+    """Runs of note times near a sound but OFF_SOUND_SECONDS or more from it: OFF_SOUND_RUN of any
+    OFF_SOUND_WINDOW consecutive note times, or any one with no drum attack within PULSE_BEATS, joined while
+    they overlap."""
+    off = [i for i, r in enumerate(rows) if r["offset"] is not None and r["offset"] >= OFF_SOUND_SECONDS]
+    flagged = {i for i in off if not rows[i]["pulse"]}
+    for k, first in enumerate(off):
+        window = [i for i in off[k:] if i < first + OFF_SOUND_WINDOW]
+        if len(window) >= OFF_SOUND_RUN:
+            flagged.update(window)
+    runs = []
+    for i in sorted(flagged):
+        if runs and i - runs[-1][-1] < OFF_SOUND_WINDOW:
+            runs[-1].append(i)
+        else:
+            runs.append([i])
+    return [{"start_beat": rows[run[0]]["beat"], "end_beat": rows[run[-1]]["beat"], "note_times": len(run),
+             "offsets_ms": [round(rows[i]["offset"] * 1000) for i in run],
+             "object_ids": [n for i in run for n in rows[i]["ids"]]} for run in runs]
 
 
 def _section_at(arrangement, beat):
@@ -179,7 +221,7 @@ def audio_findings(arrangement: dict, report: dict | None) -> tuple[dict, list[d
             value=span["seconds"], threshold=BLOCKING_SECONDS,
             section_id=_section_at(arrangement, span["start_beat"]), beats=[span["start_beat"], span["end_beat"]])
     support = note_support(arrangement, report) if arrangement["sections"] else {
-        "note_times": 0, "supported": 0, "share": 1.0, "unsupported_runs": []}
+        "note_times": 0, "supported": 0, "share": 1.0, "unsupported_runs": [], "off_sound_runs": []}
     if support["note_times"] and support["share"] < SUPPORT_SHARE:
         add("warning", "low_audio_support",
             f'Only {support["supported"]} of {support["note_times"]} note times ({support["share"]:.0%}) sit on an '
@@ -192,10 +234,19 @@ def audio_findings(arrangement: dict, report: dict | None) -> tuple[dict, list[d
             value=run["note_times"], threshold=UNSUPPORTED_RUN,
             section_id=_section_at(arrangement, run["start_beat"]), object_ids=run["object_ids"],
             beats=[run["start_beat"], run["end_beat"]])
+    for run in support["off_sound_runs"]:
+        add("warning", "note_off_sound",
+            f'Beats {run["start_beat"]:g}-{run["end_beat"]:g}: {run["note_times"]} note time(s) sit '
+            f'{min(run["offsets_ms"])}-{max(run["offsets_ms"])} ms from the sound under them, heard as off-rhythm. '
+            "Move each onto its sound's own time, off the grid where the music does not follow it.",
+            value=run["note_times"], threshold=OFF_SOUND_RUN,
+            section_id=_section_at(arrangement, run["start_beat"]), object_ids=run["object_ids"],
+            beats=[run["start_beat"], run["end_beat"]])
     metrics = {"checked": True, "unmapped_spans": spans,
-               "note_support": {k: v for k, v in support.items() if k != "unsupported_runs"},
+               "note_support": {k: v for k, v in support.items() if k not in ("unsupported_runs", "off_sound_runs")},
                "unsupported_runs": [{k: v for k, v in r.items() if k != "object_ids"}
-                                    for r in support["unsupported_runs"]]}
+                                    for r in support["unsupported_runs"]],
+               "off_sound_runs": [{k: v for k, v in r.items() if k != "object_ids"} for r in support["off_sound_runs"]]}
     return metrics, findings
 
 

@@ -181,7 +181,8 @@ DEFINITIONS = {
                            "note within 0.13 beat: the drums arrive and the map does not react.",
     "swing_demand": "Per 4-beat bar, the sum over its swings (movement-model swings; a same-hand chord is one) of 1 "
                     "plus the grid distance from the same hand's previous swing when that swing is at most 1 beat "
-                    "earlier, divided by the bar's seconds: how often and how far the hands must move.",
+                    "earlier, plus a chord's own span (the grid distance between its farthest notes: a stack is one "
+                    "longer cut), divided by the bar's seconds: how often and how far the hands must move.",
     "relative_loudness": "A bar's mix energy_ratio (evidence passages, overlap-weighted) divided by the 75th "
                          "percentile over the mapped bars: 1.0 is the level of the song's loud, heavy passages.",
     "difficulty_exceeds_intensity": "One or more consecutive bars with relative_loudness below 0.8 and at least 4 "
@@ -432,12 +433,16 @@ def intensity_bars(arrangement, report, notes=None):
                                     "seconds": beat_to_seconds(n["beat"], arrangement)} for n in notes], bpm)["swings"]
     except ValueError:
         return None, []
+    cells = {n["id"]: (n["x"], n["y"]) for n in notes}
     costs, previous = {}, {0: None, 1: None}
     for swing in swings:
         prior = previous[swing["hand"]]
         travel = (math.hypot(swing["x"] - prior["x"], swing["y"] - prior["y"])
                   if prior and swing["beat"] - prior["beat"] <= DEMAND_TRAVEL_BEATS else 0.0)
-        costs.setdefault(int(swing["beat"] // INTENSITY_BAR_BEATS), []).append((1 + travel, swing["note_ids"]))
+        # A stack is one longer cut: the saber sweeps across its cells.
+        span = max((math.dist(cells[a], cells[b]) for a in swing["note_ids"] for b in swing["note_ids"]), default=0.0)
+        costs.setdefault(int(swing["beat"] // INTENSITY_BAR_BEATS), []).append((1 + travel + span,
+                                                                                 swing["note_ids"]))
         previous[swing["hand"]] = swing
     bars = []
     for index in range(min(costs), max(costs) + 1):

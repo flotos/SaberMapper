@@ -447,13 +447,13 @@ def _place_cells(groups, slots, bpm, joint=True):
             following[slot.value["color"]] = slot
     hands = {0: _HandState(), 1: _HandState()}
     front = {}  # cell -> (seconds, slot index) of the latest note there
-    sequence = []
+    sequence, used = [], set()
     for group in groups:
         beat, seconds = group[0].beat, group[0].seconds
         occupied = {(s.fixed["x"], s.fixed["y"]) for s in group if _cell_fixed(s)}
         open_slots = sorted((s for s in group if not _cell_fixed(s) or (joint and "direction" not in s.fixed)),
                             key=lambda s: (s.value["color"], s.oid))
-        context = {"recent": Counter(sequence[-VARIETY_WINDOW:]), "sequence": sequence,
+        context = {"recent": Counter(sequence[-VARIETY_WINDOW:]), "sequence": sequence, "used": used,
                    "top_share": sum(1 for p in sequence[-VARIETY_WINDOW:] if p[1] == 2)
                    / max(1, min(len(sequence), VARIETY_WINDOW))}
         options = [_cell_options(slot, occupied, hands, front, fixed_cells, next_fixed[slot.index],
@@ -468,6 +468,7 @@ def _place_cells(groups, slots, bpm, joint=True):
         for slot in sorted(group, key=lambda s: (s.value["color"], s.value["x"], s.value["y"], s.oid)):
             x, y = slot.value["x"], slot.value["y"]
             sequence.append((x, y, slot.value["color"], slot.value["direction"]))
+            used.add(sequence[-1])
             front[(x, y)] = (seconds, slot.index)
             swung.setdefault(slot.value["color"], slot)
         for hand, slot in swung.items():
@@ -590,6 +591,7 @@ def _cell_options(slot, occupied, hands, front, fixed_cells, ahead_cell, ahead_s
                 placement = (x, y, hand, direction)
                 repeats = sum(1 for k in CYCLE_LOOKBACK if len(sequence) >= k and sequence[-k] == placement)
                 cost += 0.3 * repeats + 0.05 * recent.get(placement, 0)
+                cost -= 0.12 if placement not in context["used"] else 0  # a placement the map has not used yet
                 cells.append((cost, x, y, direction, found))
     cells.sort(key=lambda c: (c[0], c[1], c[2], c[3]))
     return cells[:8]
@@ -820,8 +822,9 @@ def place_arrangement(arrangement: dict, *, unpin: bool = False, strict: bool = 
 def pin_edits(stored: dict, edited: dict) -> dict:
     """A copy of ``edited`` where every placer-chosen value the agent changed since ``stored`` is pinned.
 
-    A field listed in ``placed`` whose value differs from the stored note with the same ID leaves ``placed``:
-    the agent chose it, so placement keeps it.
+    A field the stored note listed in ``placed`` whose value now differs leaves ``placed``: the agent chose it,
+    so placement keeps it. A field that was pinned before and is now listed in ``placed`` stays open: the
+    agent handed it to the placer.
     """
     result = copy.deepcopy(edited)
     try:
@@ -835,7 +838,8 @@ def pin_edits(stored: dict, edited: dict) -> dict:
         old = before.get(key)
         if not isinstance(note, dict) or not isinstance(old, dict) or not isinstance(note.get("placed"), list):
             continue
-        changed = [f for f in note["placed"] if f in note and f in old and note[f] != old[f]]
+        changed = [f for f in note["placed"] if f in note and f in old and note[f] != old[f]
+                   and f in (old.get("placed") or ())]
         if changed:
             note["placed"] = [f for f in note["placed"] if f not in changed]
             if not note["placed"]:

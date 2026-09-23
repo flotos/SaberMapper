@@ -241,6 +241,12 @@ class PinsLocalityAndDeterminismTests(unittest.TestCase):
         self.assertNotIn("y", pinned["placed"])
         self.assertIn("x", pinned["placed"])
 
+    def test_handing_a_pinned_field_to_the_placer_keeps_it_open(self):
+        stored = arrangement([{"id": "a", "beat": 0, "x": 0, "y": 0, "color": 0, "direction": 1}])
+        edited = copy.deepcopy(stored)
+        edited["sections"][0]["notes"][0].update(x=1, placed=["x"])
+        self.assertEqual(pin_edits(stored, edited)["sections"][0]["notes"][0]["placed"], ["x"])
+
     def test_fully_specified_arrangements_compile_unchanged(self):
         notes = [{"id": f"n{i}", "beat": i, "x": i % 2 * 3, "y": 0, "color": i % 2, "direction": 1} for i in range(8)]
         draft = arrangement(notes)

@@ -8,6 +8,9 @@ leave the fewest breaks nearby win, then the smallest turn from the authored
 direction. Arc anchors may be re-angled; the arc head or tail direction is
 updated with the note. Chain anchors, notes in locked sections and
 motif-expanded notes are never changed; such pairs are reported as unresolved.
+
+First, ``arc_note_conflict`` and ``chain_note_conflict`` (a note of the held
+saber's color inside an arc or chain) are resolved by :func:`repair_held_conflicts`.
 """
 
 from __future__ import annotations
@@ -20,8 +23,11 @@ from .movement import flow_break, turn_degrees, _OPPOSITE
 from .validation import _beat, validate_arrangement
 
 BLOCKING_CODES = ("fast_direction_break", "flow_parity_break")
+HELD_CODES = ("arc_note_conflict", "chain_note_conflict")
 # Only a pickup this close to the next cut is dropped rather than re-angled.
 PICKUP_SECONDS = 0.2
+# An arc ended early on a conflicting note must still hold at least this long; otherwise it is dropped.
+MIN_ARC_BEATS = Fraction(1)
 
 
 def _strength(beat: Fraction) -> int:
@@ -137,11 +143,152 @@ def _count_breaks(swings, hand, bpm, lo, hi):
     return count
 
 
-def repair_fast_breaks(arrangement: dict, max_steps: int = 5000) -> dict:
-    """Return ``{"arrangement", "changes", "unresolved"}`` without mutating the input."""
+def _relative(beat: Fraction):
+    return int(beat) if beat.denominator == 1 else str(beat)
+
+
+def _hold_conflicts(arrangement):
+    """{arc or chain object ID: IDs of same-color notes inside it} for blocking held-saber conflicts."""
+    holds = {}
+    for d in validate_arrangement(arrangement):
+        if d["severity"] == "error" and d["code"] in HELD_CODES:
+            holds.setdefault(d["object_ids"][0], []).append(d["object_ids"][1])
+    return holds
+
+
+def _blocking(arrangement):
+    return {(d["code"], tuple(d["object_ids"])) for d in validate_arrangement(arrangement)
+            if d["severity"] == "error" or d["code"] == "reach_proxy"}
+
+
+def _resolve_hold(trial, sid, kind, item, move, shorten):
+    """Reattach ``item`` to ``trial`` and clear its saber; return the change records, or None."""
+    from .audio_repair import insert_note
+    section = next(s for s in trial["sections"] if s["id"] == sid)
+    start = _beat(section["start_beat"])
+    head, tail = start + _beat(item["beat"]), start + _beat(item["tail_beat"])
+    section[kind].append(item)
+    oid = f'{sid}/{kind}/{item["id"]}'
+    code = f"{kind[:-1]}_note_conflict"
+
+    def inside():
+        return [n for n in expanded_notes(trial) if n["color"] == item["color"] and head < n["beat"] < tail]
+
+    steps = []
+    if move:
+        for note in inside():
+            entry = _literal_notes(trial).get(note["id"])
+            if entry is None or entry[0]["locked"]:
+                continue
+            owner, literal, beat = entry
+            owner["notes"].remove(literal)
+            moved = insert_note(trial, beat, literal["id"])
+            if moved is None:
+                owner["notes"].append(literal)
+                owner["notes"].sort(key=lambda n: _beat(n["beat"]))
+                continue
+            steps.append({"object_ids": [oid, note["id"]], "code": code, "beat": float(beat),
+                          "action": "moved_to_other_hand", "object_id": moved["object_ids"][0],
+                          "color": moved["color"], "x": moved["x"], "y": moved["y"], "direction": moved["direction"],
+                          "reason": "the held saber cannot cut it; the other hand is free there"})
+    remaining = inside()
+    if not remaining:
+        return steps
+    ids = [oid] + [n["id"] for n in remaining]
+    if kind == "arcs":
+        first = remaining[0]
+        if shorten and first["beat"] - head >= MIN_ARC_BEATS:
+            item.update(tail_beat=_relative(first["beat"] - start), tail_x=first["x"], tail_y=first["y"],
+                        tail_direction=first["direction"])
+            steps.append({"object_ids": ids, "code": code, "beat": float(first["beat"]), "action": "shortened_arc",
+                          "object_id": oid, "from_tail_beat": float(tail), "to_tail_beat": float(first["beat"]),
+                          "reason": "the arc now ends on the first same-color cut instead of holding through it"})
+        else:
+            section["arcs"].remove(item)
+            steps.append({"object_ids": ids, "code": code, "beat": float(head), "action": "removed_arc",
+                          "object_id": oid, "reason": "no hold is left before the same-color cut; its notes stay"})
+        return steps
+    literal = _literal_notes(trial)
+    for note in remaining:
+        entry = literal.get(note["id"])
+        if entry is None or entry[0]["locked"]:
+            return None
+        entry[0]["notes"].remove(entry[1])
+        steps.append({"object_ids": [oid, note["id"]], "code": code, "beat": float(note["beat"]),
+                      "action": "removed", "object_id": note["id"],
+                      "reason": "the chain holds this saber; the note cannot be cut inside it"})
+    return steps
+
+
+def repair_held_conflicts(arrangement: dict) -> dict:
+    """Resolve ``arc_note_conflict``/``chain_note_conflict`` without mutating the input.
+
+    An arc or chain occupies its saber from head to tail, so a note of that color inside
+    it is impossible to play. Per hold, the first strategy that adds no blocking
+    diagnostic or ``reach_proxy`` warning wins:
+
+    1. move each inner note to the other hand when that hand is free (a flow-safe cut
+       and reachable cell, at least half a beat from its own swings), then end an arc on
+       the first note still inside it if MIN_ARC_BEATS of hold remain, else drop the arc;
+    2. the same without moving notes;
+    3. drop the arc (its head and tail notes stay).
+
+    A chain's remaining inner notes are removed instead. Motif notes are inlined first;
+    locked sections are never changed (their conflicts are warnings, not errors).
+    Returns ``{"arrangement", "changes", "unresolved"}``.
+    """
     result = copy.deepcopy(arrangement)
+    changes, unresolved = [], []
+    holds = _hold_conflicts(result)
+    patterned = [nid for ids in holds.values() for nid in ids if "/pattern/" in nid]
+    if patterned:
+        inlined = _materialize(result, patterned)
+        if inlined:
+            changes.append({"object_ids": patterned, "code": "arc_note_conflict", "action": "inlined_pattern",
+                            "object_id": inlined[0], "patterns": inlined,
+                            "reason": "pattern converted to literal notes (same output) so one note can move"})
+            holds = _hold_conflicts(result)
+    # Detach every conflicting hold: while one remains, validation skips the movement
+    # model and could not judge a fix for flow breaks.
+    detached = []
+    for oid in holds:
+        sid, kind, hid = oid.split("/")
+        section = next(s for s in result["sections"] if s["id"] == sid)
+        item = next(i for i in section[kind] if i["id"] == hid)
+        section[kind].remove(item)
+        detached.append((oid, sid, kind, item))
+    baseline = _blocking(result)
+    pending = []
+    for oid, sid, kind, item in detached:
+        for move, shorten in ((True, True), (False, True), (False, False)):
+            if kind == "chains" and not shorten:
+                continue
+            trial = copy.deepcopy(result)
+            steps = _resolve_hold(trial, sid, kind, copy.deepcopy(item), move, shorten)
+            if steps is not None and not _blocking(trial) - baseline:
+                result = trial
+                changes += steps
+                break
+        else:
+            unresolved.append({"object_ids": [oid, *holds[oid]], "code": f"{kind[:-1]}_note_conflict",
+                               "reason": "no inner note could move or be removed without a new blocking finding; "
+                                         "motif notes in a locked section or chain anchors need a manual edit"})
+            pending.append((sid, kind, item))
+    for sid, kind, item in pending:
+        next(s for s in result["sections"] if s["id"] == sid)[kind].append(item)
+    return {"arrangement": result, "changes": changes, "unresolved": unresolved}
+
+
+def repair_fast_breaks(arrangement: dict, max_steps: int = 5000) -> dict:
+    """Return ``{"arrangement", "changes", "unresolved"}`` without mutating the input.
+
+    Held-saber conflicts are resolved first (:func:`repair_held_conflicts`); until they
+    are, validation does not run the movement model that reports swing breaks.
+    """
+    held = repair_held_conflicts(arrangement)
+    result = held["arrangement"]
     bpm = float(result["song"]["bpm"])
-    changes, unresolved, skipped = [], [], set()
+    changes, unresolved, skipped = list(held["changes"]), list(held["unresolved"]), set()
     for _ in range(max_steps):
         diagnostics = validate_arrangement(result)
         findings = [d for d in diagnostics

@@ -28,10 +28,14 @@ STAGED_FORMAT = "sabermapper-forge-staged/1"
 DEFAULT_TARGET = "windows2021"
 # Researched 2026-09-23 (docs/asset-forge.md): Vivify loads bundle<Suffix>.vivify and checks
 # Info.dat _assetBundle.<key>; every build except the one for game 1.29.1 uses Windows2021/_windows2021,
-# including 1.40.8 (Unity 2022.3.33). The Heck docs name Unity 2021.3.16f1 for game 1.30.0+.
+# including 1.40.8 (Unity 2022.3.33). The Heck docs name Unity 2021.3.16f1 for game 1.30.0+, but
+# 2021.3.16f1 cannot take a Hub Personal license in batchmode (it only receives the sign-in token when
+# Hub opens it: "Access token is unavailable"); 2021.3.45f1 can, so it is the default (verified
+# 2026-09-23 with Hub 3.21.3 / licensing client 1.18.3).
+HEADLESS_LICENSE_EDITOR = ("2021.3.45f1", "0da89fac8e79")
 TARGETS = {
     "windows2021": {"bundle_file": "bundleWindows2021.vivify", "crc_key": "_windows2021",
-                    "unity_version": "2021.3.16f1", "unity_changeset": "4016570cf34f",
+                    "unity_version": HEADLESS_LICENSE_EDITOR[0], "unity_changeset": HEADLESS_LICENSE_EDITOR[1],
                     "game_versions": "1.30.0 and later, including the installed 1.40.8",
                     "stereo": "single-pass instanced"},
     "windows2019": {"bundle_file": "bundleWindows2019.vivify", "crc_key": "_windows2019",
@@ -1074,6 +1078,13 @@ _SHADER_ERROR = re.compile(r"Shader (?P<sev>error|warning) in '(?P<shader>[^']+)
                            r"(?:line (?P<line>\d+)|(?P<file>[^\s()][^()\n]*)\((?P<line2>\d+)\))(?:\s*\(on (?P<api>\w+)\))?",
                            re.M)
 _UNITY_FAILURES = (
+    # Checked first: a licensed Personal seat that this editor version cannot use headless.
+    (re.compile(r"Access token is unavailable(?s:.*)has not been activated with a valid License", re.I),
+     "unity_headless_license_unsupported",
+     "This Unity editor cannot use the Hub Personal license in batchmode (it only receives the sign-in token "
+     "when Hub opens it)",
+     f"Install Unity {HEADLESS_LICENSE_EDITOR[0]} (unityhub://{HEADLESS_LICENSE_EDITOR[0]}/{HEADLESS_LICENSE_EDITOR[1]}), "
+     f"open it once from Hub, then run `assets config --unity-version {HEADLESS_LICENSE_EDITOR[0]}` and rerun"),
     (re.compile(r"No valid Unity Editor license found|License is not active|Failed to activate|Unity has not been activated|"
                 r"com\.unity\.editor\.headless", re.I),
      "unity_license_missing", "Unity has no active license",
@@ -1129,6 +1140,8 @@ def parse_unity_log(text: str, source_map: dict | None = None) -> list[dict]:
                 item["file"] = source_map["files"].get(str(item["file"]).lower(), item["file"])
             add({"source": "forge", "severity": "error", **item})
     for pattern, code, message, fix in _UNITY_FAILURES:
+        if code == "unity_license_missing" and any(i["code"] == "unity_headless_license_unsupported" for i in issues):
+            continue
         if pattern.search(text):
             add({"source": "unity", "severity": "error", "code": code, "message": message, "fix": fix})
     return issues

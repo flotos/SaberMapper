@@ -9,14 +9,24 @@ Status (2026-09-23): the Python side is tested (tests/test_forge.py, with a stub
 Unity is not installed on this machine, so the C# builder in `assets/vivify-src/` has not been compiled by
 Unity yet. It was compiled with Roslyn (C# 9) against the game's Unity 2022.3 runtime DLLs, plus
 hand-written stubs of the UnityEditor and XR Management APIs it calls, which catches syntax and type
-errors. The first real build is the first check of the actual editor API signatures.
+errors. The first real build (2021.3.45f1, 2026-09-23) compiled the editor scripts unchanged; see Verification below.
 
 ## Which Unity to install
 
-**Unity 2021.3.16f1** (changeset `4016570cf34f`, Windows editor with its built-in Windows Mono build
+**Unity 2021.3.45f1** (changeset `0da89fac8e79`, Windows editor with its built-in Windows Mono build
 support; no extra modules). Target `windows2021` → `bundleWindows2021.vivify`, Info.dat key
 `_assetBundle._windows2021`. Both the version and the target can be configured (`--unity-version`,
 `--target`, `assets config`); these values are the defaults.
+
+**Why 2021.3.45f1 and not 2021.3.16f1 (verified 2026-09-23 on this machine, Hub 3.21.3, licensing client
+1.18.3).** The Vivify docs name 2021.3.16f1, and it is installed here, but it cannot build headless with a
+Hub Personal license: Hub passes the editor its sign-in token only when Hub itself opens it, and in
+batchmode 2021.3.16f1 stops with `Access token is unavailable` / `Unity has not been activated with a valid
+License`, even with the Personal seat active and after opening the editor once from Hub. 2021.3.45f1
+takes the seat headless (`Serial number assigned`), and the first real build with it produced a
+single-pass-instanced (OpenXR) bundle in 30 s. `assets build` reports that failure as
+`unity_headless_license_unsupported` with this fix. Any 2021.3 patch writes the same bundle format and
+keys; the game runs Unity 2022.3.33 and already loads 2019.4 and 2021.3.16 bundles.
 
 Evidence:
 
@@ -47,19 +57,20 @@ Evidence:
 Why not 2019.4.28f1: it would need VivifyTemplate's binary keyword rewriter and its asynchronous, UI-driven
 build, which cannot run in unattended batchmode. Why not 2022.3.33 (the game's own runtime): Vivify's docs
 do not name it, so it is untested for this purpose. It stays reachable with `--unity-version`.
-If Unity Hub no longer offers 2021.3.16f1, install the newest 2021.3 LTS patch. The locator falls back to
+If Unity Hub no longer offers 2021.3.45f1, install the newest 2021.3 LTS patch. The locator falls back to
 the newest installed `2021.3.x` and reports a `unity_version_mismatch` warning. Unity's CVE-2025-59489
 concerns built players, not asset bundles.
 
 ## One-time user setup
 
 1. Install Unity Hub from unity.com and sign in with a (free) Unity ID.
-2. Install editor **2021.3.16f1**: open `unityhub://2021.3.16f1/4016570cf34f` in a browser, or in Hub use
-   Installs > Install Editor > Archive. Defaults are enough: Windows Mono build support is part of the
-   Windows editor, and Android/iOS/IL2CPP are not needed. The default location is
-   `C:\Program Files\Unity\Hub\Editor\2021.3.16f1\Editor\Unity.exe`.
+2. Install editor **2021.3.45f1**: run `start unityhub://2021.3.45f1/0da89fac8e79`, or open the
+   [release page](https://unity.com/releases/editor/whats-new/2021.3.45) and press Install (Hub's own
+   Install Editor list only shows current versions). Defaults are enough: Windows Mono build support is
+   part of the Windows editor, and Android/iOS/IL2CPP are not needed. The default location is
+   `C:\Program Files\Unity\Hub\Editor\2021.3.45f1\Editor\Unity.exe`.
 3. Activate a license once: Hub > Preferences > Licenses > Add > *Get a free personal license*.
-   Batchmode uses the license Hub activated. There is no per-build login.
+   Batchmode uses the license Hub activated while Hub stays signed in. There is no per-build login.
 4. Nothing else. The agent runs `sabermapper assets doctor`, then `assets build`. The first build downloads
    `com.unity.xr.management` and `com.unity.xr.openxr` (network needed once) and imports the project,
    which takes several minutes. Later builds reuse the cached `Library/`.
@@ -73,7 +84,7 @@ sabermapper/assets/
   library/                  tier-1 library: library.json (machine-readable), library.md (generated), shaders/*.shader
   vivify-src/               Unity project template, text only (no Library, no .meta, no binaries)
     Packages/manifest.json  XR Plug-in Management + OpenXR (single-pass-instanced variants), built-in modules
-    ProjectSettings/ProjectVersion.txt   2021.3.16f1 (rewritten to the chosen editor at build time)
+    ProjectSettings/ProjectVersion.txt   2021.3.45f1 (rewritten to the chosen editor at build time)
     Assets/SaberMapper/Editor/Forge.cs            batchmode entry SaberMapper.Forge.Build
                               ForgeJson.cs        JSON reader/writer + ForgeParams (generator/particle params)
                               ForgeMeshes.cs      built-in mesh generators
@@ -117,9 +128,9 @@ Without Unity:
 
 ```json
 {"error": {"code": "unity_missing",
-  "message": "Unity 2021.3.16f1 was not found (installed editors: none)",
-  "fix": "Install Unity 2021.3.16f1 with Unity Hub (unityhub://2021.3.16f1/4016570cf34f) and activate a Personal license once, then rerun",
-  "required_version": "2021.3.16f1", "target": "windows2021", "tried": ["hub: C:\\Program Files\\Unity\\Hub\\Editor"], "installed": []}}
+  "message": "Unity 2021.3.45f1 was not found (installed editors: none)",
+  "fix": "Install Unity 2021.3.45f1 with Unity Hub (unityhub://2021.3.45f1/0da89fac8e79) and activate a Personal license once, then rerun",
+  "required_version": "2021.3.45f1", "target": "windows2021", "tried": ["hub: C:\\Program Files\\Unity\\Hub\\Editor"], "installed": []}}
 ```
 
 A successful build returns `{ok, build_id, unity, target, log, duration_s, bundle_paths, bundleinfo, crc,
@@ -323,9 +334,12 @@ build approach were reimplemented from reading its source.
   `Info.dat _customData._assetBundle._windows2021`. Copy `<project>/assets/bundleWindows2021.vivify` into
   the map folder. Material and prefab paths in bundleinfo are the lowercase asset paths Vivify events use.
   Property names and types come from `materials.*.properties`.
-- Verification (M0/M2): the first built bundle should be checked in FPFC with a one-material Blit, to
-  confirm that single-pass-instanced variants survive the batchmode build (XR loader path) and that
-  Vivify 1.0.5 on 1.40.8 accepts a 2021.3.16f1 bundle and its CRC.
+- Verification (M0/M2), done 2026-09-23: the first real build (2021.3.45f1, `assets init` starter spec on
+  the demo project; build report `xr.stereo_rendering: SinglePassInstanced`, OpenXR loader, 77 KB bundle)
+  was exported with a four-primitive test show and captured in the game with `game capture` (FPFC,
+  1.40.8, Vivify 1.0.5). Vivify accepted the bundle and its CRC (no log errors), and every asset rendered
+  on the full desktop frame: the colour-grade and vignette Blits, the emissive ring prefab and the
+  additive particle prefab.
 
 ## Known risks
 

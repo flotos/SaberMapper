@@ -78,6 +78,9 @@ MELODY_MIN_CHANGES = 3
 MELODY_MAPPED_THRESHOLD = 0.5
 # A bit of the whole band under the lead: the heaviest accents of the other stems.
 ENSEMBLE_STRENGTH = 0.6
+# A heavy hit is heard in the whole mix too: a stem's swell back from sidechain ducking (bass pumping
+# after every kick) peaks in the stem's spectral flux but is no attack in the mix.
+ENSEMBLE_MIX_STRENGTH = 0.3
 ENSEMBLE_WINDOW_BEATS = 16
 ENSEMBLE_MIN_ACCENTS = 3
 ENSEMBLE_MIN_NOTES = 4
@@ -143,8 +146,9 @@ DEFINITIONS = {
                              "checks count: the map plays a thin, quiet passage as hard as the full band.",
     "focus_on_quiet_stem": "A musical_focus phrase gives weight 0.3 or more to a separated stem whose median energy_contour level inside the phrase is at least 20 dB below that stem's own 90th-percentile level over the song: the stem is essentially absent there, so its events are separator bleed (for example vocals in an instrumental intro) or the instrument was routed to another stem (for example a soft solo piano in other while the piano stem is silent). The message names the most active stem, measured the same way.",
     "ensemble_accent": "The strongest spectral_flux attack per beat, of strength 0.6 or more, in a separated stem other "
-                       "than the bar's lead (and not mix), with no lead onset of strength 0.2 or more within 0.13 beat: "
-                       "the rest of the band hitting hard under the lead.",
+                       "than the bar's lead (and not mix), with a mix spectral_flux onset of strength 0.3 or more and no "
+                       "lead onset of strength 0.2 or more within 0.13 beat: the rest of the band hitting hard under "
+                       "the lead, audible in the whole mix (a stem swelling back from sidechain ducking is not).",
     "ensemble_unmapped": "A 16-beat window (absolute beats 0, 16, 32...) with at least 4 note times whose bars have a lead "
                          "(the salient layer: vocals, a declared lead, or a drum pattern; thin, soft bars excluded) and at "
                          "least 3 ensemble accents, fewer than 20% of which have a note within 0.13 beat: the map follows "
@@ -863,9 +867,13 @@ def ensemble_accents(layers, arrangement, lead, start, stop, cache):
                                   for name in separated_stems(layers)
                                   for e in layers[name].get("events", [])
                                   if e.get("method") == "spectral_flux" and e.get("strength", 0) >= ENSEMBLE_STRENGTH)
+    if "mix" not in cache:
+        cache["mix"] = sorted(seconds_to_beat(e["seconds"], arrangement) for e in (layers.get("mix") or {}).get("events", [])
+                              if e.get("method") == "spectral_flux" and e.get("strength", 0) >= ENSEMBLE_MIX_STRENGTH)
     if ("lead", lead) not in cache:
         cache[("lead", lead)] = [b for b, _ in lead_onsets(layers, lead, arrangement, LEAD_SUPPORT_STRENGTH)]
-    heard, accents = cache[("lead", lead)], cache["accents"]
+    heard, accents, mix = cache[("lead", lead)], cache["accents"], cache["mix"]
+    checked_mix = isinstance(layers.get("mix"), dict)
     strongest = {}
     for beat, strength, name in accents[bisect_left(accents, (start,)):]:
         if beat >= stop:
@@ -875,6 +883,9 @@ def ensemble_accents(layers, arrangement, lead, start, stop, cache):
         index = bisect_left(heard, beat - SALIENCE_MATCH_BEATS)
         if index < len(heard) and heard[index] <= beat + SALIENCE_MATCH_BEATS:
             continue
+        index = bisect_left(mix, beat - SALIENCE_MATCH_BEATS)
+        if checked_mix and not (index < len(mix) and mix[index] <= beat + SALIENCE_MATCH_BEATS):
+            continue  # not an attack in the mix: a swell, bleed or a masked detail
         slot = math.floor(beat + 0.5)
         if slot not in strongest or strongest[slot][1] < strength:
             strongest[slot] = (beat, strength, name)

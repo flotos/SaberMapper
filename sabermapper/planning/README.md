@@ -97,6 +97,7 @@ Sizes describe rough implementation/research complexity, not promised elapsed ti
 | [SM-029](tickets/SM-029-first-playable-experiment.md) | Milestone 0: test assistant-authored mapping on one track | M / M | None |
 | [SM-030](tickets/SM-030-movement-and-strain-model.md) | Own shared swing inference, transitions, and difficulty proxies | L / M | SM-007 |
 | [SM-031](tickets/SM-031-external-reference-audit.md) | Audit external BeatForge code as a read-only reference and baseline candidate | S / S | None |
+| [SM-036](tickets/SM-036-correct-by-construction-build.md) | Build maps correct by construction; replace the repair commands with one validator | L / M | SM-017, SM-018, SM-019, SM-030, SM-034 |
 
 Unchecked checkboxes are outstanding completion evidence; implemented prototype slices do not imply full-ticket completion. References are starting points to verify during implementation, and quantitative targets remain proposals until the corresponding capacity/benchmark decision. This shared rule replaces the repeated disclaimer previously appended to every ticket.
 

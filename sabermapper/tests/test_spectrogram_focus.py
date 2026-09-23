@@ -24,7 +24,8 @@ def stems_report(length=32, *, drums=(), guitar=OFFBEATS, drum_contour=None):
     """A report whose layers are separated stems (kind audio_layer), 120 BPM (beat b at b / 2 s)."""
     base = report(length)
     contour = [{"seconds": i / 10, "energy": 0.5} for i in range(length * 5)]
-    base["layers"] = {"mix": {"kind": "audio_layer", "events": [], "energy_contour": contour},
+    heard = sorted(set(drums) | set(guitar))  # every stem attack is also an attack in the mix
+    base["layers"] = {"mix": {"kind": "audio_layer", "events": events("mix", heard), "energy_contour": contour},
                       "drums": {"kind": "audio_layer", "events": events("drums", drums, 0.9),
                                 "energy_contour": drum_contour or contour},
                       "guitar": {"kind": "audio_layer", "events": events("guitar", guitar), "energy_contour": contour},
@@ -52,6 +53,15 @@ class EnsembleWeightTests(unittest.TestCase):
         # Kicks on every beat are accents, but only one per bar may excuse a note off the lead.
         result = critique_arrangement(arrangement(STREAM), stems_report(drums=range(32)))
         self.assertIn("lead_rhythm_diluted", codes(result))
+
+    def test_a_stem_swell_the_mix_does_not_hear_is_no_accent(self):
+        # Bass pumping back after each sidechain duck peaks in the bass stem only (Lullaby, 2026-09-23).
+        evidence = stems_report(drums=DOWNBEATS)
+        evidence["layers"]["bass"] = {"kind": "audio_layer", "energy_contour": evidence["layers"]["drums"]["energy_contour"],
+                                      "events": events("bass", [b + 2 / 3 for b in range(32)], 0.9)}
+        result = critique_arrangement(arrangement(sorted(OFFBEATS + DOWNBEATS)), evidence)
+        self.assertNotIn("ensemble_unmapped", codes(result))
+        self.assertEqual(result["metrics"]["ensemble"]["windows"][0]["accents"], 4, "only the drums' audible hits")
 
     def test_frequency_bands_and_mix_are_not_ensemble_stems(self):
         bands = stems_report(drums=DOWNBEATS)

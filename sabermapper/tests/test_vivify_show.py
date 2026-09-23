@@ -574,6 +574,7 @@ class ShowStorageTests(unittest.TestCase):
         self.assertTrue((exports / result["vanilla_twin"]).exists())
         self.assertTrue((exports / result["provenance_file"]).exists())
         self.assertTrue(result["vanilla_twin"].endswith("-vanilla.zip"))
+        self.assertTrue(result["vanilla_twin_url"].endswith("/exports/" + result["vanilla_twin"]))
 
     def test_cli_round_trip(self):
         from sabermapper.__main__ import main

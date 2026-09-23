@@ -42,9 +42,12 @@ def main(argv=None):
     sub.add_argument("--tier-reference", type=Path,
                      help="corpus tier-reference.json enabling the difficulty.target_tier comparison")
     sub.add_argument("--output", type=Path)
-    sub = commands.add_parser("serve", help="Start the browser studio on localhost")
+    sub = commands.add_parser("serve", help="Start the browser studio on localhost; it follows code updates")
     sub.add_argument("--workspace", type=Path, default=Path("workspace"))
     sub.add_argument("--port", type=int, default=8765)
+    sub.add_argument("--no-reload", action="store_true",
+                     help="Serve in one process and keep the code loaded at start (no automatic update)")
+    sub.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     sub = commands.add_parser("demo", help="Create the original musical demo with an editable arrangement")
     sub.add_argument("--workspace", type=Path, default=Path("workspace"))
     sub = commands.add_parser("import-audio", help="Create a saved project from a local track")
@@ -146,23 +149,35 @@ def main(argv=None):
             leaf.add_argument("--minutes", type=float)
             leaf.add_argument("--decision", choices=("pending", "go", "revise", "stop"))
             leaf.add_argument("--variant", choices=("initial", "revised", "baseline"))
+    from .feedback_cli import register_feedback, dispatch_feedback
+    register_feedback(project_commands)
     from .musical_cli import register_musical, dispatch_musical
     register_musical(commands)
+    from .frames_cli import register_frames, dispatch_frames
+    register_frames(commands)
     from .research_cli import register_subcommands, dispatch
     register_subcommands(commands)
+    from .game.cli import register_game, dispatch_game
+    register_game(commands)
     from .show_cli import register_show, dispatch_show
     register_show(commands)
     args = parser.parse_args(argv)
     try:
-        if dispatch_musical(args, emit):
+        if (code := dispatch_game(args, emit)) is not None:
+            return code
+        if dispatch_musical(args, emit) or dispatch_frames(args, emit) or dispatch_feedback(args, emit):
             return 0
         if dispatch_show(args, emit):
             return 0
         if dispatch(args):
             return 0
         if args.command == "serve":
-            from .server import serve
-            serve(args.workspace, args.port)
+            if args.no_reload or args.worker:
+                from .server import serve
+                serve(args.workspace, args.port, worker=args.worker)
+            else:
+                from .studio_supervisor import Supervisor
+                return Supervisor(args.workspace, args.port).run()
         elif args.command in ("validate", "compile", "export"):
             from .arrangement import compile_arrangement
             from .validation import validate_arrangement

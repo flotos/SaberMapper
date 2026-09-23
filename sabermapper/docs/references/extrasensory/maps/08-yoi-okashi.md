@@ -98,6 +98,30 @@ conventional charting needs fast, early-spawning notes. Compare `you` at NJS 8.
 - Downmapping halved the note count (2475 → 1237) and dropped NJS 20 → 18, while the show stayed
   byte-identical. Standard EXSII practice, applied at the largest scale in the pack.
 
+## How the idea follows from the song
+
+**Song.** Asatsumei feat. L4hee, a Japanese vocal electronic track at 175 BPM, 304 s. The title reads
+as "good sweets and bad sweets". Lyric content is not verified here.
+
+**Verified in the files (Expert+).** No `AssignPlayerToTrack`: possession `none`. Beats 0–62: a field
+and three text prefabs. 132: grass; 163–222: a second field with short-lived `fpa` spawns. 236
+(81 s): city, windows and stars; 270–273: three `cat` sprites, animated by texture swaps until 663.
+495–510 (170–175 s): a `glitcheye` prefab and eleven glitch, VHS and colour Blits over 124 bombs
+(492.7–509.75), with no notes between beats 494 and 514.
+575–636: corridor sections spawned one per beat. 644–653: the city and a ring tunnel built ring by
+ring; the rings flicker through 662–780, with a `cs_fancy_color` Blit on each beat in 766–780. From
+790 (271 s): 608 cloud prefabs until the end. Notes stay plain throughout (NJS, offset, track only).
+
+**Interpretation.** A long journey: field, city, a corrupted interlude, a tunnel, open sky. The
+glitch section is the one place where the chart turns into bombs only, which reads as the "bad" half
+of the title's pair. Motifs: open landscape, the city, rings, glitch; the rings grow from a static
+tunnel to a flickering, colour-cycling one. Held for the end is the cloud field from beat 790, the
+largest spawn burst in the pack. With an 8 NPS chart, neither the camera nor the notes are touched.
+
+Sources: [BeatSaver 43a4b](https://beatsaver.com/maps/43a4b) ·
+[osu! listing (artist, vocalist)](https://osu.ppy.sh/beatmapsets/2319311) ·
+[EXSII site](https://exsii.totalbs.dev/)
+
 ## Required assets
 
 Not in the BeatSaver zip (except where noted) — Vivify fetches these from LunarRepo at play

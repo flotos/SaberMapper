@@ -50,6 +50,8 @@ To make the bundled skills discoverable in Codex from this repository, run `pyth
 
 Vivified maps add a project-level `show.json`, which is independent of difficulty, and optional arrangement 0.2 `presentation` blocks. The agent saves the show with `show save ID --workspace workspace --show show.json --revision CURRENT` (`none` for the first save). It checks the show with `show validate ID` and inspects the merged events and their audio provenance with `show compile ID`. The bundle set (`bundleinfo.json` plus `bundle*.vivify`) lives in `<project>/assets/`. `project export` then also writes a `-vanilla.zip` twin for ArcViewer and a `.show.json` provenance sidecar. See [vivify-show.md](vivify-show.md).
 
+Before the show, the agent listens and writes a concept. `music listen ID` stores sections, moments (drops, builds, breaks, key changes, final chorus and more) and per-section mood in the evidence run. `music lyrics ID` adds word-timed lyrics from Whisper, or from `--from-file` with an LRC or text sheet. `concept template|validate|save|get ID` holds three scored treatments with one selected. See [listen-and-concept.md](listen-and-concept.md).
+
 ## Verify in the game and leave notes
 
 The studio's **Verify in game** panel is the human's whole verification job, in four actions: pick a revision, press **Play in game** (map start) or **Play at playhead** (or **Watch** for an autoplay run), scrub with the song-time slider, and press **Note** (or the `N` key) to leave a comment at the current song time. Everything else is agent work.

@@ -90,6 +90,33 @@ persists to the end of the map.
   a reference for *presentation technique*, and nothing about its density should be copied toward a
   6.5–8 star arrangement.
 
+## How the idea follows from the song
+
+**Song.** End Times is Andrew Prahlow's Outer Wilds cue for the last minutes before the sun goes
+supernova, the game's warning that the 22-minute loop is closing. Instrumental, ominous, swelling.
+In the game, dying replays the last life in reverse before the player wakes again by the campfire.
+
+**Verified in the files (Hard).** Two `AssignPlayerToTrack` at beat 0, `LeftHand` and `RightHand`:
+possession `hands`. From beat 0.1 to 234 a camera prefab spawns every 1.5 beats, 157 in all. The 32
+notes sit in beats 36–164; the last ~170 beats (80 s) have none. At beat 205 (96 s) the sun is
+destroyed and supernova, shockwave and nebula prefabs spawn. At 235 (110 s) a `death.mat` Blit and a
+nine-pass bloom chain run. At 245 the ship, platform and supernova are removed and both hand tracks
+are moved kilometres away. From 262 to 308.75 `memorypanel.mat` steps through the 157 recorded
+render textures in reverse order (156 down to 0) at shrinking intervals. The sun and planets respawn
+at 271; at 310 (145 s) the eye-opening Blit, a breath-in sound, the ship, the platform and the hands
+return and the suit gauges reset.
+
+**Interpretation.** One Outer Wilds loop compressed into the song: wake, drift, supernova, die,
+remember, wake. Motifs: the suit HUD, the solar system as the scene, the eyes Blit that opens and
+closes the loop. Held for the end is the memory sequence, which replays frames recorded from the
+player's own run. Possessing only the hands lets the map take the sabers away at death without
+moving the camera.
+
+Sources: [BeatSaver 43a24](https://beatsaver.com/maps/43a24) ·
+[Outer Wilds music (TV Tropes)](https://tvtropes.org/pmwiki/pmwiki.php/AwesomeMusic/OuterWilds) ·
+[Death — Outer Wilds Wiki](https://outerwilds.fandom.com/wiki/Death) ·
+[Outer Wilds (Wikipedia)](https://en.wikipedia.org/wiki/Outer_Wilds)
+
 ## Required assets
 
 Not in the BeatSaver zip (except where noted) — Vivify fetches these from LunarRepo at play

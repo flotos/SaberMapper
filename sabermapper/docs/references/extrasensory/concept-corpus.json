@@ -1,0 +1,1000 @@
+{
+  "schema_version": "1.0",
+  "description": "Reference treatments reverse-engineered from the ten Extra Sensory II Vivify maps, recording how each map's central idea, motifs, key moments and possession follow from its song, for use as concept examples by an authoring agent.",
+  "rights": "Local study only; descriptions and paraphrases, no lyrics, note arrays or assets.",
+  "entries": [
+    {
+      "id": "exsii-01-breezer",
+      "source": {
+        "map": "Breezer (Unstable Build)",
+        "song": "Breezer",
+        "artist": "Jaroslav Beck",
+        "mapper": "Droobix (TheGoodBoi); original chart by Ján Ilavský",
+        "beatsaver": "43a47",
+        "writeup": "maps/01-breezer.md",
+        "urls": [
+          "https://beatsaver.com/maps/43a47",
+          "https://soundcloud.com/jaroslavbeck/6-breezer",
+          "https://www.discogs.com/release/14333527-Jaroslav-Beck-Beat-Saber-Original-Game-Soundtrack",
+          "https://kane-pixels-backrooms.fandom.com/wiki/The_Backrooms_(Found_Footage)",
+          "https://github.com/droobix/map-source-files"
+        ]
+      },
+      "song": {
+        "mood": "bright, driving electronic dance track from the game's own 2018 soundtrack",
+        "lyrics_theme": "instrumental",
+        "structure": "112.5 BPM, 173 s (~324 beats); chart runs beats 12-311.5, drops out entirely in beats 80-111 and thins to bombs-heavy play toward beat 271, with a final short phrase after 298"
+      },
+      "title": "Noclipping out of an old build",
+      "central_idea": "The map pretends to be a corrupted early build of Beat Saber; mid-song the player falls out of the game world into a VHS-filtered Backrooms-style space and is snapped back into the normal game at the end.",
+      "grounding": {
+        "moments": [
+          "chart dropout at beats 80-111 used as the fall out of the world",
+          "late sparse phrase (272-298) used for the entity pass and return"
+        ],
+        "mood": [
+          "the song's upbeat, familiar character makes the corruption read as wrong",
+          "found-footage unease layered over a cheerful track"
+        ],
+        "lyrics": [
+          "instrumental; the theme comes from the song's history as one of the game's first tracks"
+        ],
+        "notes": "Grounded in what the song is (an original Beat Saber track with a known original chart) rather than in its sound; the mapper's description frames it as an excavated old build, and the Kane Pixels credit points to The Backrooms."
+      },
+      "palette": ["#f2f2f2", "#141414", "#2a1cff", "#d0208c", "#3cff3c"],
+      "palette_source": "cover",
+      "motifs": [
+        {
+          "name": "VHS degradation",
+          "description": "a vhs.mat post-process with chromatic aberration, pixelation and mute controls",
+          "development": {
+            "fall (beat 75.7)": "short heavy burst as the player drops",
+            "Backrooms body (80.5-293.8)": "held at a low level for 213 beats",
+            "ending (293.8-298)": "ramps to maximum, then an image-paste flash before the reset"
+          }
+        },
+        {
+          "name": "notes as static",
+          "description": "two cameras render arrows and note bodies to textures, then static-noise Blits recompose them",
+          "development": {
+            "intro (12-79)": "normal notes",
+            "after the fall (110-274)": "notes and arrows shown through animated static for 160 beats"
+          }
+        },
+        {
+          "name": "removable world",
+          "description": "the vanilla environment is parented to one track that can be moved away and back",
+          "development": {
+            "intro": "environment in place",
+            "noclip (80.48)": "environment moved to y = -696969; only the bundle room remains",
+            "ending (298.23)": "environment and player returned to the origin"
+          }
+        }
+      ],
+      "key_moments": [
+        {"beat": 80.48, "kind": "break", "treatment": "player falls and tilts from beat 73, environment removed, Backrooms room and VHS start; no notes for 31 beats", "held_for_end": false},
+        {"beat": 114, "kind": "other", "treatment": "chart resumes with notes rendered as static", "held_for_end": false},
+        {"beat": 290, "kind": "ending", "treatment": "a spinning prefab at 284.3, the lifeform track sweeps past at 290, then VHS burst and snap back to the normal game at 298.23", "held_for_end": true}
+      ],
+      "possession": "player",
+      "buildability": {
+        "tiers": [1, 2, 3],
+        "notes": "Tier 1 for the parented environment and the room from primitives; tier 2 for the VHS and static-note shaders and camera composition; tier 3 only for the character head model and a textured Backrooms room."
+      },
+      "rubric": {
+        "grounded": {"score": 4, "why": "Follows from the song's history as an original Beat Saber track more than from its sound."},
+        "one_idea": {"score": 5, "why": "One premise, a broken old build the player falls out of, carries every event."},
+        "develops": {"score": 4, "why": "VHS, static notes and the removed world escalate and resolve in a return at the end."},
+        "readable": {"score": 4, "why": "Chart is about 1.2 NPS, though static-rendered notes add noise for about 160 beats."},
+        "buildable": {"score": 4, "why": "Mostly primitives and two post-process shaders; only one character model."}
+      },
+      "rubric_note": "assessed from files and public descriptions, not from play",
+      "verified": [
+        "AssignPlayerToTrack at beat 0 onto playerTrack with no target (all three difficulties)",
+        "fall and playerTrack animated down 3 units at beats 73-75.7",
+        "everythingParent moved to y = -696969 at beat 80.48 and back to 0 at 298.23",
+        "br.prefab at 79.58, tumble.prefab at 79.8, jaroslav.prefab at 284.3; br and jaroslav destroyed at 298.23",
+        "vhs.mat Blit at 80.48 lasting 213.3 beats; imagpaste.mat Blit at 297.97",
+        "CreateCamera for arrows and notes at 110-111, static note Blits at 114 lasting 160 beats (absent on Lawless)",
+        "no notes in beats 80-111; notes span 12-311.5 on Hard"
+      ],
+      "interpretation": [
+        "br.prefab and the lifeform track as The Backrooms and its entity",
+        "the fall at 73-80 as a noclip out of the game",
+        "the reset at 298 as a return to the normal game"
+      ]
+    },
+    {
+      "id": "exsii-02-end-times",
+      "source": {
+        "map": "End Times",
+        "song": "End Times",
+        "artist": "Andrew Prahlow",
+        "mapper": "Chaimzy",
+        "beatsaver": "43a24",
+        "writeup": "maps/02-end-times.md",
+        "urls": [
+          "https://beatsaver.com/maps/43a24",
+          "https://tvtropes.org/pmwiki/pmwiki.php/AwesomeMusic/OuterWilds",
+          "https://outerwilds.fandom.com/wiki/Death",
+          "https://en.wikipedia.org/wiki/Outer_Wilds"
+        ]
+      },
+      "song": {
+        "mood": "ominous, swelling ambient cue that signals the approaching supernova",
+        "lyrics_theme": "instrumental",
+        "structure": "128 BPM, 157 s (~335 beats); notes only in beats 36-164, the rest carried by the scene: supernova at 205, death at 235, memory replay 262-309, wake at 310"
+      },
+      "title": "One Outer Wilds loop",
+      "central_idea": "The song becomes one time loop of Outer Wilds: the player wakes inside the suit, drifts through the solar system, sees the sun explode, dies, watches their own run replay in reverse, and wakes again.",
+      "grounding": {
+        "moments": [
+          "the song's role as the supernova warning places the explosion near its climax (beat 205, 96 s)",
+          "the long note-free second half gives room for death and memory"
+        ],
+        "mood": [
+          "dread and awe at the end of the system",
+          "quiet acceptance in the replay"
+        ],
+        "lyrics": [
+          "instrumental; the theme is the game's 22-minute loop that ends in a supernova"
+        ],
+        "notes": "Every set piece is a step of the loop the cue scores in the game, including the reverse flashback of the last life and the wake-up gasp."
+      },
+      "palette": ["#e8283c", "#2f6bff", "#1b1a2b", "#ffffff"],
+      "palette_source": "cover",
+      "motifs": [
+        {
+          "name": "suit HUD",
+          "description": "an Outer Wilds interface rendered by materials driven with fuel, oxygen and health properties",
+          "development": {
+            "wake (0)": "gauges set full with the eye-opening Blit",
+            "death (245)": "UI pushed away",
+            "wake again (310)": "gauges reset and the UI follows the head"
+          }
+        },
+        {
+          "name": "recorded frames",
+          "description": "a camera prefab every 1.5 beats captures the run into 157 render textures",
+          "development": {
+            "exploration (0.1-234)": "frames recorded silently",
+            "memory (262-308.75)": "frames played back in reverse at shrinking intervals"
+          }
+        },
+        {
+          "name": "the solar system",
+          "description": "sun, planetary orbits and the ship as persistent scene",
+          "development": {
+            "exploration": "sun and orbits present",
+            "supernova (205)": "sun replaced by supernova, shockwave and nebulae",
+            "reset (271)": "sun and planets respawn"
+          }
+        }
+      ],
+      "key_moments": [
+        {"beat": 205, "kind": "big_hit", "treatment": "sun destroyed; supernova, shockwave and nebula prefabs spawn", "held_for_end": false},
+        {"beat": 262, "kind": "other", "treatment": "memory sequence steps through the 157 recorded frames in reverse", "held_for_end": true},
+        {"beat": 310, "kind": "ending", "treatment": "eyes open, breath in, ship, platform and hands return", "held_for_end": false}
+      ],
+      "possession": "hands",
+      "buildability": {
+        "tiers": [1, 2, 3],
+        "notes": "Tier 2 for the render-texture recorder, memory panel, death and bloom shaders and HUD materials; tier 3 for the ship, planets and supernova art."
+      },
+      "rubric": {
+        "grounded": {"score": 5, "why": "Stages exactly what this cue accompanies in its game, including the flashback."},
+        "one_idea": {"score": 5, "why": "One loop from waking to waking again organises the whole map."},
+        "develops": {"score": 5, "why": "Recorded frames and HUD set up early pay off in the death and replay."},
+        "readable": {"score": 5, "why": "32 notes at 0.5 NPS; nothing competes with them."},
+        "buildable": {"score": 2, "why": "The recorder is code, but the solar system, ship and supernova need modelled art."}
+      },
+      "rubric_note": "assessed from files and public descriptions, not from play",
+      "verified": [
+        "AssignPlayerToTrack at beat 0: leftHand -> LeftHand, rightHand -> RightHand",
+        "157 camera prefabs spawned every 1.5 beats from 0.1 to 234",
+        "notes only in beats 36-164",
+        "sun destroyed and supernova prefabs spawned at beat 205",
+        "death.mat Blit and nine bloom passes at 235",
+        "hand tracks moved to z -69420 and -42069 at 245, restored at 310",
+        "memorypanel.mat textures stepped from rendertexture_156 down to rendertexture_0 between 262 and 308.75",
+        "eyes.mat Blit and breathein prefab at 0 and at 310"
+      ],
+      "interpretation": [
+        "the map as one Outer Wilds time loop",
+        "the supernova placed on the song's climax",
+        "hand possession chosen so the sabers can vanish at death without moving the camera"
+      ]
+    },
+    {
+      "id": "exsii-03-lifelike",
+      "source": {
+        "map": "Lifelike",
+        "song": "Lifelike",
+        "artist": "Porter Robinson",
+        "mapper": "nasafrasa",
+        "beatsaver": "43a25",
+        "writeup": "maps/03-lifelike.md",
+        "urls": [
+          "https://beatsaver.com/maps/43a25",
+          "https://mainecampus.com/category/culture/2022/12/porter-robinsons-nurture-meditates-on-expectations-and-creativity/",
+          "https://spectrumculture.com/2021/04/27/porter-robinson-nurture-review/",
+          "https://music.apple.com/us/album/nurture/1550626757"
+        ]
+      },
+      "song": {
+        "mood": "gentle, nostalgic piano piece that starts soft and grows",
+        "lyrics_theme": "instrumental",
+        "structure": "100.72 BPM, 96 s (~161 beats); soft opening, notes from beat 17, a lift around beat 58, a final section from 122"
+      },
+      "title": "From the void into the world",
+      "central_idea": "The player starts in a black void; doors open and the world is drawn in around them, from sketch to daylight to sunset, following the album opener's role of leading out of the dark cover into the real world.",
+      "grounding": {
+        "moments": [
+          "opening bars in the void, doors opening as the first notes enter (beats 16-18)",
+          "daylight arriving with the lift at beat 58",
+          "sunset for the final section from beat 122"
+        ],
+        "mood": [
+          "calm wonder",
+          "warmth growing across the piece"
+        ],
+        "lyrics": [
+          "instrumental; album theme is the beauty of the real world"
+        ],
+        "notes": "Robinson is reported to describe the track as the passage from the cover's black void into what is worth showing; the map stages that passage with skyboxes and props."
+      },
+      "palette": ["#000000", "#ffffff", "#ffa393"],
+      "palette_source": "files",
+      "motifs": [
+        {
+          "name": "void to sky",
+          "description": "skybox prefabs replace one another",
+          "development": {
+            "intro (0-57)": "black skybox",
+            "main body (58-121)": "day sky, clouds, grass",
+            "final section (122-153)": "sunset and water"
+          }
+        },
+        {
+          "name": "piano",
+          "description": "a piano prefab as the on-screen instrument",
+          "development": {
+            "opening (18-57)": "appears as the doors open",
+            "main body": "absent",
+            "final section (122)": "returns under the sunset"
+          }
+        },
+        {
+          "name": "scribble",
+          "description": "hand-drawn line material on the doors and scene",
+          "development": {
+            "intro (2-17)": "scribbled doors in the void",
+            "final section (122)": "the scribble returns"
+          }
+        }
+      ],
+      "key_moments": [
+        {"beat": 18, "kind": "other", "treatment": "doors and scribble removed; cloud spiral, piano and track text appear as the chart begins", "held_for_end": false},
+        {"beat": 58, "kind": "big_hit", "treatment": "black skybox replaced by daylight, clouds and grass", "held_for_end": false},
+        {"beat": 122, "kind": "final_chorus", "treatment": "final section: sunset and water, piano and scribble return", "held_for_end": true}
+      ],
+      "possession": "player",
+      "buildability": {
+        "tiers": [1, 2, 3],
+        "notes": "Tier 1 for the four-plane room, doors and clouds; tier 2 for the scribble and warm camera shaders; tier 3 for painted skyboxes and the piano model."
+      },
+      "rubric": {
+        "grounded": {"score": 5, "why": "Directly stages the artist's own description of the track's role."},
+        "one_idea": {"score": 5, "why": "A single passage from void to world."},
+        "develops": {"score": 4, "why": "Clear three-stage arc with returning piano and scribble; the middle is steady."},
+        "readable": {"score": 5, "why": "Arc-forward chart under 2 NPS with plain black and white notes."},
+        "buildable": {"score": 4, "why": "Few assets; skyboxes and a piano are the only modelled or painted media."}
+      },
+      "rubric_note": "assessed from files and public descriptions, not from play",
+      "verified": [
+        "AssignPlayerToTrack at beat 0 onto PlayerTrack, no target, with note, arc and chain tracks parented to it",
+        "skyboxblack at 0; doors and scribble at 2, destroyed at 18",
+        "cloud spiral at 16, piano and track text at 18",
+        "day skybox, clouds, grass at 58 with black skybox and piano destroyed",
+        "sunset skybox, water, piano and scribble at 122; all destroyed at 153.75",
+        "note colours white and black; light event colour about #ffa393"
+      ],
+      "interpretation": [
+        "the sequence as Robinson's void-to-world description made literal",
+        "beat 122 as the final section of the song"
+      ]
+    },
+    {
+      "id": "exsii-04-you",
+      "source": {
+        "map": "you",
+        "song": "you",
+        "artist": "Simplifi",
+        "mapper": "Swifter",
+        "beatsaver": "43a1f",
+        "writeup": "maps/04-you.md",
+        "urls": [
+          "https://beatsaver.com/maps/43a1f",
+          "https://github.com/Swifter1243/you_map",
+          "https://raw.githubusercontent.com/Swifter1243/you_map/main/script.ts",
+          "https://soundcloud.com/scanrecs/simplifi-you"
+        ]
+      },
+      "song": {
+        "mood": "slow, spacious electronic track that rises to one drop",
+        "lyrics_theme": "not verified; the title addresses the listener",
+        "structure": "70 BPM, 157 s; script sections: intro 0, ambient 34, ambient rise 70, buildup 98, drop 112.5, outro 140.75, text 172.75"
+      },
+      "title": "An out-of-body gift",
+      "central_idea": "The map is addressed to the player: once, the view leaves the body and looks back at them, and the drop choreographs every note around them before a closing text.",
+      "grounding": {
+        "moments": [
+          "ambient rise at 70 used for the out-of-body view",
+          "buildup 98-112.5 and drop 112.5 used for the largest scene change",
+          "outro and text after 140.75"
+        ],
+        "mood": [
+          "intimate and slow, which suits NJS 8 and drifting notes",
+          "release at the drop"
+        ],
+        "lyrics": [
+          "lyrics not verified; the title and the mapper's note (a chapter ending, a map that is the player's to keep) supply the theme"
+        ],
+        "notes": "Section boundaries in the show match the script's named song sections exactly; the idea of 'you' is made literal by moving the head track."
+      },
+      "palette": ["#ff7575", "#4fb7f5"],
+      "palette_source": "files",
+      "motifs": [
+        {
+          "name": "evolving skybox",
+          "description": "a dedicated skybox material per section",
+          "development": {
+            "intro (0-34)": "intro skybox zoomed through 156 keyframes",
+            "ambient (34-98)": "ambient skybox with pulsing light",
+            "drop (112.5-140.75)": "drop skybox with flicker and mirrors",
+            "outro (140.75-172.75)": "ending skybox with flashes"
+          }
+        },
+        {
+          "name": "glass notes",
+          "description": "custom note, arrow and debris materials swapped per section",
+          "development": {
+            "intro": "glass notes fading in",
+            "drop": "drop notes with void and flicker keywords and per-note paths"
+          }
+        },
+        {
+          "name": "the view of oneself",
+          "description": "head and saber-guide tracking",
+          "development": {
+            "ambient rise (70-98)": "head moves up and back, guide lines show the sabers",
+            "text (172.75)": "head sent away, right hand hidden for the closing text"
+          }
+        }
+      ],
+      "key_moments": [
+        {"beat": 70, "kind": "build", "treatment": "head track moves 0.8 up and 4 m back over 28 beats while saber guides fade in", "held_for_end": false},
+        {"beat": 112.5, "kind": "drop", "treatment": "drop scene and two drop Blit passes; 742 path animations in beats 112-143", "held_for_end": true},
+        {"beat": 172.75, "kind": "ending", "treatment": "outro text prefab; head and right hand moved out of view", "held_for_end": false}
+      ],
+      "possession": "head",
+      "buildability": {
+        "tiers": [1, 2, 3],
+        "notes": "Tier 2 for procedural skyboxes, glass notes, flares and post-process; tier 3 optional for the flower model."
+      },
+      "rubric": {
+        "grounded": {"score": 3, "why": "Sections follow the song closely, but the theme rests on the title and the mapper's note, not verified lyrics."},
+        "one_idea": {"score": 4, "why": "A gift addressed to the player, with one out-of-body moment and one drop."},
+        "develops": {"score": 5, "why": "Skybox, notes and flares evolve section by section toward the drop."},
+        "readable": {"score": 4, "why": "NJS 8 gives time to read world-rotated, pathed notes at about 1.1 NPS."},
+        "buildable": {"score": 4, "why": "Everything was hand-made by one author as shaders and small prefabs."}
+      },
+      "rubric_note": "assessed from files and public descriptions, not from play",
+      "verified": [
+        "AssignPlayerToTrack at beat 0: player (no target), head -> Head, rightHand -> RightHand",
+        "head track animated at 70 over 28 beats to (0, 0.8, -4) and back",
+        "saber guide opacity raised at 70 and lowered at 90",
+        "dropscene and two dropeffects Blits at 112.5",
+        "742 of 826 AssignPathAnimation events in beats 112-143",
+        "outrotext prefab at 172.75; head moved to z 10000 and right hand to y -69420",
+        "difficulty colours left #ff7575, right #4fb7f5",
+        "section names and beats from the published script.ts"
+      ],
+      "interpretation": [
+        "the head pull-back as looking at 'you' from outside",
+        "possession summarised as head although player and right hand are also assigned"
+      ]
+    },
+    {
+      "id": "exsii-05-ego-death",
+      "source": {
+        "map": "Ego Death",
+        "song": "Ego Death",
+        "artist": "Xtrullor",
+        "mapper": "Sands",
+        "beatsaver": "43a2e",
+        "writeup": "maps/05-ego-death.md",
+        "urls": [
+          "https://beatsaver.com/maps/43a2e",
+          "https://xtrullor.bandcamp.com/track/ego-death",
+          "https://music.apple.com/us/song/ego-death/1482323593"
+        ]
+      },
+      "song": {
+        "mood": "harsh, aggressive orchestral dubstep that stays near full intensity",
+        "lyrics_theme": "instrumental; the title names the dissolution of the self",
+        "structure": "180 BPM; map audio 126 s (~378 beats) against a 3:56 original; notes 35-287 in two halves split at beats 172-180, then an empty stretch 288-342 and a final hit at 342.8"
+      },
+      "title": "Malware boss fight",
+      "central_idea": "The map poses as malware installing itself into the game: a download, a boss taking over the scene, a storm in the second half, and a red 'death' image after the chart ends.",
+      "grounding": {
+        "moments": [
+          "intro download at beat 6 before the first notes",
+          "second half from 172-180 marked by rain and electric fuzz",
+          "red death at 342.8 after an empty stretch"
+        ],
+        "mood": [
+          "hostile, glitching energy matched by kick-locked post-processing"
+        ],
+        "lyrics": [
+          "instrumental; the title's loss of self is staged as the game being taken over"
+        ],
+        "notes": "The malware framing is the mapper's joke (difficulty labels install an antivirus and Vivify.dll); the title supplies the final death image."
+      },
+      "palette": ["#000000", "#ffffff", "#5a5a5a", "#c8c8c8"],
+      "palette_source": "cover",
+      "motifs": [
+        {
+          "name": "kick pulse",
+          "description": "kick.mat and brightness.mat Blits struck on the beat",
+          "development": {
+            "first half (65-171)": "kick with warp and umm distortions",
+            "second half (175-287)": "kick with brightness bursts, up to 14 per 16 beats",
+            "end (343)": "a single last kick"
+          }
+        },
+        {
+          "name": "grouped note scaling",
+          "description": "notes animated as groups through shared tracks",
+          "development": {
+            "intro (35-60)": "intronotes scale in",
+            "first half (63-171)": "ScaleNotes scale, rotate and dissolve",
+            "second half (175-286)": "endNotes scale and dissolve"
+          }
+        },
+        {
+          "name": "the platform",
+          "description": "the floor under the player",
+          "development": {
+            "intro (0)": "platform spawned",
+            "transition (172-180)": "scaled, then destroyed",
+            "after the chart (287)": "a second platform spawned"
+          }
+        }
+      ],
+      "key_moments": [
+        {"beat": 57.5, "kind": "other", "treatment": "boss prefab spawns and stays", "held_for_end": false},
+        {"beat": 174.5, "kind": "drop", "treatment": "rain and four electric fuzz prefabs; platform destroyed at 180; second note group begins", "held_for_end": false},
+        {"beat": 342.8, "kind": "ending", "treatment": "reddeath prefab, hit prefab and final kick after 55 empty beats", "held_for_end": true}
+      ],
+      "possession": "none",
+      "buildability": {
+        "tiers": [1, 2, 3],
+        "notes": "Tier 1 for rain particles and platform; tier 2 for kick, warp and brightness post-process shaders; tier 3 for the boss figure."
+      },
+      "rubric": {
+        "grounded": {"score": 3, "why": "Intensity and title fit, but the malware framing is the mapper's joke rather than the song's."},
+        "one_idea": {"score": 4, "why": "One takeover narrative from download to death."},
+        "develops": {"score": 3, "why": "Density and pulse stay flat; development is carried by two halves and a final image."},
+        "readable": {"score": 3, "why": "About 4 NPS under constant Blits with scaling and dissolving note groups."},
+        "buildable": {"score": 4, "why": "Mostly post-process and particles; one character-like boss model."}
+      },
+      "rubric_note": "assessed from files and public descriptions, not from play",
+      "verified": [
+        "no AssignPlayerToTrack events",
+        "platform at 0, introanim (id download) at 6, boss at 57.5 never destroyed",
+        "149 Blits, all between 65.1 and 343",
+        "rain at 173.5, four electricfuzz at 174.5, platform destroyed at 180",
+        "notes 35-287; no notes and no events in 288-342",
+        "reddeath and hit prefabs at 342.8-343"
+      ],
+      "interpretation": [
+        "the sequence as malware taking over the game",
+        "reddeath as the title's ego death",
+        "the flat density as following the track's constant intensity"
+      ]
+    },
+    {
+      "id": "exsii-06-3-big-shots",
+      "source": {
+        "map": "3 BIG SHOTS FROM [KITCHEN GUN]",
+        "song": "3 BIG SHOTS FROM [KITCHEN GUN]",
+        "artist": "Grambam36 (original music Toby Fox)",
+        "mapper": "Droobix (TheGoodBoi)",
+        "beatsaver": "43a4a",
+        "writeup": "maps/06-3-big-shots.md",
+        "urls": [
+          "https://beatsaver.com/maps/43a4a",
+          "https://grambam36.bandcamp.com/track/3-big-shots-from-kitchen-gun",
+          "https://knowyourmeme.com/memes/kitchen-gun",
+          "https://deltarune.fandom.com/wiki/BIG_SHOT",
+          "https://github.com/droobix/map-source-files"
+        ]
+      },
+      "song": {
+        "mood": "manic, comic mashup",
+        "lyrics_theme": "no song lyrics; advert voice samples from a cleaning-product parody cut into a boss theme",
+        "structure": "140 BPM, 150 s (~350 beats); dense passages around 36-127 and 208-287, a trough around 128-207, final section from 260 with walls at 288-303"
+      },
+      "title": "Infomercial versus boss fight",
+      "central_idea": "The map cuts between the two source worlds of the YTPMV: a TV infomercial (screens, kitchen, toilets, freeze-frame shots) and the Deltarune boss scene (alley, party members, a winged puppet on strings).",
+      "grounding": {
+        "moments": [
+          "advert screens from beat 0 and the kitchen at 100 with freeze-frame bursts",
+          "the boss set with wings and strings at 68.5",
+          "reprise of the boss set at 260.5 for the final section"
+        ],
+        "mood": [
+          "absurd, fast cutting like the source video"
+        ],
+        "lyrics": [
+          "advert narration about cleaning away stains, used as comic material rather than lyrics"
+        ],
+        "notes": "Each scene is taken from one of the two sources the track combines, and the edit rhythm of the YTPMV becomes the scene-cut rhythm."
+      },
+      "palette": ["#fe6fda", "#f1e100", "#e5e5e5", "#8300aa", "#f91818"],
+      "palette_source": "files",
+      "motifs": [
+        {
+          "name": "TV screens",
+          "description": "screen prefabs whose clipping and fade properties are animated",
+          "development": {
+            "intro (0-35)": "TV plane and three screens",
+            "middle (132)": "twelve screens as a wave",
+            "late (228)": "fifty screens swooshing past"
+          }
+        },
+        {
+          "name": "freeze-frame shots",
+          "description": "a captured screen texture flashed eight times at quarter-beat spacing",
+          "development": {
+            "kitchen (104-122)": "two bursts",
+            "final section (280-290)": "two more bursts"
+          }
+        },
+        {
+          "name": "puppet-string set",
+          "description": "city, cars, party members, wings and eight strings",
+          "development": {
+            "first drop (68.5)": "introduced",
+            "final section (260.5)": "rebuilt for the reprise"
+          }
+        }
+      ],
+      "key_moments": [
+        {"beat": 68.5, "kind": "drop", "treatment": "city, cars, Ralsei, Susie, wings and strings spawn at once", "held_for_end": false},
+        {"beat": 100, "kind": "big_hit", "treatment": "kitchen set with freeze-frame bursts at 104 and 120", "held_for_end": false},
+        {"beat": 260.5, "kind": "final_chorus", "treatment": "boss set rebuilt, freeze-frames return, the only wall section with a crouch Blit", "held_for_end": true}
+      ],
+      "possession": "none",
+      "buildability": {
+        "tiers": [1, 2, 3],
+        "notes": "Tier 1 for screens, walls and strings; tier 2 for screen-clip and freeze-frame shaders; tier 3 for character models, cars, city and props."
+      },
+      "rubric": {
+        "grounded": {"score": 5, "why": "Every set comes from one of the two sources the track is built from."},
+        "one_idea": {"score": 3, "why": "Unified by the two-source premise but reads as a collage of scenes."},
+        "develops": {"score": 4, "why": "Screens multiply and the boss set returns with the shots for the finale."},
+        "readable": {"score": 3, "why": "Over 4 NPS with fake notes, walls and extra Blits on Expert+."},
+        "buildable": {"score": 2, "why": "Relies on many character and prop models."}
+      },
+      "rubric_note": "assessed from files and public descriptions, not from play",
+      "verified": [
+        "no AssignPlayerToTrack events",
+        "thetvplane at 0, screens at 2 and 16.5; alley, posters, field at 36",
+        "city, cars, ralsei, susie, wings and eight string prefabs at 68.5 and again at 260.5",
+        "kitchen at 100; oldmat.mat flashed eight times from 104 and from 120, and again from 280 and 288",
+        "toilets at 172; papers and 50 screens at 228",
+        "28 walls in beats 288-303 and a crouch.mat Blit at 303",
+        "colours left #fe6fda, right #f1e100, obstacles #e5e5e5"
+      ],
+      "interpretation": [
+        "the winged figure on strings as Spamton NEO",
+        "the freeze-frame bursts as the title's shots",
+        "pink and yellow notes as Spamton's colours"
+      ]
+    },
+    {
+      "id": "exsii-07-luminescent",
+      "source": {
+        "map": "luminescent",
+        "song": "luminescent",
+        "artist": "sxth sns",
+        "mapper": "nasafrasa",
+        "beatsaver": "43a26",
+        "writeup": "maps/07-luminescent.md",
+        "urls": [
+          "https://beatsaver.com/maps/43a26",
+          "https://soundcloud.com/rushdownrecs/sxth-sns-luminescent",
+          "https://www.beatport.com/track/luminescent/15499983",
+          "https://open.spotify.com/track/3i1oRRhb4k2kQ8Ys3YOuZj"
+        ]
+      },
+      "song": {
+        "mood": "bright melodic dubstep, euphoric drops and a calm break",
+        "lyrics_theme": "not verified; listed on an EP titled watercolours",
+        "structure": "170 BPM, 167 s (~472 beats); intro 0-103, drop 104-167, mid 168-199, drop 200-261, break 262-351, build 352-391, final drop 392-472 (boundaries from sky changes and Blit density)"
+      },
+      "title": "Colour is the subject",
+      "central_idea": "A fixed camera under skies that are swapped and recoloured with the song's form: quiet space for the intro, saturated fractals and glitch for the drops, a still landscape for the break, and one new sky for the last drop.",
+      "grounding": {
+        "moments": [
+          "each drop starts with a sky swap and a Blit surge (104, 200, 392)",
+          "the break (262-351) has no Blits and a calm landscape"
+        ],
+        "mood": [
+          "euphoric colour on drops",
+          "stillness in the break"
+        ],
+        "lyrics": [
+          "not verified; the release title and the mapper's note both point at colour"
+        ],
+        "notes": "The show is a timeline of colour and post-process keyframes locked to the song's drop and break structure."
+      },
+      "palette": ["#007fff", "#ff00ff", "#7f00ff", "#00ffff", "#5500ff", "#0800ff", "#000000"],
+      "palette_source": "files",
+      "motifs": [
+        {
+          "name": "sky swaps",
+          "description": "whole sky prefabs replaced at section boundaries",
+          "development": {
+            "intro (0)": "galaxy and stars",
+            "drops (104, 200)": "fractal sky",
+            "break (265)": "nebula, water, mountains",
+            "final drop (392)": "swirl sky, new"
+          }
+        },
+        {
+          "name": "colour cycling",
+          "description": "sky2 colours keyed through blue, magenta, violet and cyan",
+          "development": {
+            "first drop (104-167)": "cycling begins",
+            "second drop (200-250)": "cycling at the densest section"
+          }
+        },
+        {
+          "name": "glitch pulses",
+          "description": "glitch, pixelate, VHS and scanline Blits",
+          "development": {
+            "intro": "none",
+            "drops": "12-25 per 16 beats",
+            "break": "none",
+            "final drop": "7-16 per 16 beats"
+          }
+        }
+      ],
+      "key_moments": [
+        {"beat": 104, "kind": "drop", "treatment": "space sky replaced by the fractal sky; glitch Blits begin", "held_for_end": false},
+        {"beat": 265, "kind": "break", "treatment": "nebula, water, mountains and streaks; no Blits for 80 beats and a low note count", "held_for_end": false},
+        {"beat": 392, "kind": "drop", "treatment": "the swirl sky, not seen before, for the final drop", "held_for_end": true}
+      ],
+      "possession": "none",
+      "buildability": {
+        "tiers": [1, 2],
+        "notes": "Tier 1 post-process presets and particles; tier 2 procedural sky shaders. No modelled media required."
+      },
+      "rubric": {
+        "grounded": {"score": 4, "why": "Sky changes lock to drops and the break; colour theme echoes the release and the mapper's note."},
+        "one_idea": {"score": 5, "why": "Colour as the whole subject."},
+        "develops": {"score": 4, "why": "Returns to earlier skies before a final new one."},
+        "readable": {"score": 3, "why": "Peak Blit density coincides with 6.8 NPS; carries a photosensitivity warning."},
+        "buildable": {"score": 5, "why": "Two event types over procedural skies."}
+      },
+      "rubric_note": "assessed from files and public descriptions, not from play",
+      "verified": [
+        "no AssignPlayerToTrack events",
+        "sky prefab swaps at 0, 104, 168, 200, 262, 265, 360, 392",
+        "no Blits before beat 96 and none in 272-351",
+        "sky2.mat colours #007fff, #ff00ff, #7f00ff, #00ffff over 115 keyframes",
+        "light event colour about #5500ff",
+        "notes per 16 beats 43-48 in 192-255 and 7-18 in 272-351"
+      ],
+      "interpretation": [
+        "section names (drop, break, build) inferred from sky changes and density",
+        "colour theme linked to the watercolours release title"
+      ]
+    },
+    {
+      "id": "exsii-08-yoi-okashi",
+      "source": {
+        "map": "Yoi Okashi to Warui Okashi",
+        "song": "Yoi Okashi to Warui Okashi",
+        "artist": "Asatsumei feat. L4hee",
+        "mapper": "Elecast, Fatalution",
+        "beatsaver": "43a4b",
+        "writeup": "maps/08-yoi-okashi.md",
+        "urls": [
+          "https://beatsaver.com/maps/43a4b",
+          "https://osu.ppy.sh/beatmapsets/2319311",
+          "https://exsii.totalbs.dev/"
+        ]
+      },
+      "song": {
+        "mood": "long, energetic vocal electronic track",
+        "lyrics_theme": "not verified; the title contrasts good sweets and bad sweets",
+        "structure": "175 BPM, 304 s (~887 beats); sustained 8-10 NPS with one bomb-only interlude at 494-514 and a final section from about 790"
+      },
+      "title": "Journey to the clouds",
+      "central_idea": "A five-minute journey through built environments, field, city, a corrupted interlude, a ring tunnel, ending in a sky of clouds, with a dense plain chart the scene never interferes with.",
+      "grounding": {
+        "moments": [
+          "the bomb-only glitch interlude at 494-514",
+          "the ring tunnel building through 644-780",
+          "the cloud field from 790"
+        ],
+        "mood": [
+          "constant energy, answered by constant scene motion rather than note tricks"
+        ],
+        "lyrics": [
+          "not verified; the good/bad pairing of the title is echoed by one corrupted section"
+        ],
+        "notes": "Grounding in structure is clear; grounding in lyrics is not established from available sources."
+      },
+      "palette": ["#85aa47", "#ffcc4c", "#192d59", "#0d2653", "#00ffff", "#ff00ff", "#ffff00", "#ff0000"],
+      "palette_source": "files",
+      "motifs": [
+        {
+          "name": "open landscape",
+          "description": "field and grass prefabs with fog-coloured materials",
+          "development": {
+            "intro (0-131)": "a field with title text",
+            "early body (132-222)": "grass and a second field with short-lived spawns",
+            "after the glitch (514)": "field returns"
+          }
+        },
+        {
+          "name": "rings",
+          "description": "ring prefabs and ring light materials",
+          "development": {
+            "tunnel (644-653)": "built ring by ring",
+            "late body (662-780)": "rings flicker and colour-cycle",
+            "pre-finale (735-781)": "rings respawned each half beat with glitch and colour Blits"
+          }
+        },
+        {
+          "name": "glitch",
+          "description": "glitch, VHS and colour Blits",
+          "development": {
+            "interlude (495-510)": "glitch eye and eleven Blits over bombs",
+            "tunnel (734-782)": "glitch returns under the rings"
+          }
+        }
+      ],
+      "key_moments": [
+        {"beat": 236, "kind": "other", "treatment": "city, windows and stars replace the fields", "held_for_end": false},
+        {"beat": 495, "kind": "break", "treatment": "glitch eye and Blits over 124 bombs; no notes from 494 to 514", "held_for_end": false},
+        {"beat": 790, "kind": "final_chorus", "treatment": "608 cloud prefabs spawned through the final section", "held_for_end": true}
+      ],
+      "possession": "none",
+      "buildability": {
+        "tiers": [1, 2, 3],
+        "notes": "Tier 1 for rings and cloud particles; tier 2 for grass, fog and glitch shaders; tier 3 for city, windows and sprite characters."
+      },
+      "rubric": {
+        "grounded": {"score": 3, "why": "Follows the song's structure; lyric grounding unverified."},
+        "one_idea": {"score": 3, "why": "A journey through many environments rather than one image."},
+        "develops": {"score": 4, "why": "Rings and spawns escalate into the cloud finale."},
+        "readable": {"score": 4, "why": "Notes carry no animation, though the chart runs at 8+ NPS."},
+        "buildable": {"score": 3, "why": "Large asset vocabulary and 7785 events."}
+      },
+      "rubric_note": "assessed from files and public descriptions, not from play",
+      "verified": [
+        "no AssignPlayerToTrack events",
+        "field and text prefabs 0-62; city, windows, stars at 236",
+        "glitcheye and eleven Blits in 495-510; 124 bombs at 492.7-509.75; no notes in 494-514",
+        "corridor section prefabs one per beat 575-636; ring tunnel 644-653",
+        "608 cloud prefabs from 790 to 841; 518 spawns in 768-831",
+        "note customData limited to NJS, offset and track"
+      ],
+      "interpretation": [
+        "the glitch interlude as the 'bad' half of the title",
+        "the sequence as a journey ending in the sky"
+      ]
+    },
+    {
+      "id": "exsii-09-through-the-screen",
+      "source": {
+        "map": "Through The Screen",
+        "song": "Through the Screen",
+        "artist": "RXLZQ",
+        "mapper": "Mawntee (lower difficulty by Fatalution)",
+        "beatsaver": "43a5d",
+        "writeup": "maps/09-through-the-screen.md",
+        "urls": [
+          "https://beatsaver.com/maps/43a5d",
+          "https://band.link/6KGba",
+          "https://soundcloud.com/rxlzq/through-the-screen",
+          "https://open.spotify.com/track/4sD9sIhkY0E1uqWw2vsmFP"
+        ]
+      },
+      "song": {
+        "mood": "moody electronica that climbs to a dense finish",
+        "lyrics_theme": "not verified; title and cover art show passing through a screen to meet oneself",
+        "structure": "160 BPM, 150 s (400 beats); build 64-159, near-empty window 176-223, second build 224-319, final section 320-367"
+      },
+      "title": "Seeing yourself through the screen",
+      "central_idea": "The player passes through the screen: at mid-song the head is pulled back so the player sees the play space from behind, and the final section surrounds them with screens fed by head-following cameras.",
+      "grounding": {
+        "moments": [
+          "the near-empty window at 176-223 used for the head pull-back",
+          "the final climb used for the four screens"
+        ],
+        "mood": [
+          "introspective, with light flipping between bright and dark"
+        ],
+        "lyrics": [
+          "not verified; the cover shows a head pushing through a membrane toward its reflection"
+        ],
+        "notes": "The title and cover supply the image; the chart's midpoint gap supplies the time to show it."
+      },
+      "palette": ["#ffffff", "#272c2e", "#1b2328", "#ff2020"],
+      "palette_source": "files",
+      "motifs": [
+        {
+          "name": "screens and projection",
+          "description": "projector colour and screen prefabs",
+          "development": {
+            "first build (52-66)": "projector flashes red then white",
+            "final section (320-348)": "four screens fly in and out"
+          }
+        },
+        {
+          "name": "self-view",
+          "description": "saber clones and cameras that follow the head",
+          "development": {
+            "intro (0)": "saber clones in the world",
+            "mid (194-228)": "head pulled back 9.21 m",
+            "late (224.5, 323)": "head-following camera prefabs"
+          }
+        },
+        {
+          "name": "bright and dark",
+          "description": "ambient light colour animated through rendering settings",
+          "development": {
+            "first build (54)": "light dims",
+            "second build (160)": "light returns",
+            "mid (192-226)": "light dims to near black"
+          }
+        }
+      ],
+      "key_moments": [
+        {"beat": 194, "kind": "break", "treatment": "Head possessed onto noHead?; head moves 1.15 up and 9.21 m back over 196-223, back by 228", "held_for_end": false},
+        {"beat": 224.5, "kind": "other", "treatment": "ViewYoinker prefab following the head as notes return", "held_for_end": false},
+        {"beat": 320, "kind": "final_chorus", "treatment": "head-following camera and four screens flying in, scene-3 scenery; densest notes of the map", "held_for_end": true}
+      ],
+      "possession": "head",
+      "buildability": {
+        "tiers": [1, 2],
+        "notes": "Tier 1 screens, fog and lighting; tier 2 projector and saber-clone shaders and render-texture cameras. Scene prefab contents are not visible in the map file."
+      },
+      "rubric": {
+        "grounded": {"score": 4, "why": "Follows the title and cover image and the song's midpoint gap; lyrics unverified."},
+        "one_idea": {"score": 5, "why": "One image, seeing yourself through the screen."},
+        "develops": {"score": 4, "why": "From projector flashes to a pull-back to four screens at the end."},
+        "readable": {"score": 4, "why": "The pull-back happens in a near-empty window; density climbs only after."},
+        "buildable": {"score": 4, "why": "65 events; complexity sits in a few prefabs and global properties."}
+      },
+      "rubric_note": "assessed from files and public descriptions, not from play",
+      "verified": [
+        "single AssignPlayerToTrack at beat 194: track noHead?, target Head",
+        "noHead? moved to (0, 1.15, -9.21) over 196-223 and back over 223-228",
+        "notes per 16 beats 5, 2, 0 across 176-223",
+        "scene 2 at 190; ViewYoinker at 224.5; third camera at 323 and four screens at 324 animated 320-348",
+        "projector colour HDR red to white at 52; ambient colours dimmed at 54, restored at 160, dimmed at 192",
+        "200 fake notes; everything destroyed at 400"
+      ],
+      "interpretation": [
+        "the pull-back as passing through the screen",
+        "the four screens as showing the player back to themself"
+      ]
+    },
+    {
+      "id": "exsii-10-42-flux",
+      "source": {
+        "map": "42-flux",
+        "song": "42-flux",
+        "artist": "rN vs. nm-y (Cataclysmia)",
+        "mapper": "Aeroluna",
+        "beatsaver": "43999",
+        "writeup": "maps/10-42-flux.md",
+        "urls": [
+          "https://beatsaver.com/maps/43999",
+          "https://soundcloud.com/rurinn/42-flux",
+          "https://osu.ppy.sh/beatmapsets/1608037",
+          "https://bsaber.com/posts/the-beasties-2025-winners"
+        ]
+      },
+      "song": {
+        "mood": "fast, dense, hard-edged BMS track",
+        "lyrics_theme": "instrumental; the mapper's description asks whether time exists for an eternal being",
+        "structure": "225 BPM, 158 s (~592 beats); notes 48-570, scene changes about every 30-60 beats, densest writing 496-543"
+      },
+      "title": "Time coming apart",
+      "central_idea": "A clock opens the map and every later scene (wormhole, eclipse, desert, library, black hole) moves further from ordinary time, until the first monitor returns in red during the densest writing.",
+      "grounding": {
+        "moments": [
+          "clock scene before the first beat",
+          "scene changes on phrase boundaries",
+          "monitor return at 538 in the densest passage"
+        ],
+        "mood": [
+          "relentless pace answered by rapid scene changes and a fixed camera"
+        ],
+        "lyrics": [
+          "instrumental; time and eternity come from the description and the ETERNITY and CATACLYSMIA labels"
+        ],
+        "notes": "The concept is the mapper's framing of the title and labels; the scene cadence follows the track's phrasing."
+      },
+      "palette": ["#000000", "#ffffff", "#8c8c8c", "#ff0000"],
+      "palette_source": "cover",
+      "motifs": [
+        {
+          "name": "monitors",
+          "description": "monitor and screen scenes with render-texture cameras",
+          "development": {
+            "opening (48)": "monitor scene as the notes begin",
+            "middle (364)": "screen scene with a black hole",
+            "end (538)": "second monitor with a red danger screen"
+          }
+        },
+        {
+          "name": "bloom light",
+          "description": "a nine-pass bloom chain",
+          "development": {
+            "eclipse (144)": "first bloom with the eclipse and sun",
+            "final (570)": "bloom with volumetric fog on the podium"
+          }
+        },
+        {
+          "name": "geometric forms",
+          "description": "cylinder and icosphere scenes",
+          "development": {
+            "middle (301)": "cylinder scene with 832 track animations",
+            "late (496, 554)": "icosphere, then icosphere in rain"
+          }
+        }
+      ],
+      "key_moments": [
+        {"beat": 144, "kind": "big_hit", "treatment": "eclipse and sun spawn with a nine-pass bloom", "held_for_end": false},
+        {"beat": 364, "kind": "other", "treatment": "screen scene with a black hole", "held_for_end": false},
+        {"beat": 538, "kind": "final_chorus", "treatment": "the monitor returns with a red danger screen and colour-zoom Blits during the densest notes", "held_for_end": true}
+      ],
+      "possession": "hands",
+      "buildability": {
+        "tiers": [1, 2, 3],
+        "notes": "Tier 1 fog and bloom presets; tier 2 for many custom post-process shaders, multi-camera composition and procedural geometry; tier 3 for library, desert and monitor scene art."
+      },
+      "rubric": {
+        "grounded": {"score": 3, "why": "Time framing comes from the mapper's description and labels; the instrumental supplies pace."},
+        "one_idea": {"score": 3, "why": "Bound by the time theme, but experienced as a tour of many scenes."},
+        "develops": {"score": 4, "why": "The opening monitor returns transformed at the climax."},
+        "readable": {"score": 3, "why": "Ends at 10.7 NPS with path animations and per-eye note prefabs."},
+        "buildable": {"score": 3, "why": "Wide shader vocabulary and many scenes, though largely code-driven."}
+      },
+      "rubric_note": "assessed from files and public descriptions, not from play",
+      "verified": [
+        "AssignPlayerToTrack at beat 0: saberzzz1 -> LeftHand, saberzzz2 -> RightHand; no AnimateTrack on those tracks",
+        "clockscene at beat -1; filmgrain Blit at 0; notes 48-570",
+        "scene prefabs at 48, 112, 144, 176.5, 208, 272, 301, 364, 432, 496, 538, 554, 570",
+        "nine bloom Blits at 144 and at 570",
+        "wingdingscreen _Danger with red colour at 538",
+        "notes per 16 beats 53, 48, 43 in 496-543",
+        "seven pointDefinitions"
+      ],
+      "interpretation": [
+        "the scene sequence as time coming apart",
+        "the monitor at 538 as a transformed return of the opening scene"
+      ]
+    }
+  ]
+}

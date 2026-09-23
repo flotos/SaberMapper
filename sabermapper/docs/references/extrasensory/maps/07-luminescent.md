@@ -98,6 +98,31 @@ which alternates them, this map stacks them and then empties out. The 2.3 NPS tr
 - At 4.54 NPS on Expert+ this is mid-range for the pack and still well under the player's historical
   band in `PLAYER.md` — another reminder that EXSII is a presentation reference, not a difficulty one.
 
+## How the idea follows from the song
+
+**Song.** sxth sns' luminescent (Rushdown, 2021) is melodic dubstep; streaming listings place it on
+the *watercolours* EP. Lyric content is not verified here. The mapper's note is that they like the
+colours.
+
+**Verified in the files (Expert+).** No `AssignPlayerToTrack`: possession `none`. Skies are swapped
+as whole prefabs: galaxy and stars at beat 0; fractal `sky2` at 104 (36.7 s); speckles `sky3` at 168;
+fractal again at 200; galaxy at 262, then nebula, water, mountains, stars and streaks at 265
+(93.5 s); galaxy at 360; `sky6` ("Swirl") at 392 (138.4 s) to the end at 472. Blits: none before 96;
+12–25 per 16 beats in 96–159 and 192–255; none in 272–351; 7–16 per 16 beats from 384. `sky2.mat`
+cycles through #007fff, #ff00ff, #7f00ff and #00ffff over 115 keyframes. Notes per 16 beats fall from
+43–48 in 192–255 to 7–18 in 272–351.
+
+**Interpretation.** Colour is the subject, and the song's form decides when it changes: quiet space
+for the intro, a saturated fractal with glitch and scanlines for the drops, a still landscape for the
+break, and one new sky kept for the last drop. Motifs: sky swaps, colour cycling, glitch pulses.
+Held for the end is the swirl sky at 392, the only sky not seen earlier. The camera stays put; the
+full-screen effects do the moving.
+
+Sources: [BeatSaver 43a26](https://beatsaver.com/maps/43a26) ·
+[luminescent (Rushdown, SoundCloud)](https://soundcloud.com/rushdownrecs/sxth-sns-luminescent) ·
+[luminescent (Beatport)](https://www.beatport.com/track/luminescent/15499983) ·
+[luminescent (Spotify)](https://open.spotify.com/track/3i1oRRhb4k2kQ8Ys3YOuZj)
+
 ## Required assets
 
 Not in the BeatSaver zip (except where noted) — Vivify fetches these from LunarRepo at play

@@ -163,13 +163,15 @@ def main(argv=None):
     register_show(commands)
     from .forge_cli import register_forge, dispatch_forge
     register_forge(commands)
+    from .concept_cli import register_concept, dispatch_concept
+    register_concept(commands)
     args = parser.parse_args(argv)
     try:
         if (code := dispatch_game(args, emit)) is not None:
             return code
         if dispatch_musical(args, emit) or dispatch_frames(args, emit) or dispatch_feedback(args, emit):
             return 0
-        if dispatch_show(args, emit):
+        if dispatch_show(args, emit) or dispatch_concept(args, emit):
             return 0
         if (code := dispatch_forge(args, emit)) is not None:
             return code

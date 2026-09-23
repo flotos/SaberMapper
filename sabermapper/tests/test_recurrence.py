@@ -192,6 +192,50 @@ class RecurringAudioTests(unittest.TestCase):
                                           {"start_beat": 32, "end_beat": 48, "mirror": True}])
         self.assertEqual(propose_themes(with_theme(), None, sections), [])
 
+    def test_a_repeat_of_part_of_a_statement_joins_its_theme_from_that_beat(self):
+        import sabermapper.recurrence as recurrence
+        repeats = [{"statement": [0, 32], "echo": [64, 96], "source": "listen", "similarity": 0.9,
+                    "transposed_semitones": 0, "sections": []},
+                   {"statement": [16, 48], "echo": [128, 160], "source": "rhythm", "similarity": 0.9,
+                    "transposed_semitones": 0, "sections": []},   # runs past the statement: it grows to 48
+                   {"statement": [80, 96], "echo": [176, 192], "source": "rhythm", "similarity": 0.9,
+                    "transposed_semitones": 0, "sections": []}]   # repeats the echo 64-96: statement beat 16
+        original = recurrence.audio_repeats
+        recurrence.audio_repeats = lambda *args: repeats
+        try:
+            theme, = propose_themes(arrangement(), None)
+        finally:
+            recurrence.audio_repeats = original
+        self.assertEqual(theme["spans"], [{"start_beat": 0, "end_beat": 48},
+                                          {"start_beat": 64, "end_beat": 96},
+                                          {"start_beat": 128, "end_beat": 160, "from_beat": 16, "mirror": True},
+                                          {"start_beat": 176, "end_beat": 192, "from_beat": 16}])
+
+    def test_an_echo_from_inside_the_statement_links_to_that_part(self):
+        draft = arrangement()
+        draft["themes"] = [{"id": "x", "intent": "x", "spans": [{"start_beat": 0, "end_beat": 16},
+                                                                  {"start_beat": 40, "end_beat": 48, "from_beat": 8}]}]
+        self.assertNotIn("invalid_theme", {d["code"] for d in validate_arrangement(draft)})
+        link, = theme_links(draft)
+        self.assertEqual((link["statement"], link["echo"]), ((8, 16), (40, 48)))
+        draft["themes"][0]["spans"][1]["from_beat"] = 12
+        self.assertIn("invalid_theme", {d["code"] for d in validate_arrangement(draft)})
+
+    def test_the_suggestion_extends_the_theme_whose_statement_covers_the_repeat(self):
+        from sabermapper.recurrence import _theme_for
+        declared = place_arrangement(with_theme({"id": "hook", "intent": "the hook",
+                                                 "spans": [{"start_beat": 0, "end_beat": 32},
+                                                           {"start_beat": 32, "end_beat": 48}]}))["arrangement"]
+        repeat = {"statement": [4, 20], "echo": [48, 64], "transposed_semitones": 0}
+        theme = _theme_for(declared, repeat)
+        self.assertEqual(theme["id"], "hook")
+        self.assertEqual(theme["spans"][-1], {"start_beat": 48, "end_beat": 64, "from_beat": 4})
+        extended = add_theme(declared, theme)
+        self.assertEqual(len(extended["themes"]), 1)
+        self.assertEqual(extended["sections"][2]["notes"], declared["sections"][2]["notes"])  # 32-48 kept
+        self.assertTrue(all("x" not in n for n in extended["sections"][3]["notes"]))  # 48-64 reopened
+        self.assertIsNone(_theme_for(declared, {"statement": [0, 16], "echo": [40, 56], "transposed_semitones": 0}))
+
     def test_the_draft_declares_themes_for_the_recurring_parts_it_drafts(self):
         from test_rhythm_proposal import song, song_arrangement
         from sabermapper.rhythm_proposal import propose_rhythm

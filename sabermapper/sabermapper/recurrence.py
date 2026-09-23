@@ -16,7 +16,8 @@ Two measurements find the recurring parts, both in absolute beats on whole bars:
   consecutive phrases at the same lag merge into one span.
 
 A **theme** in the arrangement (``themes``) declares the recurrence the map honours: a statement span and the
-echo spans that repeat it (an echo may cover the statement's opening only, and may be mirrored). The placer
+echo spans that repeat it (an echo repeats the statement from its start, or from ``from_beat`` inside it, and
+may be mirrored). The placer
 gives an echo note whose time matches a statement note the statement note's hand, cut and cell (mirrored when
 asked), unless a movement rule or a stored value says otherwise (``placement.py``). Notes stay on each
 occurrence's own sounds, so the echo varies where the audio does.
@@ -96,32 +97,35 @@ def validate_themes(arrangement: dict, add) -> None:
         if not isinstance(spans, list) or len(spans) < 2:
             add("error", "invalid_theme", f"{where}.spans must list the statement and at least one echo")
             continue
-        lengths = []
+        statement = None
         for number, span in enumerate(spans):
             label = f"{where}.spans[{number}]"
-            allowed = {"start_beat", "end_beat"} | ({"mirror"} if number else set())
+            allowed = {"start_beat", "end_beat"} | ({"mirror", "from_beat"} if number else set())
             if not isinstance(span, dict) or set(span) - allowed or not {"start_beat", "end_beat"} <= set(span):
                 add("error", "invalid_theme", f"{label} must be {{start_beat, end_beat"
-                                              + (", mirror}" if number else "} (the statement is never mirrored)"))
-                lengths.append(None)
+                                              + (", mirror, from_beat}" if number else
+                                                 "} (the statement is never mirrored)"))
                 continue
             try:
                 start, end = _fraction(span["start_beat"]), _fraction(span["end_beat"])
-                if isinstance(span["start_beat"], bool) or isinstance(span["end_beat"], bool) or not 0 <= start < end:
+                source = _fraction(span.get("from_beat", statement[0] if statement else 0))
+                if any(isinstance(span.get(k), bool) for k in ("start_beat", "end_beat", "from_beat")) \
+                        or not 0 <= start < end:
                     raise ValueError
             except (ValueError, TypeError, ZeroDivisionError, OverflowError):
-                add("error", "invalid_theme", f"{label} needs 0 <= start_beat < end_beat")
-                lengths.append(None)
+                add("error", "invalid_theme", f"{label} needs 0 <= start_beat < end_beat and a numeric from_beat")
                 continue
             if "mirror" in span and not isinstance(span["mirror"], bool):
                 add("error", "invalid_theme", f"{label}.mirror must be true or false")
+            if number == 0:
+                statement = (start, end)
+            elif statement is not None and not (statement[0] <= source and source + (end - start) <= statement[1]):
+                add("error", "invalid_theme", f"{label} repeats beats {float(source):g}-{float(source + end - start):g}, "
+                                              "which must lie inside the statement (the first span)")
             for other_start, other_end, other in taken:
                 if start < other_end and other_start < end:
                     add("error", "invalid_theme", f"{label} overlaps {other}; a beat belongs to one theme span")
             taken.append((start, end, label))
-            lengths.append(end - start)
-        if lengths[0] is not None and any(n is not None and n > lengths[0] for n in lengths[1:]):
-            add("error", "invalid_theme", f"{where}: an echo span may not be longer than the statement (the first span)")
 
 
 def theme_links(arrangement: dict) -> list[dict]:
@@ -132,16 +136,14 @@ def theme_links(arrangement: dict) -> list[dict]:
     links = []
     for theme in arrangement.get("themes") or []:
         try:
-            spans = [(_fraction(s["start_beat"]), _fraction(s["end_beat"]), s.get("mirror") is True)
-                     for s in theme["spans"]]
-        except (KeyError, TypeError, ValueError, ZeroDivisionError, OverflowError):
+            head = (_fraction(theme["spans"][0]["start_beat"]), _fraction(theme["spans"][0]["end_beat"]))
+            spans = [(_fraction(s["start_beat"]), _fraction(s["end_beat"]),
+                      _fraction(s.get("from_beat", head[0])), s.get("mirror") is True) for s in theme["spans"][1:]]
+        except (KeyError, IndexError, TypeError, ValueError, ZeroDivisionError, OverflowError):
             continue
-        if len(spans) < 2:
-            continue
-        head = spans[0]
-        for start, end, mirror in spans[1:]:
-            if start < end and end - start <= head[1] - head[0]:
-                links.append({"theme": theme.get("id"), "statement": (head[0], head[0] + (end - start)),
+        for start, end, source, mirror in spans:
+            if start < end and head[0] <= source and source + (end - start) <= head[1]:
+                links.append({"theme": theme.get("id"), "statement": (source, source + (end - start)),
                               "echo": (start, end), "mirror": mirror})
     return links
 
@@ -338,58 +340,98 @@ def audio_repeats(arrangement: dict, report: dict | None, listen_sections: list 
             found += _rhythm_repeats(vectors, song_end)
     kept = []
     for item in sorted(found, key=lambda r: (r["source"] != "listen", -(r["echo"][1] - r["echo"][0]), r["echo"][0])):
-        if any(item["echo"][0] < k["echo"][1] and k["echo"][0] < item["echo"][1] for k in kept):
+        piece = _largest_free(item["echo"], [k["echo"] for k in kept])
+        if piece is None:
             continue
-        kept.append(item)
+        shift = piece[0] - item["echo"][0]
+        kept.append({**item, "echo": list(piece),
+                     "statement": [item["statement"][0] + shift, item["statement"][0] + shift + piece[1] - piece[0]]})
     return sorted(kept, key=lambda r: r["echo"][0])
+
+
+def _largest_free(span, taken):
+    """The longest part of ``span`` (whole bars, at least a phrase) that overlaps none of ``taken``, else None."""
+    pieces = [tuple(span)]
+    for a, b in taken:
+        pieces = [part for start, end in pieces
+                  for part in ((start, min(end, a)), (max(start, b), end)) if part[1] > part[0]]
+    pieces = [p for p in pieces if p[1] - p[0] >= PHRASE_BEATS]
+    return max(pieces, key=lambda p: (p[1] - p[0], -p[0])) if pieces else None
 
 
 def propose_themes(arrangement: dict, report: dict | None, listen_sections: list | None = None) -> list[dict]:
     """Themes for the song's recurring parts, for the rhythm draft and ``project check`` suggestions.
 
-    Each theme's statement is the earliest occurrence; repeats sharing a statement start join one theme (its
-    statement the longest of their spans). A transposed repeat, and every second echo, is mirrored so a
-    recurring part stays recognisable without the map replaying one figure. Spans already in a declared theme
-    are left alone.
+    Each theme's statement is the earliest occurrence. A repeat whose earlier span overlaps a theme's statement
+    joins that theme as an echo of the overlapping part (``from_beat`` names where in the statement it starts),
+    so a riff that returns several times becomes one theme. A transposed repeat, and every second echo, is
+    mirrored so a recurring part stays recognisable without the map replaying one figure. Spans already in a
+    declared theme are left alone.
     """
-    declared = [(float(a), float(b)) for link in theme_links(arrangement) for a, b in (link["statement"], link["echo"])]
+    taken = []
     for theme in arrangement.get("themes") or []:
-        for span in theme.get("spans") or []:
+        for span in (theme.get("spans") or []) if isinstance(theme, dict) else []:
             try:
-                declared.append((float(_fraction(span["start_beat"])), float(_fraction(span["end_beat"]))))
+                taken.append((float(_fraction(span["start_beat"])), float(_fraction(span["end_beat"]))))
             except (KeyError, TypeError, ValueError, ZeroDivisionError):
                 continue
-    taken = list(declared)
     names = {t.get("id") for t in arrangement.get("themes") or [] if isinstance(t, dict)}
 
     def free(span):
         return not any(span[0] < b and a < span[1] for a, b in taken)
-    grouped = {}
-    for repeat in audio_repeats(arrangement, report, listen_sections):
-        grouped.setdefault(repeat["statement"][0], []).append(repeat)
-    themes = []
-    for start, repeats in sorted(grouped.items()):
-        length = max(r["statement"][1] - r["statement"][0] for r in repeats)
-        statement = (start, start + length)
-        if not free(statement):
-            continue
-        echoes = [r for r in repeats if free(tuple(r["echo"])) and not
-                  (r["echo"][0] < statement[1] and statement[0] < r["echo"][1])]
-        if not echoes:
-            continue
-        spans = [{"start_beat": statement[0], "end_beat": statement[1]}]
-        taken.append(statement)
-        for number, repeat in enumerate(sorted(echoes, key=lambda r: r["echo"][0]), start=1):
-            if not free(tuple(repeat["echo"])):
+    work = []
+    for repeat in sorted(audio_repeats(arrangement, report, listen_sections),
+                         key=lambda r: (r["source"] != "listen", r["statement"][0],
+                                        -(r["statement"][1] - r["statement"][0]), r["echo"][0])):
+        (s0, s1), (e0, e1) = repeat["statement"], repeat["echo"]
+        # An earlier span that is itself an echo repeats that echo's statement.
+        for theme in work:
+            inside = [(echo, source) for echo, source, _ in theme["echoes"] if echo[0] <= s0 and s1 <= echo[1]]
+            if inside:
+                (echo_start, _), source = inside[0]
+                s0, s1 = source + s0 - echo_start, source + s1 - echo_start
+                break
+        host = next((t for t in work if s0 < t["statement"][1] and t["statement"][0] < s1), None)
+        if host is not None and not (host["statement"][0] <= s0 and s1 <= host["statement"][1]):
+            # The earlier span runs past the theme's statement: the statement grows to cover it when it can.
+            grown = (min(s0, host["statement"][0]), max(s1, host["statement"][1]))
+            others = [span for span in taken if span != host["statement"]]
+            if any(grown[0] < b and a < grown[1] for a, b in others):
                 continue
-            mirror = bool(repeat["transposed_semitones"]) or number % 2 == 0
-            spans.append({"start_beat": repeat["echo"][0], "end_beat": repeat["echo"][1],
-                          **({"mirror": True} if mirror else {})})
-            taken.append(tuple(repeat["echo"]))
-        if len(spans) < 2:
+            taken[taken.index(host["statement"])] = grown
+            host["statement"] = grown
+        if host is None:
+            # A new theme; its statement and echo give way to spans already taken.
+            piece = _largest_free((s0, s1), taken + [(e0, e1)])
+            if piece is None:
+                continue
+            e0, e1 = e0 + piece[0] - s0, e0 + piece[1] - s0
+            (s0, s1), statement = piece, piece
+        else:
+            statement = None
+        piece = _largest_free((e0, e1), taken + ([statement] if statement else []))
+        if piece is None:
             continue
-        sources = sorted({r["source"] for r in echoes})
-        sections = sorted({s for r in echoes for s in r["sections"]})
+        s0, echo = s0 + piece[0] - e0, piece
+        if statement:
+            host = {"statement": statement, "echoes": []}
+            work.append(host)
+            taken.append(statement)
+        taken.append(echo)
+        host["echoes"].append((echo, s0, repeat))
+    themes = []
+    for host in work:
+        if not host["echoes"]:
+            continue
+        statement = host["statement"]
+        spans = [{"start_beat": statement[0], "end_beat": statement[1]}]
+        for number, (echo, source, repeat) in enumerate(sorted(host["echoes"], key=lambda e: e[0]), start=1):
+            mirror = bool(repeat["transposed_semitones"]) or number % 2 == 0
+            spans.append({"start_beat": echo[0], "end_beat": echo[1],
+                          **({"from_beat": source} if source != statement[0] else {}),
+                          **({"mirror": True} if mirror else {})})
+        repeats = [r for _, _, r in host["echoes"]]
+        sources = sorted({r["source"] for r in repeats})
         number = len(themes) + 1
         while f"theme-{number}" in names:
             number += 1
@@ -398,8 +440,8 @@ def propose_themes(arrangement: dict, report: dict | None, listen_sections: list
                        "intent": (f"the part first heard at beats {statement[0]}-{statement[1]} returns "
                                   f"({' and '.join(sources)} repeat)"),
                        "spans": spans,
-                       "evidence": {"sources": sources, "sections": sections,
-                                    "similarity": [r["similarity"] for r in echoes]}})
+                       "evidence": {"sources": sources, "sections": sorted({s for r in repeats for s in r["sections"]}),
+                                    "similarity": [r["similarity"] for r in repeats]}})
         if len(themes) == MAX_THEMES:
             break
     return themes
@@ -443,30 +485,63 @@ def recurrence_findings(arrangement: dict, report: dict | None, listen_sections:
             continue
         where = (f'listen {" / ".join(reversed(repeat["sections"]))}, similarity {repeat["similarity"]}'
                  if repeat["source"] == "listen" else f'stem rhythm, cosine {repeat["similarity"]}')
-        theme = {"id": f"repeat-{repeat['echo'][0]}", "intent": "the returning part named in this finding",
-                 "spans": [{"start_beat": repeat["statement"][0], "end_beat": repeat["statement"][1]},
-                           {"start_beat": repeat["echo"][0], "end_beat": repeat["echo"][1],
-                            **({"mirror": True} if repeat["transposed_semitones"] else {})}]}
+        theme = _theme_for(arrangement, repeat)
         warn("repeat_unechoed",
              f'beats {repeat["echo"][0]}-{repeat["echo"][1]} repeat {repeat["statement"][0]}-{repeat["statement"][1]} '
              f'({where}) with {score["rhythm"] * 100:.0f}% of the same note times but '
              f'{score["placement"] * 100:.0f}% of the same placements; the returning part reads as a different map. '
              "Declare a theme so the placer echoes the earlier placement.",
              value=score["placement"], threshold=ECHO_PLACEMENT_THRESHOLD, beats=list(repeat["echo"]),
-             suggestions=[{"op": "add_theme", "theme": theme}])
+             suggestions=[{"op": "add_theme", "theme": theme}] if theme else None)
     return metrics
 
 
-def add_theme(arrangement: dict, theme: dict) -> dict:
-    """A copy with ``theme`` declared and its echo spans' unlocked literal notes reopened for the placer.
+def _theme_for(arrangement, repeat):
+    """The theme that declares ``repeat``: a declared theme whose statement covers its earlier span, extended by
+    one echo, else a new theme. None when either span would overlap a declared theme span."""
+    import copy
+    echo = {"start_beat": repeat["echo"][0], "end_beat": repeat["echo"][1],
+            **({"mirror": True} if repeat["transposed_semitones"] else {})}
+    spans = []
+    for theme in arrangement.get("themes") or []:
+        try:
+            spans += [(float(_fraction(s["start_beat"])), float(_fraction(s["end_beat"])), theme, n)
+                      for n, s in enumerate(theme["spans"])]
+        except (KeyError, TypeError, ValueError, ZeroDivisionError):
+            return None
+    if any(a < repeat["echo"][1] and repeat["echo"][0] < b for a, b, _, _ in spans):
+        return None
+    (s0, s1) = repeat["statement"]
+    host = [(theme, a, b) for a, b, theme, n in spans if n == 0 and a <= s0 and s1 <= b]
+    if host:
+        theme, a, _ = host[0]
+        extended = copy.deepcopy(theme)
+        extended["spans"].append({**echo, **({"from_beat": s0} if s0 != a else {})})
+        return extended
+    if any(a < s1 and s0 < b for a, b, _, _ in spans):
+        return None
+    return {"id": f"repeat-{repeat['echo'][0]}", "intent": "the returning part named in this finding",
+            "spans": [{"start_beat": s0, "end_beat": s1}, echo]}
 
-    Reopening removes ``x``, ``y``, ``color``, ``direction`` and ``placed`` from every unlocked literal note inside
-    an echo span, so the placer chooses them again with the echo preference. The statement keeps its notes.
+
+def add_theme(arrangement: dict, theme: dict) -> dict:
+    """A copy with ``theme`` declared and its new echo spans' unlocked literal notes reopened for the placer.
+
+    A theme with the same ``id`` is replaced (a theme extended by an echo). Reopening removes ``x``, ``y``,
+    ``color``, ``direction`` and ``placed`` from every unlocked literal note inside an echo span the theme did not
+    have before, so the placer chooses them again with the echo preference. The statement keeps its notes.
     """
     import copy
     result = copy.deepcopy(arrangement)
-    result.setdefault("themes", []).append(copy.deepcopy(theme))
-    echoes = [(_fraction(s["start_beat"]), _fraction(s["end_beat"])) for s in theme["spans"][1:]]
+    themes = result.setdefault("themes", [])
+    before = next((t for t in themes if isinstance(t, dict) and t.get("id") == theme.get("id")), None)
+    known = [(s.get("start_beat"), s.get("end_beat")) for s in (before or {}).get("spans", [])[1:]]
+    if before is not None:
+        themes[themes.index(before)] = copy.deepcopy(theme)
+    else:
+        themes.append(copy.deepcopy(theme))
+    echoes = [(_fraction(s["start_beat"]), _fraction(s["end_beat"])) for s in theme["spans"][1:]
+              if (s["start_beat"], s["end_beat"]) not in known]
     for section in result["sections"]:
         if section.get("locked") is True:
             continue

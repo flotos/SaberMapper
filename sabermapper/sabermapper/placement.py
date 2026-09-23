@@ -38,8 +38,9 @@ from .validation import _beat
 
 FIELDS = ("x", "y", "color", "direction")
 RANGES = {"x": range(4), "y": range(3), "color": range(2), "direction": range(9)}
-BEAM_WIDTH = 24
-BEAM_PER_TIMING = 4  # beam states kept per hand-timing history, so one hand assignment cannot crowd out the rest
+# (beam width, states kept per hand-timing history): one hand assignment cannot crowd out the rest. The wider
+# beam runs only when the first leaves a rule broken, for example a long phrase whose cuts must meet a pinned arc.
+BEAMS = ((24, 4), (160, 32))
 BLOCK = 1e10  # breaking a rule that blocks save (flow, held sabers, hidden notes)
 HARD = 1e9  # breaking a review rule the placer also keeps (one_hand_burst, reach)
 SOFT = 1e6  # re-choosing a value an earlier placement stored in ``placed``
@@ -348,7 +349,7 @@ def _assignments(group, busy):
     return result
 
 
-def _plan_cuts(groups, held, bpm):
+def _plan_cuts(groups, held, bpm, width=BEAMS[0][0], per_timing_limit=BEAMS[0][1]):
     """Beam search for every swing's hand and cut; returns ({slot index: (color, direction)}, violations)."""
     empty = (None, None, None, None, 0, None, None)
     beam = [(0.0, (empty, empty), None, None, None)]  # cost, hand states, last single hand, last beat, node
@@ -394,10 +395,10 @@ def _plan_cuts(groups, held, bpm):
         beam, per_timing = [], Counter()
         for candidate in sorted(candidates.values(), key=lambda c: c[0]):
             timing = tuple((h[1], h[4]) for h in candidate[1])
-            if per_timing[timing] < BEAM_PER_TIMING:
+            if per_timing[timing] < per_timing_limit:
                 per_timing[timing] += 1
                 beam.append(candidate)
-                if len(beam) == BEAM_WIDTH:
+                if len(beam) == width:
                     break
     best = beam[0]
     plan, node = {}, best[4]
@@ -721,22 +722,24 @@ def _place(arrangement, *, unpin=False):
         if not any(_attributable(v, by_id) for v in violations):
             return trial, _report(slots, motifs), violations, by_id
     groups = _groups(slots)
-    plan = _plan_cuts(groups, held, bpm)
     outcome = None
-    for joint in (True, False):
-        # Cuts chosen with their cells follow the hand's path; pass 1's cuts are the verified fallback.
-        for slot in slots:
-            hand, direction = plan[slot.index]
-            slot.value = {"color": slot.fixed.get("color", hand), "direction": slot.fixed.get("direction", direction)}
-        _place_cells(groups, slots, bpm, joint)
-        trial = copy.deepcopy(result)
-        _write(trial, _collect_for(trial, slots))
-        violations = rule_violations(trial)
-        failures = sum(1 for v in violations if _attributable(v, by_id))
-        if outcome is None or failures < outcome[0]:
-            outcome = (failures, trial, violations, _report(slots, motifs))
-        if not failures:
-            break
+    for width, per_timing in BEAMS:
+        plan = _plan_cuts(groups, held, bpm, width, per_timing)
+        for joint in (True, False):
+            # Cuts chosen with their cells follow the hand's path; pass 1's cuts are the verified fallback.
+            for slot in slots:
+                hand, direction = plan[slot.index]
+                slot.value = {"color": slot.fixed.get("color", hand),
+                              "direction": slot.fixed.get("direction", direction)}
+            _place_cells(groups, slots, bpm, joint)
+            trial = copy.deepcopy(result)
+            _write(trial, _collect_for(trial, slots))
+            violations = rule_violations(trial)
+            failures = sum(1 for v in violations if _attributable(v, by_id))
+            if outcome is None or failures < outcome[0]:
+                outcome = (failures, trial, violations, _report(slots, motifs))
+            if not failures:
+                return outcome[1], outcome[3], outcome[2], by_id
     return outcome[1], outcome[3], outcome[2], by_id
 
 

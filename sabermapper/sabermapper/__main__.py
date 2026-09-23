@@ -138,11 +138,13 @@ def main(argv=None):
             leaf.add_argument("--variant", choices=("initial", "revised", "baseline"))
     from .musical_cli import register_musical, dispatch_musical
     register_musical(commands)
+    from .frames_cli import register_frames, dispatch_frames
+    register_frames(commands)
     from .research_cli import register_subcommands, dispatch
     register_subcommands(commands)
     args = parser.parse_args(argv)
     try:
-        if dispatch_musical(args, emit):
+        if dispatch_musical(args, emit) or dispatch_frames(args, emit):
             return 0
         if dispatch(args):
             return 0

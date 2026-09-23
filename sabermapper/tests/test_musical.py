@@ -316,6 +316,12 @@ class PitchAndPassageTests(unittest.TestCase):
             self.assertGreater(event["strength"], .3)
         held = [e for e in self.mix("chord", pad + voice(440, 2.4))["events"] if e["method"] == "melody_change"]
         self.assertEqual(held, [], "a held chord has no melody change")
+        # A soft line before a loud one: strength follows the surrounding level, not the song's loudest part.
+        phrase = np.tile(pad + line, 3)
+        soft = np.concatenate([.35 * phrase, phrase])
+        found = [e for e in self.mix("soft", soft)["events"] if e["method"] == "melody_change" and e["seconds"] < 2.3]
+        self.assertEqual(len(found), 2, found)
+        self.assertTrue(all(e["strength"] > .5 for e in found), found)
 
     def test_passages_mark_a_quiet_sustained_window_and_an_onset_dense_one(self):
         seconds = np.arange(int(self.rate*2))/self.rate

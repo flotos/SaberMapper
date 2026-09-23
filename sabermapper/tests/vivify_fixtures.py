@@ -10,8 +10,8 @@ def note(nid, beat, x, y, color, direction=1):
     return {"id": nid, "beat": beat, "x": x, "y": y, "color": color, "direction": direction}
 
 
-def arrangement(version="0.2"):
-    """Three 8-beat sections at 120 BPM (4 s each); presentation only in 0.2."""
+def arrangement(version="0.2", choreographed=False):
+    """Three 8-beat sections at 120 BPM (4 s each); presentation only in 0.2 (bridge optionally choreographed)."""
     sections = [
         {"id": "intro", "start_beat": 0, "length_beats": 8, "intent": "setup", "locked": False, "resolved": True,
          "notes": [note("a", 0, 1, 0, 0), note("b", 2, 2, 0, 1), note("c", 4, 1, 0, 0), note("d", 6, 2, 0, 1)],
@@ -34,7 +34,7 @@ def arrangement(version="0.2"):
                                        "reveal": False, "note_style": "plain", "concept": "grey glass"}
         sections[1]["presentation"] = {"family": "scene", "attention": {"notes": 0.7, "scene": 0.3},
                                        "note_style": "plain"}
-        sections[2]["presentation"] = {"family": "none", "note_style": "choreographed"}
+        sections[2]["presentation"] = {"family": "none", "note_style": "choreographed" if choreographed else "plain"}
     return result
 
 
@@ -70,7 +70,7 @@ def write_bundle(directory: Path, info=None) -> Path:
 
 
 def show():
-    """One of every primitive; valid against arrangement() with the fixture bundle."""
+    """One of every primitive; valid against arrangement(choreographed=True) with the fixture bundle."""
     return {"schema_version": "0.1", "description": "fixture show", "primitives": [
         {"kind": "setup", "id": "setup", "screen_textures": [{"id": "_Half", "xRatio": 2, "yRatio": 2}],
          "cameras": [{"id": "depthcam", "texture": "_Depth", "properties": {"clearFlags": "Depth"}}],

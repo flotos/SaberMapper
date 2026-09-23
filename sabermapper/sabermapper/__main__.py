@@ -42,9 +42,12 @@ def main(argv=None):
     sub.add_argument("--tier-reference", type=Path,
                      help="corpus tier-reference.json enabling the difficulty.target_tier comparison")
     sub.add_argument("--output", type=Path)
-    sub = commands.add_parser("serve", help="Start the browser studio on localhost")
+    sub = commands.add_parser("serve", help="Start the browser studio on localhost; it follows code updates")
     sub.add_argument("--workspace", type=Path, default=Path("workspace"))
     sub.add_argument("--port", type=int, default=8765)
+    sub.add_argument("--no-reload", action="store_true",
+                     help="Serve in one process and keep the code loaded at start (no automatic update)")
+    sub.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     sub = commands.add_parser("demo", help="Create the original musical demo with an editable arrangement")
     sub.add_argument("--workspace", type=Path, default=Path("workspace"))
     sub = commands.add_parser("import-audio", help="Create a saved project from a local track")
@@ -165,8 +168,12 @@ def main(argv=None):
         if dispatch(args):
             return 0
         if args.command == "serve":
-            from .server import serve
-            serve(args.workspace, args.port)
+            if args.no_reload or args.worker:
+                from .server import serve
+                serve(args.workspace, args.port, worker=args.worker)
+            else:
+                from .studio_supervisor import Supervisor
+                return Supervisor(args.workspace, args.port).run()
         elif args.command in ("validate", "compile", "export"):
             from .arrangement import compile_arrangement
             from .validation import validate_arrangement

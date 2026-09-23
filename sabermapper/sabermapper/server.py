@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, unquote, urlparse, urlencode
 from .projects import ConflictError, ProjectStore
 from .revisions import arrangement_revision
 from .storage import read_json, write_json
+from .studio_supervisor import TOKEN_ENV, WorkerControl
 
 STATIC = Path(__file__).parent / "static"
 MAX_BODY = 96 * 1024 * 1024
@@ -92,9 +93,14 @@ def game_action(game, store: ProjectStore, action: str, data: dict):
     raise ValueError("Unknown game operation; use play, pause, resume, restart, seek or stop")
 
 
-def make_server(workspace: str | Path, port: int = 8765, game=None) -> ThreadingHTTPServer:
-    """Build the studio server. `game` is the game API (sabermapper.game.api); None imports it on first use."""
+def make_server(workspace: str | Path, port: int = 8765, game=None, token: str | None = None,
+                control: WorkerControl | None = None) -> ThreadingHTTPServer:
+    """Build the studio server. `game` is the game API (sabermapper.game.api); None imports it on first use.
+
+    `token` and `control` come from the studio supervisor, which keeps one token across code reloads.
+    """
     store = ProjectStore(workspace)
+    control = control or WorkerControl()
     games = [game]
 
     def game_api():
@@ -106,7 +112,7 @@ def make_server(workspace: str | Path, port: int = 8765, game=None) -> Threading
                 raise GameError("bridge_missing", f"The game integration is not installed ({exc})", None,
                                 "Install the SaberMapper game bridge (sabermapper.game) and restart the studio") from exc
         return games[0]
-    token = secrets.token_urlsafe(32)
+    token = token or secrets.token_urlsafe(32)
     arc_root = Path(os.environ.get("SABERMAPPER_ARCVIEWER", str(Path(__file__).resolve().parents[1] / "vendor" / "arcviewer"))).resolve()
 
     class Handler(BaseHTTPRequestHandler):
@@ -173,6 +179,14 @@ def make_server(workspace: str | Path, port: int = 8765, game=None) -> Threading
             return host in {f"127.0.0.1:{self.server.server_port}", f"localhost:{self.server.server_port}"}
 
         def do_GET(self):
+            with control.request():
+                self._get()
+
+        def do_POST(self):
+            with control.request():
+                self._post()
+
+        def _get(self):
             try:
                 if not self._host():
                     self._json({"error": "Use the local studio URL"}, 403)
@@ -186,7 +200,7 @@ def make_server(workspace: str | Path, port: int = 8765, game=None) -> Threading
                     self._file(target, viewer=True)
                 elif path == "/api/status":
                     self._json({"version": "0.2.0", "token": token, "workspace": str(store.root),
-                                "offline": True, "assistant_calls": False})
+                                "offline": True, "assistant_calls": False, "code": control.status()})
                 elif path == "/api/projects":
                     self._json(store.list())
                 elif path == "/api/game/status":
@@ -249,7 +263,7 @@ def make_server(workspace: str | Path, port: int = 8765, game=None) -> Threading
             self._json({"error": str(exc) if status != 500 else "Operation failed. Check local files and dependencies.",
                         "type": type(exc).__name__}, status)
 
-        def do_POST(self):
+        def _post(self):
             try:
                 if not self._host() or self.headers.get("X-SaberMapper-Token") != token:
                     self._json({"error": "Reload the local studio before making changes"}, 403)
@@ -422,8 +436,12 @@ def corpus_action(root: Path, action: str, data: dict):
         corpus.close()
 
 
-def serve(workspace: str | Path, port=8765, game=None):
-    server = make_server(workspace, port, game)
+def serve(workspace: str | Path, port=8765, game=None, worker=False):
+    """Serve in this process. `worker` means a studio supervisor started it and controls it through stdin."""
+    control = WorkerControl()
+    server = make_server(workspace, port, game, token=os.environ.get(TOKEN_ENV) if worker else None, control=control)
+    if worker:
+        control.listen(server)
     print(f"SaberMapper Studio: http://127.0.0.1:{server.server_port}", flush=True)
     print(f"Workspace: {Path(workspace).resolve()}", flush=True)
     try:

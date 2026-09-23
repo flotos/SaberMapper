@@ -11,8 +11,9 @@ functions the critique judges a map with, and the musical rules SM-036 records:
   joins it on the sixteenth grid, except between two chugs, where the riff rests.
 * **Sung bars follow the syllables first.** The band fills the voice's gaps of 0.75 beat or more and plays on the
   free hand under a held arc; elsewhere it keeps under 24% of the bar's note times.
-* **Held and intense singing becomes an arc**, and so does a hold the user named. Its head takes the placer's
-  hand, cut and cell; its tail reverses the cut.
+* **Held and intense singing becomes an arc**, and so does a hold the user named. Its head sits on the sound
+  nearest the sustain's start (the sung attack, which a pitch tracker hears late) and takes the placer's hand,
+  cut and cell; its tail reverses the cut.
 * **Soft bars map changes** (melody, chord and pitch changes, genuine attacks) at least half a beat apart.
 * **Doubles mark the heaviest accents** of a loud bar (kick or crash hits in a riff, the heaviest ensemble accent
   and the snare backbeat in a sung bar). The sixteenth before one stays empty, and the placer brings both hands
@@ -22,7 +23,8 @@ functions the critique judges a map with, and the musical rules SM-036 records:
   line along the cut, one longer note. Under a held arc the free hand cuts it. A stack takes the place of a
   double on the same sound, and the sixteenth before it stays empty too.
 * The declared lead's strongest attack per half-beat (per beat in a thin or soft bar) carries a note, as the
-  lead check requires; every time is snapped to the coarsest grid that stays on its sound.
+  lead check requires; every time is snapped to the coarsest grid that stays on its sound (within
+  ``SNAP_SECONDS``, so a free-time passage such as a rubato choir keeps each note on its own sound).
 * **The map's style tunes the draft** (:mod:`style`): ``arcs`` sets how short a held sound still becomes an arc,
   ``accents`` how many doubles a loud bar's heaviest hits get.
 * **A returning part returns as a theme.** Parts that repeat an earlier one (listen repetition groups, or the
@@ -54,7 +56,7 @@ from .critique import (ENSEMBLE_MIX_STRENGTH, LOUD_RATIO, MELODY_ONSET_STRENGTH,
                        _sections, bar_loudness, beat_to_seconds, critique_arrangement, ensemble_accents, focus_lead,
                        lead_onsets, melody_onsets, on_onset, quiet_bar, salient_onsets, strongest_per_slot,
                        unison_hits)
-from .placement import place_arrangement
+from .placement import _holds as _anchors_and_holds, place_arrangement
 from .recurrence import propose_themes
 from .style import ARC_SCALE, DOUBLES_PER_BAR, settings_of
 from .validation import _beat
@@ -63,6 +65,8 @@ TARGET_CODES = ("note_without_audio", "density_exceeds_audio", "lead_rhythm_dilu
                 "intensity_underplayed", "difficulty_exceeds_intensity", "one_hand_burst")
 GRIDS = (1, 2, 4, 3, 8, 6, 16, 12)
 SNAP_TOLERANCE = 0.07  # beats: a snapped time stays within the audio support window of its sound
+SNAP_SECONDS = 0.035  # and within this of its sound, under note_off_sound's OFF_SOUND_SECONDS
+FINEST_GRID = 48  # a sound no grid in GRIDS reaches keeps its own time on this grid
 MIN_GAP_BEATS = Fraction(1, 4)
 # Sixteenth runs of the lead join the draft at this attack strength; None keeps the tier to half-beats.
 RUN_STRENGTH = {"below_band": None, "band": 0.6, "challenge": 0.5, "stretch": 0.45, "beyond": 0.4}
@@ -92,22 +96,32 @@ TIER_NPS = {"below_band": 7.5, "band": 11.67, "challenge": 12.04, "stretch": 13.
 CAP_FLOOR = 0.35
 
 
-def grid_beat(beat: float) -> Fraction:
-    """The coarsest grid position within SNAP_TOLERANCE of ``beat`` (a sixteenth when none is)."""
+def snap_reach(arrangement) -> float:
+    """How far (beats) a drafted time may sit from its sound: SNAP_TOLERANCE, and under SNAP_SECONDS at any tempo,
+    so a slow song's notes stay as close to their sounds as a fast song's."""
+    return min(SNAP_TOLERANCE, SNAP_SECONDS * float(arrangement["song"]["bpm"]) / 60)
+
+
+def grid_beat(beat: float, reach: float = SNAP_TOLERANCE) -> Fraction:
+    """The coarsest grid position within ``reach`` of ``beat``, else the nearest 1/FINEST_GRID beat."""
     for denominator in GRIDS:
         candidate = Fraction(round(beat * denominator), denominator)
-        if abs(float(candidate) - beat) <= SNAP_TOLERANCE:
+        if abs(float(candidate) - beat) <= reach:
             return candidate
-    return Fraction(round(beat * 16), 16)
+    return Fraction(round(beat * FINEST_GRID), FINEST_GRID)
 
 
-def melody_beat(beat: float) -> Fraction:
-    """A whole or half beat within SNAP_TOLERANCE of a melody change, else the nearest quarter."""
+def melody_beat(beat: float, reach: float = SNAP_TOLERANCE) -> Fraction:
+    """A whole or half beat within ``reach`` of a melody change, else the coarsest grid that stays on it.
+
+    A free-time passage (a rubato choir, a sung intro before the drums) keeps each change on its own time: the
+    nearest quarter beat can sit a sixteenth off the sound, which the player hears as off-rhythm.
+    """
     for denominator in (1, 2):
         candidate = Fraction(round(beat * denominator), denominator)
-        if abs(float(candidate) - beat) <= SNAP_TOLERANCE:
+        if abs(float(candidate) - beat) <= reach:
             return candidate
-    return Fraction(round(beat * 4), 4)
+    return grid_beat(beat, reach)
 
 
 def _relative(beat: Fraction):
@@ -129,6 +143,7 @@ class _Evidence:
         self.support = [t for t, _ in support]
         self.support_strength = [s for _, s in support]
         self.tolerance = SUPPORT_BEATS * 60 / float(arrangement["song"]["bpm"])
+        self.reach = snap_reach(arrangement)
         self.spans = _sections(arrangement)
         self.cache = {}
 
@@ -157,8 +172,9 @@ def _loudness(evidence, first, last):
     return bar_loudness(evidence.report, evidence.arrangement, first, last)
 
 
-def _candidate(beat, strength, role, layer, method, onset, seconds, melodic=False):
-    return {"beat": (melody_beat if melodic else grid_beat)(onset), "strength": round(strength, 4), "role": role,
+def _candidate(evidence, beat, strength, role, layer, method, onset, seconds, melodic=False):
+    snap = melody_beat if melodic else grid_beat
+    return {"beat": snap(onset, evidence.reach), "strength": round(strength, 4), "role": role,
             "evidence": {"layer": layer, "method": method, "strength": round(strength, 4),
                          "onset_beat": round(onset, 4), "seconds": round(seconds, 4)}}
 
@@ -232,7 +248,7 @@ def _bar_candidates(evidence, bar, stop, singing, tier, soft=False, holds=(), lo
     def per_slot(name, methods, threshold, slots, role_name, melodic=False):
         found = [(b, s, m, t) for b, s, m, t in evidence.events(name, methods, threshold) if inside(b)]
         details = {round(b, 9): (s, m, t) for b, s, m, t in found}
-        return [_candidate(b, details[round(b, 9)][0], role_name, name, details[round(b, 9)][1], b,
+        return [_candidate(evidence, b, details[round(b, 9)][0], role_name, name, details[round(b, 9)][1], b,
                            details[round(b, 9)][2], melodic=melodic)
                 for b, _ in strongest_per_slot([(b, s) for b, s, *_ in found], slots)]
 
@@ -255,7 +271,7 @@ def _bar_candidates(evidence, bar, stop, singing, tier, soft=False, holds=(), lo
             for b, s, m, t in evidence.events(name, ("spectral_flux", "pitch_change"), ONSET_STRENGTH):
                 if inside(b) and (math.floor(b) not in strongest or strongest[math.floor(b)][1] < s):
                     strongest[math.floor(b)] = (b, s, name, m, t)
-        primary += [_candidate(b, s, "onset", name, m, b, t) for b, s, name, m, t in strongest.values()]
+        primary += [_candidate(evidence, b, s, "onset", name, m, b, t) for b, s, name, m, t in strongest.values()]
     elif role == "riff":
         riff_support = [b for b, *_ in evidence.events(riff, LEAD_METHODS, LEAD_SUPPORT_STRENGTH)]
         # The riff leads its bar unless the arrangement declares another lead (the one the lead check judges).
@@ -279,17 +295,17 @@ def _bar_candidates(evidence, bar, stop, singing, tier, soft=False, holds=(), lo
         gaps = [(a, b) for a, b in zip(edges, edges[1:]) if b - a >= LEAD_GAP_BEATS]
         for beat, strength, name, method, seconds in _band(evidence, bar, stop):
             if any(a + SALIENCE_MATCH_BEATS < beat < b - SALIENCE_MATCH_BEATS for a, b in gaps):
-                primary.append(_candidate(beat, strength, "band_gap", name, method, beat, seconds))
+                primary.append(_candidate(evidence, beat, strength, "band_gap", name, method, beat, seconds))
             elif any(head < beat < tail for head, tail in holds):
-                primary.append(_candidate(beat, strength, "band_hold", name, method, beat, seconds))
+                primary.append(_candidate(evidence, beat, strength, "band_hold", name, method, beat, seconds))
             elif not _near(lead_support, beat, LEAD_GAP_BEATS) or _near(lead_support, beat, SALIENCE_MATCH_BEATS):
-                primary.append(_candidate(beat, strength, "band", name, method, beat, seconds))
+                primary.append(_candidate(evidence, beat, strength, "band", name, method, beat, seconds))
     if not quiet and role != "soft":
         heavy = sorted(ensemble_accents(layers, arrangement, lead or "mix", bar, stop, evidence.cache.setdefault(
             "ensemble", {})), key=lambda a: -a[1])
         for beat, strength, name in heavy[:1]:
             if not _near(lead_support, beat, LEAD_GAP_BEATS) or _near(lead_support, beat, SALIENCE_MATCH_BEATS):
-                primary.append(_candidate(beat, strength, "ensemble", name, "spectral_flux", beat,
+                primary.append(_candidate(evidence, beat, strength, "ensemble", name, "spectral_flux", beat,
                                           beat_to_seconds(beat, arrangement)))
     if loud and role != "soft" and not quiet:
         doubles = _stack_candidates(evidence, bar, stop, holds)
@@ -329,7 +345,7 @@ def _stack_candidates(evidence, bar, stop, holds):
     found = []
     for beat, size, stems, strength in unison_hits(evidence.layers, evidence.arrangement, bar, stop,
                                                    evidence.cache.setdefault("unison", {})):
-        item = _candidate(beat, strength, "stack", "mix", "spectral_flux", beat,
+        item = _candidate(evidence, beat, strength, "stack", "mix", "spectral_flux", beat,
                           beat_to_seconds(beat, evidence.arrangement))
         item["evidence"]["stems"] = stems
         if sum(1 for head, tail in holds if head < item["beat"] < tail) < 2:
@@ -346,18 +362,18 @@ def _double_candidates(evidence, bar, stop, role, lead, holds):
             if bar <= b < stop and _with_mix(evidence, b)]
     found = []
     if role == "riff":
-        found = [_candidate(b, s, "double", "drums", m, b, t) for b, s, m, t in sorted(hits, key=lambda h: -h[1])]
+        found = [_candidate(evidence, b, s, "double", "drums", m, b, t) for b, s, m, t in sorted(hits, key=lambda h: -h[1])]
     else:
         heavy = sorted(ensemble_accents(evidence.layers, arrangement, lead or "mix", bar, stop,
                                         evidence.cache.setdefault("ensemble", {})), key=lambda a: -a[1])
-        found = [_candidate(b, s, "double", name, "spectral_flux", b, beat_to_seconds(b, arrangement))
+        found = [_candidate(evidence, b, s, "double", name, "spectral_flux", b, beat_to_seconds(b, arrangement))
                  for b, s, name in heavy[:1] if s >= DOUBLE_STRENGTH]
         for backbeat in (bar + 1, bar + 3):
             near = [h for h in evidence.events("drums", ("spectral_flux",), DRUM_ONSET_STRENGTH)
                     if abs(h[0] - backbeat) <= SALIENCE_MATCH_BEATS and _with_mix(evidence, h[0])]
             if near:
                 b, s, m, t = max(near, key=lambda h: h[1])
-                found.append(_candidate(b, s, "double", "drums", m, b, t))
+                found.append(_candidate(evidence, b, s, "double", "drums", m, b, t))
     free = [c for c in found if not any(head <= c["beat"] <= tail for head, tail in holds)]
     unique = []
     for item in free:
@@ -391,7 +407,7 @@ def _arcs(evidence, first, last, base, held=(), scale=1.0):
                      or (beats >= NAMED_BEATS and any(abs(start - t) <= NAMED_REACH_BEATS for t in named)))
         if not qualifies:
             continue
-        head, tail = grid_beat(start), grid_beat(end)
+        head, tail = _arc_head(evidence, sustain["start_seconds"]), grid_beat(end, evidence.reach)
         if not first <= head < tail < last or tail - head < Fraction(1, 2):
             continue
         section = next(((s, a, b) for s, a, b in sections if a <= head < b), None)
@@ -406,6 +422,15 @@ def _arcs(evidence, first, last, base, held=(), scale=1.0):
                                    "onset_beat": round(start, 4), "seconds": round(sustain["start_seconds"], 4),
                                    "hold_seconds": round(seconds, 3)}))
     return found
+
+
+def _arc_head(evidence, seconds):
+    """An arc head on the sound nearest a sustain's start (a pitch tracker starts a held note after its sung
+    attack), snapped within SNAP_SECONDS of it; the start itself when no sound is within the support window."""
+    lo = bisect_left(evidence.support, seconds - evidence.tolerance)
+    hi = bisect_left(evidence.support, seconds + evidence.tolerance + 1e-12)
+    near = min(evidence.support[lo:hi], key=lambda t: abs(t - seconds), default=seconds)
+    return grid_beat(evidence.to_beat(near), evidence.reach)
 
 
 def _near(values, beat, reach):
@@ -918,7 +943,7 @@ def _lead_pool(evidence, span):
         for beat, strength in strongest_per_slot([(b, s) for b, s, *_ in events], slots):
             if strength >= LEAD_ONSET_STRENGTH and bar <= beat < bar + SALIENCE_BAR_BEATS:
                 s, m, t = details[round(beat, 9)]
-                item = _candidate(beat, s, "lead", lead, m, beat, t)
+                item = _candidate(evidence, beat, s, "lead", lead, m, beat, t)
                 if evidence.strength_at(item["beat"]) > 0:
                     found.append(item)
     return found
@@ -932,7 +957,7 @@ AUDIO_SUGGESTED = ("audio_unmapped", "note_without_audio", "density_exceeds_audi
                    "lead_rhythm_diluted", "lead_rhythm_unmapped", "vocal_line_unmapped", "drum_rhythm_unmapped",
                    "drum_entry_unmapped", "melody_unmapped", "ensemble_unmapped", "boundary_accent_unmapped",
                    "density_collapse", "intensity_underplayed", "focus_on_quiet_stem", "unison_hit_unstacked",
-                   "stack_too_tall")
+                   "stack_too_tall", "note_off_sound")
 RETIME_REACH = Fraction(1, 2)
 
 
@@ -1015,7 +1040,7 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
                 options = []
                 for beat, strength, *_ in [e for name in evidence.layers
                                            for e in evidence.events(name, ONSET_METHODS, SUPPORT_STRENGTH)]:
-                    target = grid_beat(beat)
+                    target = grid_beat(beat, evidence.reach)
                     if abs(target - note["beat"]) <= RETIME_REACH and target != note["beat"]:
                         crowded = any(abs(target - t) < MIN_GAP_BEATS for t in times if t != note["beat"])
                         if not crowded and evidence.strength_at(target) > 0:
@@ -1027,6 +1052,23 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
                 else:
                     finding["suggestions"].append({"op": "remove", "object_id": oid,
                                                    "reason": f"no onset within {RETIME_REACH} beat"})
+        elif code == "note_off_sound":
+            # A retime carries the arc or chain end on the note with it; an end cannot be removed.
+            anchored = {(beat, values["color"]) for beat, values, _ in _anchors_and_holds(arrangement)[0]}
+            for oid in finding["object_ids"]:
+                note = by_id.get(oid)
+                if note is None or "/note/" not in oid:
+                    continue
+                target = _on_sound(evidence, note["beat"])
+                if target is None or target == note["beat"]:
+                    continue
+                if not any(abs(target - t) < MIN_GAP_BEATS for t in times if t != note["beat"]):
+                    finding["suggestions"].append({"op": "retime", "object_id": oid, "to_beat": _relative(target),
+                                                   "reason": "move onto the strongest sound under the note, "
+                                                             "on its own time"})
+                elif (note["beat"], note["color"]) not in anchored:
+                    finding["suggestions"].append({"op": "remove", "object_id": oid,
+                                                   "reason": "its sound sits within a sixteenth of the next note"})
         elif code == "lead_rhythm_diluted":
             stray = [i for i in finding["object_ids"] if "/note/" in i]
             if stray:
@@ -1060,10 +1102,10 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
             if code in ("drum_rhythm_unmapped", "drum_entry_unmapped"):
                 hits = [(b, s) for b, s, *_ in evidence.events("drums", ("spectral_flux",), DRUM_ONSET_STRENGTH)
                         if float(first) <= b < float(last)]
-                pool = [_candidate(b, s, "drums", "drums", "spectral_flux", b, beat_to_seconds(b, arrangement))
+                pool = [_candidate(evidence, b, s, "drums", "drums", "spectral_flux", b, beat_to_seconds(b, arrangement))
                         for b, s in strongest_per_slot(hits, DRUM_SLOTS_PER_BEAT)]
             elif code == "melody_unmapped":
-                pool = [_candidate(b, 0.3, "melody", "mix", "melody_change", b, beat_to_seconds(b, arrangement),
+                pool = [_candidate(evidence, b, 0.3, "melody", "mix", "melody_change", b, beat_to_seconds(b, arrangement),
                                    melodic=True) for b in melody_onsets(report, arrangement, float(first), float(last))]
             else:
                 roles = {"lead_rhythm_unmapped": ("lead", "run"), "vocal_line_unmapped": ("lead", "vocals")}.get(code)
@@ -1077,7 +1119,7 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
             add(finding, pool, "map the sounds this finding names")
         elif code in ("ensemble_unmapped", "boundary_accent_unmapped"):
             targets = finding.get("targets") or ([[float(first), 1.0]] if first is not None else [])
-            pool = [_candidate(beat, strength, "ensemble", "mix", "spectral_flux", beat, beat_to_seconds(beat, arrangement))
+            pool = [_candidate(evidence, beat, strength, "ensemble", "mix", "spectral_flux", beat, beat_to_seconds(beat, arrangement))
                     for beat, strength in targets]
             add(finding, pool, "map the band's heaviest accents")
         elif code == "focus_on_quiet_stem":
@@ -1091,7 +1133,7 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
                                                "reason": "a stack of two carries this hit"})
         elif code == "unison_hit_unstacked" and finding.get("targets"):
             onset, size = finding["targets"][0]
-            target = grid_beat(float(onset))
+            target = grid_beat(float(onset), evidence.reach)
             literal = sorted((by_id[i] for i in finding["object_ids"] if i in by_id and "/note/" in i),
                              key=lambda n: (abs(n["beat"] - target), n["beat"]))
             why = "cut the unison hit as a stack: one hand, notes in a line along the cut"
@@ -1101,6 +1143,18 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
             elif not any(abs(target - t) < MIN_GAP_BEATS for t in times):
                 finding["suggestions"].append({"op": "stack", "beat": _relative(target), "size": size,
                                                "reason": why})
+
+
+def _on_sound(evidence, beat):
+    """The time of the strongest supporting sound under ``beat`` (within the audio support window), snapped to
+    the coarsest grid that stays within SNAP_SECONDS of it; None when no sound is there."""
+    seconds = beat_to_seconds(beat, evidence.arrangement)
+    lo = bisect_left(evidence.support, seconds - evidence.tolerance)
+    hi = bisect_left(evidence.support, seconds + evidence.tolerance + 1e-12)
+    if lo == hi:
+        return None
+    strongest = max(range(lo, hi), key=lambda i: (evidence.support_strength[i], -abs(evidence.support[i] - seconds)))
+    return grid_beat(evidence.to_beat(evidence.support[strongest]), evidence.reach)
 
 
 def focus_weights(arrangement, report, context=None, section_id=None):

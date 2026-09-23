@@ -77,6 +77,37 @@ class NoteSupportTests(unittest.TestCase):
         self.assertIn("note_without_audio", {w["code"] for w in result["warnings"]})
         self.assertTrue(all(w["severity"] == "warning" for w in result["warnings"]))
 
+    def test_notes_beside_their_sounds_are_heard_as_off_rhythm(self):
+        # Drum hits sit on whole beats; beats 10-13 sit 0.1 beat (50 ms) after theirs: near a sound, off its time.
+        beats = list(range(10)) + [10.1, 11.1, 12.1, 13.1] + list(range(14, 40))
+        support = note_support(arrangement(beats), report())
+        self.assertEqual(support["supported"], len(beats))
+        self.assertEqual(support["unsupported_runs"], [])
+        self.assertEqual([(r["start_beat"], r["end_beat"], r["offsets_ms"]) for r in support["off_sound_runs"]],
+                         [(10.1, 13.1, [50, 50, 50, 50])])
+        _, findings = audio_findings(arrangement(beats), report())
+        found = [f for f in findings if f["code"] == "note_off_sound"]
+        self.assertEqual([(f["severity"], f["beats"], f["object_ids"]) for f in found],
+                         [("warning", [10.1, 13.1], [f"s/note/n{i}" for i in range(10, 14)])])
+
+    def test_a_lone_note_beside_its_sound_or_one_close_to_it_passes(self):
+        beats = list(range(10)) + [10.1] + [b + 0.05 for b in range(11, 20)] + list(range(20, 40))  # 50 ms once, 25 ms
+        self.assertEqual(note_support(arrangement(beats), report())["off_sound_runs"], [])
+
+    def test_without_drums_a_lone_note_beside_its_sound_is_off_rhythm(self):
+        # A free-time voice with the drums resting from 5 s to 12 s (beats 10-24): nothing carries the beat, so one
+        # note 50 ms off its syllable is heard. The same note inside the groove passes.
+        evidence = report()
+        evidence["layers"]["drums"]["events"] = [e for e in evidence["layers"]["drums"]["events"]
+                                                 if not 5 <= e["seconds"] < 12]
+        evidence["layers"]["vocals"] = {"events": [{"id": f"v{b}", "seconds": b / 2, "method": "spectral_flux",
+                                                    "strength": 0.6} for b in range(10, 24)]}
+        beats = list(range(10)) + [10, 11, 12, 13, 14, 15.1, 16, 17, 18, 19] + list(range(20, 40))
+        runs = note_support(arrangement(beats), evidence)["off_sound_runs"]
+        self.assertEqual([(r["start_beat"], r["note_times"]) for r in runs], [(15.1, 1)])
+        beats = [b if b != 15.1 else 30.1 for b in beats]  # the drums play again at beat 30
+        self.assertEqual(note_support(arrangement(sorted(beats)), evidence)["off_sound_runs"], [])
+
     def test_mostly_grid_filler_lowers_support(self):
         beats = [b + 0.25 for b in range(40)]
         _, findings = audio_findings(arrangement(beats), report())

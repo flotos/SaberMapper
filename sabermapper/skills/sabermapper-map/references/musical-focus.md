@@ -201,10 +201,17 @@ the pitched line is what the player hears, and its pitch changes are the rhythm.
 
 - List the changes with `music inspect ID --workspace workspace --run RUN --start A --end B --layer mix`
   (method `melody_change`, with `from_midi`/`to_midi`), and `music rhythm --layers mix`.
-- Put a note on each change, within 0.13 beat of it: the whole or half beat when
-  the change is on it, else the nearest quarter. A legato pad or voice reaches its
-  new pitch just after the beat; a note on the beat before it misses the sound.
-  Keep the line's own spacing; never an even grid that ignores it.
+- Put a note on each change, within 35 ms of it: the whole or half beat when
+  the change is on it, else the coarsest grid (eighth, triplet, sixteenth, finer)
+  that stays within 35 ms. A legato pad or voice reaches its new pitch just after
+  the beat; a note on the beat before it misses the sound. Keep the line's own
+  spacing; never an even grid that ignores it.
+- A line with no pulse under it (a rubato choir or voice before the drums enter)
+  does not follow the song's grid at all. Its notes sit on its own times, off the
+  grid; the nearest quarter beat can land 60 ms from the sound, which the player
+  hears as off-rhythm. `note_off_sound` flags three or more of six consecutive
+  note times 40 ms or more from their sounds (any one where no drum plays within
+  2 beats) and suggests the `retime` onto each one. Living a Lie's choir intro (2026-09-23) felt off-rhythm this way.
 - Let the row follow the contour: the highest notes of the phrase on the top
   row, the lowest on the bottom, and a step up or down moves the next note the
   same way. Cut direction keeps the flow rules; the row carries the pitch.

@@ -7,7 +7,10 @@ from pathlib import Path
 import re
 import sys
 
+from .star_tiers import TIER_IDS
 from .storage import read_json
+
+DIFFICULTIES = ("Easy", "Normal", "Hard", "Expert", "ExpertPlus")
 
 
 def emit(value, output=None):
@@ -36,6 +39,8 @@ def main(argv=None):
     sub = commands.add_parser("critique", help="Descriptive, non-blocking density, repetition and seam metrics")
     sub.add_argument("arrangement", type=Path)
     sub.add_argument("--report", type=Path, help="Musical evidence report.json enabling seam accent checks")
+    sub.add_argument("--tier-reference", type=Path,
+                     help="corpus tier-reference.json enabling the difficulty.target_tier comparison")
     sub.add_argument("--output", type=Path)
     sub = commands.add_parser("serve", help="Start the browser studio on localhost")
     sub.add_argument("--workspace", type=Path, default=Path("workspace"))
@@ -68,10 +73,11 @@ def main(argv=None):
     sub.add_argument("--end", type=float, required=True)
     sub.add_argument("--text", required=True)
     sub.add_argument("--revision", required=True)
+    sub.add_argument("--difficulty", choices=DIFFICULTIES, help="Difficulty the feedback is about; default: primary")
     sub = commands.add_parser("project", help="Read, revise, restore and export persistent projects")
     project_commands = sub.add_subparsers(dest="project_action", required=True)
     for name in ("list", "get", "save", "export", "restore", "review", "critique", "repair-swings",
-                 "repair-visibility", "repair-audio", "set-album"):
+                 "repair-visibility", "repair-audio", "set-album", "add-difficulty", "remove-difficulty"):
         leaf = project_commands.add_parser(name, help={
             "set-album": "Set the album that groups this project in the studio's artist/album tree",
             "repair-swings": "Fix same-color notes inside a held arc or chain (move to the other hand, end or "
@@ -83,10 +89,25 @@ def main(argv=None):
                             "(or remove them), thin quiet passages mapped as densely as the full band, then "
                             "add flow-safe notes on unmapped vocal, drum, accent and density-collapse onsets; "
                             "raise heavy bars that play easier than soft ones and ease soft bars that play as "
-                            "hard as the heavy passages"}.get(name))
+                            "hard as the heavy passages",
+            "add-difficulty": "Add a difficulty as an unlocked copy of another one (then rewrite it at its level)",
+            "remove-difficulty": "Delete a non-primary difficulty; its content stays in history",
+            "export": "Export every difficulty of the project into one map ZIP"}.get(name))
         leaf.add_argument("--workspace", type=Path, default=Path("workspace"))
         if name != "list":
             leaf.add_argument("project")
+        if name in ("get", "save", "restore", "review", "critique", "repair-swings", "repair-visibility",
+                    "repair-audio"):
+            leaf.add_argument("--difficulty", choices=DIFFICULTIES,
+                              help="Which difficulty to act on; default: the primary one (arrangement.json)")
+        if name == "add-difficulty":
+            leaf.add_argument("--name", choices=DIFFICULTIES, required=True, help="The new difficulty")
+            leaf.add_argument("--from", dest="source", choices=DIFFICULTIES, help="Difficulty to copy; default: primary")
+            leaf.add_argument("--njs", type=float, help="Note jump speed for the new difficulty")
+            leaf.add_argument("--target-tier", choices=TIER_IDS,
+                              help="Player star tier the difficulty aims for (see `corpus tiers`)")
+        if name == "remove-difficulty":
+            leaf.add_argument("--difficulty", choices=DIFFICULTIES, required=True)
         if name == "critique":
             leaf.add_argument("--run", help="Musical evidence run ID for the audio checks; "
                                              "defaults to the newest run of the current audio")
@@ -95,7 +116,8 @@ def main(argv=None):
             leaf.add_argument("--dry-run", action="store_true", help="Report planned changes without saving")
         if name == "repair-audio":
             leaf.add_argument("--output", type=Path, help="Write the full report here instead of stdout")
-        if name in ("save", "restore", "review", "repair-swings", "repair-visibility", "repair-audio"):
+        if name in ("save", "restore", "review", "repair-swings", "repair-visibility", "repair-audio",
+                    "remove-difficulty"):
             leaf.add_argument("--revision", required=True)
         if name == "save":
             leaf.add_argument("--arrangement", type=Path, required=True)
@@ -143,7 +165,8 @@ def main(argv=None):
         elif args.command == "critique":
             from .critique import critique_arrangement
             emit(critique_arrangement(read_json(args.arrangement),
-                                      read_json(args.report) if args.report else None), args.output)
+                                      read_json(args.report) if args.report else None,
+                                      read_json(args.tier_reference) if args.tier_reference else None), args.output)
         elif args.command == "analyze":
             from .audio import analyze_audio
             emit(analyze_audio(args.audio, bpm=args.bpm, offset_seconds=args.offset), args.output)
@@ -163,22 +186,28 @@ def main(argv=None):
                 emit({"project": result["project"], "revision": result["revision"]})
             elif args.command == "feedback":
                 emit(store.add_feedback(args.project, {"revision": args.revision, "start_beat": args.start,
-                     "end_beat": args.end, "text": args.text}))
+                     "end_beat": args.end, "text": args.text, "difficulty": args.difficulty}))
             elif args.project_action == "list":
                 emit(store.list())
             elif args.project_action == "get":
-                emit(store.get(args.project))
+                emit(store.get(args.project, args.difficulty))
             elif args.project_action == "set-album":
                 emit(store.set_album(args.project, args.album))
             elif args.project_action == "save":
-                emit(store.save(args.project, read_json(args.arrangement), args.revision, request_id=args.request_id))
+                emit(store.save(args.project, read_json(args.arrangement), args.revision, request_id=args.request_id,
+                                difficulty=args.difficulty))
             elif args.project_action == "export":
                 emit(store.export(args.project))
             elif args.project_action == "restore":
-                emit(store.restore(args.project, args.restore_revision, args.revision))
+                emit(store.restore(args.project, args.restore_revision, args.revision, args.difficulty))
+            elif args.project_action == "add-difficulty":
+                emit(store.add_difficulty(args.project, args.name, source=args.source, njs=args.njs,
+                                          target_tier=args.target_tier))
+            elif args.project_action == "remove-difficulty":
+                emit(store.remove_difficulty(args.project, args.difficulty, args.revision))
             elif args.project_action == "critique":
                 from .critique import critique_arrangement
-                record = store.get(args.project)
+                record = store.get(args.project, args.difficulty)
                 report, run_id = None, args.run
                 if not args.run:
                     from .musical import latest_run
@@ -191,54 +220,61 @@ def main(argv=None):
                     from .audio import _hash
                     if report["source"]["sha256"] != _hash(directory / "song.ogg"):
                         raise ValueError("Evidence belongs to different audio; analyze the current project audio again")
-                result = critique_arrangement(record["arrangement"], report)
+                reference_path = store.root / "corpus" / "tier-reference.json"
+                result = critique_arrangement(record["arrangement"], report,
+                                              read_json(reference_path) if reference_path.exists() else None)
                 if report is None:
                     result["warnings"].insert(0, {
                         "severity": "warning", "code": "audio_evidence_missing", "section_id": None,
                         "object_ids": [], "value": None, "threshold": None,
                         "message": "No musical evidence run matches this project's audio, so nothing was checked "
                                    f"against the song; run `music analyze {args.project}` before judging the map."})
-                emit({"revision": record["revision"], "run_id": run_id, **result}, args.output)
+                emit({"difficulty": record["difficulty"], "revision": record["revision"], "run_id": run_id, **result},
+                     args.output)
             elif args.project_action in ("repair-swings", "repair-visibility"):
                 from .swing_repair import repair_fast_breaks
                 from .visibility_repair import repair_hidden_notes
-                record = store.get(args.project)
+                record = store.get(args.project, args.difficulty)
                 if record["revision"] != args.revision:
                     raise ValueError(f"Project is at revision {record['revision']}; reread it before repairing")
                 repair = (repair_fast_breaks if args.project_action == "repair-swings"
                           else repair_hidden_notes)(record["arrangement"])
                 revision = record["revision"]
                 if repair["changes"] and not args.dry_run:
-                    revision = store.save(args.project, repair["arrangement"], args.revision)["revision"]
-                emit({"project": args.project, "previous_revision": record["revision"], "revision": revision,
+                    revision = store.save(args.project, repair["arrangement"], args.revision,
+                                          difficulty=args.difficulty)["revision"]
+                emit({"project": args.project, "difficulty": record["difficulty"],
+                      "previous_revision": record["revision"], "revision": revision,
                       "saved": revision != record["revision"], "changes": repair["changes"],
                       "unresolved": repair["unresolved"]})
             elif args.project_action == "repair-audio":
                 from .audio_repair import repair_audio
                 from .musical import latest_run
-                record = store.get(args.project)
+                record = store.get(args.project, args.difficulty)
                 if record["revision"] != args.revision:
                     raise ValueError(f"Project is at revision {record['revision']}; reread it before repairing")
                 run_id, report = latest_run(store.directory(args.project))
                 repair = repair_audio(record["arrangement"], report)
                 revision = record["revision"]
                 if repair["changes"] and not args.dry_run:
-                    revision = store.save(args.project, repair["arrangement"], args.revision)["revision"]
-                emit({"project": args.project, "run_id": run_id, "previous_revision": record["revision"],
+                    revision = store.save(args.project, repair["arrangement"], args.revision,
+                                          difficulty=args.difficulty)["revision"]
+                emit({"project": args.project, "difficulty": record["difficulty"], "run_id": run_id,
+                      "previous_revision": record["revision"],
                       "revision": revision, "saved": revision != record["revision"],
                       "summary": {action: sum(1 for c in repair["changes"] if c["action"] == action)
                                   for action in ("moved", "removed", "added")},
                       "changes": repair["changes"], "unresolved": repair["unresolved"],
                       "remaining_warnings": repair["remaining"]}, args.output)
             elif args.project_action == "review":
-                record = {"revision": args.revision}
+                record = {"revision": args.revision, "difficulty": args.difficulty}
                 for name, key in (("timing_reviewed", "timing_reviewed"), ("playtested", "playtested"),
                                   ("game_build", "game_build"), ("notes", "notes"), ("minutes", "minutes_spent"),
                                   ("decision", "decision"), ("variant", "variant")):
                     value = getattr(args, name)
                     if value is not None:
                         record[key] = value
-                emit(store.review(args.project, record))
+                emit(store.review(args.project, {k: v for k, v in record.items() if v is not None}))
         return 0
     except KeyboardInterrupt:
         print("Interrupted; saved artifacts are preserved.", file=sys.stderr)

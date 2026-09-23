@@ -40,7 +40,9 @@ The application is in `sabermapper/`; run commands from there. On this Windows w
 - List projects: `.venv/Scripts/python -m sabermapper project list --workspace workspace`
 - Inspect a project: `.venv/Scripts/python -m sabermapper project get ID --workspace workspace`
 - Save an authored arrangement: `.venv/Scripts/python -m sabermapper project save ID --workspace workspace --revision CURRENT_SHA --arrangement EDITED.json`
-- Export: `.venv/Scripts/python -m sabermapper project export ID --workspace workspace`
+- Add a difficulty: `.venv/Scripts/python -m sabermapper project add-difficulty ID --workspace workspace --name ExpertPlus --target-tier challenge`. Every project command takes `--difficulty NAME`; the default is the primary difficulty.
+- Export (every difficulty in one ZIP): `.venv/Scripts/python -m sabermapper project export ID --workspace workspace`
+- Player star tiers and their reference metrics: `.venv/Scripts/python -m sabermapper corpus tiers --workspace workspace`
 - Verify code changes: `.venv/Scripts/python -m unittest discover -s tests -q`
 
 Use `--help` for audio import and other commands. The studio's **3D preview** button exports the saved revision and opens local ArcViewer at the playhead. It is for the user; agents do not use it unless asked.

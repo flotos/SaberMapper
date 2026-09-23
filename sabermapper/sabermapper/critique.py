@@ -70,8 +70,12 @@ QUIET_MIN_NOTES = 6
 QUIET_STEM_DB = 20.0
 STEM_REFERENCE_PERCENTILE = 90
 FOCUS_STEM_WEIGHT = 0.3
+MELODY_LAYER = "mix"
+MELODY_ONSET_STRENGTH = 0.3
+MELODY_MIN_CHANGES = 3
+MELODY_MAPPED_THRESHOLD = 0.5
 FOCUS_CODES = ("vocal_line_unmapped", "drum_rhythm_unmapped", "lead_rhythm_unmapped",
-               "lead_rhythm_diluted", "focus_on_quiet_stem", "difficulty_exceeds_intensity",
+               "lead_rhythm_diluted", "melody_unmapped", "focus_on_quiet_stem", "difficulty_exceeds_intensity",
                "intensity_underplayed")
 INTENSITY_BAR_BEATS = 4
 INTENSITY_LOUD_PERCENTILE = 75
@@ -110,14 +114,20 @@ DEFINITIONS = {
     "bar_lead": "The layer whose rhythm a 4-beat bar follows: vocals in a singing bar, otherwise the lead of the musical_focus phrase covering the bar's middle when that lead is an analyzed stem other than mix. Other bars have no declared lead and skip the lead checks.",
     "lead_rhythm_unmapped": "One or more consecutive bars led by an instrument stem (not vocals, which vocal_line_unmapped covers), outside thin, soft passages (mean passage support_score below 0.6 and energy_ratio below 0.75, where density_exceeds_audio sets the density), with at least 3 lead onsets (spectral_flux, pitch_change or chord_change of strength 0.3 or more, strongest per half-beat slot), fewer than 60% of which have a note within 0.13 beat.",
     "lead_rhythm_diluted": "One or more consecutive bars with a declared lead, at least 3 lead onsets and at least 4 note times, where fewer than 75% of the note times follow the lead: a note follows it when a lead onset of strength 0.2 or more sits within 0.13 beat, when the lead is silent within 0.75 beat (a gap another layer may fill), or when an arc is held through it. Filler between the lead's attacks flattens its syncopation into a metronome stream.",
+    "melodic_bar": "A 4-beat bar that is not a singing bar, has no declared instrument lead (bar_lead) and fewer "
+                   "than 6 strong drum hits: the drums do not carry it, so the pitched line is what the player hears.",
+    "melody_unmapped": "One or more consecutive melodic bars with at least 3 mix melody_change events (the predominant "
+                       "pitch settling on a new held note) of strength 0.3 or more, strongest per half-beat slot, "
+                       "fewer than 50% of which have a note within 0.13 beat: the notes ignore the pitch changes of "
+                       "a pad, choir or legato line.",
     "grid_alignment": "For each 32-beat window, the median signed offset in milliseconds of strong drums (else percussive, low or mix) spectral_flux onsets of strength 0.3 or more from the nearest quarter beat, counting only onsets within 0.1 beat of it; windows need at least 8 such onsets.",
     "grid_drift": "Some grid_alignment window's median offset differs from the song-wide median by more than 30 ms: the tempo or offset drifts there, so notes placed on the grid miss the audio.",
     "density_exceeds_audio": "An 8 s window (hopped 2 s) whose mean passage energy_ratio is below 0.75 and mean support_score "
                              "(drum onset density and mix energy, from the evidence run) below 0.6 holds at least 6 "
                              "notes and more than 1.5 "
                              "times support_score x the reference density, the median notes per second of windows "
-                             "with support 0.9 or more, counting only notes that are not on a vocal or drum onset the salience checks "
-                             "count: the map plays a thin, quiet passage as hard as the full band.",
+                             "with support 0.9 or more, counting only notes that are not on a vocal, drum or melody onset the salience "
+                             "checks count: the map plays a thin, quiet passage as hard as the full band.",
     "focus_on_quiet_stem": "A musical_focus phrase gives weight 0.3 or more to a separated stem whose median energy_contour level inside the phrase is at least 20 dB below that stem's own 90th-percentile level over the song: the stem is essentially absent there, so its events are separator bleed (for example vocals in an instrumental intro) or the instrument was routed to another stem (for example a soft solo piano in other while the piano stem is silent). The message names the most active stem, measured the same way.",
     "swing_demand": "Per 4-beat bar, the sum over its swings (movement-model swings; a same-hand chord is one) of 1 "
                     "plus the grid distance from the same hand's previous swing when that swing is at most 1 beat "
@@ -259,12 +269,14 @@ def _density(arrangement, notes, times, spans, warn):
 
 
 def salient_onsets(arrangement, report):
-    """(sorted seconds, tolerance) of the vocal and drum onsets the salience checks count."""
+    """(sorted seconds, tolerance) of the vocal, drum and melody onsets the salience checks count."""
     layers = (report or {}).get("layers") or {}
-    found = sorted(float(e["seconds"]) for name, threshold in (("vocals", VOCAL_ONSET_STRENGTH),
-                                                               ("drums", DRUM_ONSET_STRENGTH))
+    found = sorted(float(e["seconds"]) for name, threshold, method in (
+                       ("vocals", VOCAL_ONSET_STRENGTH, "spectral_flux"),
+                       ("drums", DRUM_ONSET_STRENGTH, "spectral_flux"),
+                       (MELODY_LAYER, MELODY_ONSET_STRENGTH, "melody_change"))
                    for e in (layers.get(name) or {}).get("events", [])
-                   if e.get("method") == "spectral_flux" and e.get("strength", 0) >= threshold)
+                   if e.get("method") == method and e.get("strength", 0) >= threshold)
     return found, SALIENCE_MATCH_BEATS * 60 / float(arrangement["song"]["bpm"])
 
 
@@ -284,7 +296,7 @@ def quiet_windows(arrangement, times, report):
         return None, []
     from .musical import seconds_to_beat
     salient, tolerance = salient_onsets(arrangement, report)
-    free = [t for t in times if not on_onset(salient, tolerance, t)]  # notes the voice or drums do not justify
+    free = [t for t in times if not on_onset(salient, tolerance, t)]  # notes the voice, drums or melody do not justify
     end, windows, start = max(p["end_seconds"] for p in passages), [], 0.0
     while start + QUIET_WINDOW_SECONDS <= end + 1e-9:
         stop = start + QUIET_WINDOW_SECONDS
@@ -334,7 +346,7 @@ def _quiet_density(arrangement, spans, notes, times, report, warn):
              f'Beats {first["start_beat"]:.1f}-{last["end_beat"]:.1f} ({first["start_seconds"]:g}-'
              f'{last["end_seconds"]:g} s): the audio is thin here (support {worst["support"]:.2f}, mix energy '
              f'{worst["energy"]:.2f}x the song median, few drum hits) but the map plays {worst["nps"]:.2f} nps, '
-             f'{worst["free_notes"] / QUIET_WINDOW_SECONDS:.2f} of them off the vocal and drum onsets, above the '
+             f'{worst["free_notes"] / QUIET_WINDOW_SECONDS:.2f} of them off the vocal, drum and melody onsets, above the '
              f'{worst["allowed_nps"]:.2f} nps this support allows against the {reference:.2f} nps full-band reference. Keep the strongest '
              "onsets and drop the rest.",
              section_id=section, value=round(worst["free_notes"] / QUIET_WINDOW_SECONDS / (worst["allowed_nps"] / QUIET_DENSITY_TOLERANCE), 4),
@@ -631,6 +643,57 @@ def _salience(arrangement, spans, notes, report, warn):
     return {"checked": True, "bars": bars}
 
 
+def melody_onsets(report, arrangement, start, stop):
+    """Sorted beats of strong mix melody changes in [start, stop), strongest per half-beat slot."""
+    from .musical import seconds_to_beat
+    layer = ((report or {}).get("layers") or {}).get(MELODY_LAYER) or {}
+    found = [(seconds_to_beat(e["seconds"], arrangement), e["strength"]) for e in layer.get("events", [])
+             if e.get("method") == "melody_change" and e.get("strength", 0) >= MELODY_ONSET_STRENGTH]
+    return [beat for beat, _ in strongest_per_slot(found) if start <= beat < stop]
+
+
+def _melody(arrangement, spans, notes, report, salience, warn):
+    """Flag melodic bars (no singing, declared lead or drum pattern) whose notes miss the pitch changes."""
+    if not salience.get("checked"):
+        return {"checked": False, "bars": []}
+    beats = sorted(float(n["beat"]) for n in notes)
+
+    def near(beat):
+        index = bisect_left(beats, beat - SALIENCE_MATCH_BEATS)
+        return index < len(beats) and beats[index] <= beat + SALIENCE_MATCH_BEATS
+    bars = []
+    for bar in salience["bars"]:
+        if bar["salient"] not in (None, "drums") or bar["onsets"] >= DRUM_PATTERN_MIN_ONSETS:
+            continue
+        start = bar["start_beat"]
+        changes = melody_onsets(report, arrangement, start, start + SALIENCE_BAR_BEATS)
+        if len(changes) < MELODY_MIN_CHANGES:
+            continue
+        mapped = sum(1 for beat in changes if near(beat))
+        bars.append({"start_beat": start, "changes": len(changes), "mapped": mapped,
+                     "code": "melody_unmapped" if mapped < MELODY_MAPPED_THRESHOLD * len(changes) else None,
+                     "unmapped_beats": [_round(b, 4) for b in changes if not near(b)]})
+    runs = []
+    for bar in bars:
+        if not bar["code"]:
+            continue
+        if runs and runs[-1][-1]["start_beat"] + SALIENCE_BAR_BEATS == bar["start_beat"]:
+            runs[-1].append(bar)
+        else:
+            runs.append([bar])
+    for run in runs:
+        first, last = run[0]["start_beat"], run[-1]["start_beat"] + SALIENCE_BAR_BEATS
+        total, mapped = sum(b["changes"] for b in run), sum(b["mapped"] for b in run)
+        section = next((s["id"] for s in spans if s["start_beat"] <= first < s["end_beat"]), None)
+        warn("melody_unmapped",
+             f"Beats {first:g}-{last:g}: no voice, drum pattern or declared lead carries these bars, so the pitched "
+             f"line leads, but only {mapped} of its {total} pitch changes carry a note. Put notes on the melody_change "
+             "events (see `music rhythm --layers mix`) and let the rows follow the pitch contour.",
+             section_id=section, value=_round(mapped / total, 4), threshold=MELODY_MAPPED_THRESHOLD,
+             beats=[first, last])
+    return {"checked": True, "bars": bars}
+
+
 def focus_lead(spans, beat, layers):
     """The instrument stem a musical_focus phrase declares as lead at ``beat``, if analyzed and not mix."""
     for span in spans:
@@ -893,6 +956,7 @@ def critique_arrangement(arrangement: dict, report: dict | None = None) -> dict:
                "salience": _salience(arrangement, spans, notes, report, warn),
                "quiet_density": _quiet_density(arrangement, spans, notes, times, report, warn)}
     metrics["lead_rhythm"] = _lead_rhythm(arrangement, spans, notes, report, metrics["salience"], warn)
+    metrics["melody"] = _melody(arrangement, spans, notes, report, metrics["salience"], warn)
     metrics["grid_alignment"] = _grid(arrangement, report, warn)
     metrics["focus_stems"] = _focus_stems(arrangement, spans, report, warn)
     metrics["intensity"] = _intensity(arrangement, spans, notes, report, warn)

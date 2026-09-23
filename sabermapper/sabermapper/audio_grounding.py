@@ -5,7 +5,7 @@ Two checks compare an arrangement with a musical evidence run:
 * underfilled audio: a stretch where the mix is audibly active and the stems carry strong
   onsets, yet the map holds at most one note per 4-second window. A stretch of
   BLOCKING_SECONDS or more is an error: saving refuses it.
-* unsupported notes: notes with no onset or pitch change in any layer near their time,
+* unsupported notes: notes with no onset, pitch or melody change in any layer near their time,
   meaning they were placed on a grid rather than on a sound.
 """
 
@@ -31,17 +31,17 @@ SUPPORT_STRENGTH = 0.2
 SUPPORT_BEATS = 0.13
 SUPPORT_SHARE = 0.9
 UNSUPPORTED_RUN = 4
-ONSET_METHODS = ("spectral_flux", "pitch_change")
+ONSET_METHODS = ("spectral_flux", "pitch_change", "melody_change")
 
 DEFINITIONS = {
     "active_audio": f"A mix energy frame at or above {ACTIVE_LEVEL:g} times the median of audible mix frames "
                     f"(frames above {AUDIBLE_FLOOR:g} times the loudest frame).",
     "audio_unmapped": f"A stretch built from {WINDOW_SECONDS:g} s windows (hopped {HOP_SECONDS:g} s) where at least "
                       f"{ACTIVE_SHARE:.0%} of mix frames are active audio and the stems carry at least {ONSET_RATE:g} "
-                      f"strong onsets per second (spectral_flux or pitch_change, strength {ONSET_STRENGTH:g} or more), "
+                      f"strong onsets per second (spectral_flux, pitch_change or melody_change, strength {ONSET_STRENGTH:g} or more), "
                       f"yet the map holds at most {MAX_WINDOW_NOTES} note in each window. Blocking at "
                       f"{BLOCKING_SECONDS:g} s or longer.",
-    "note_support": f"A note is supported when some layer has a spectral_flux or pitch_change event of strength "
+    "note_support": f"A note is supported when some layer has a spectral_flux, pitch_change or melody_change event of strength "
                     f"{SUPPORT_STRENGTH:g} or more within {SUPPORT_BEATS:g} beat of it.",
     "low_audio_support": f"Fewer than {SUPPORT_SHARE:.0%} of the map's note times are supported by an audio event.",
     "note_without_audio": f"{UNSUPPORTED_RUN} or more consecutive note times with no supporting audio event: "

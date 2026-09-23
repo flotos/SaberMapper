@@ -47,6 +47,7 @@ def main(argv=None):
     sub.add_argument("--workspace", type=Path, default=Path("workspace"))
     sub.add_argument("--title", default="Untitled track")
     sub.add_argument("--artist", default="Unknown artist")
+    sub.add_argument("--album", help="Defaults to the file's album tag, else its Artist/Album/ folder")
     sub.add_argument("--bpm", type=float)
     sub.add_argument("--allow-duplicate", action="store_true",
                      help="Import even if a project already uses this exact source audio")
@@ -70,8 +71,9 @@ def main(argv=None):
     sub = commands.add_parser("project", help="Read, revise, restore and export persistent projects")
     project_commands = sub.add_subparsers(dest="project_action", required=True)
     for name in ("list", "get", "save", "export", "restore", "review", "critique", "repair-swings",
-                 "repair-audio"):
+                 "repair-audio", "set-album"):
         leaf = project_commands.add_parser(name, help={
+            "set-album": "Set the album that groups this project in the studio's artist/album tree",
             "repair-swings": "Fix blocking fast_direction_break/flow_parity_break findings: drop 16th pickups or "
                              "re-angle one cut (arc directions follow)",
             "repair-audio": "Fix audio findings: move notes with no sound under them onto the nearest onset "
@@ -97,6 +99,9 @@ def main(argv=None):
             leaf.add_argument("--request-id")
         if name == "restore":
             leaf.add_argument("--restore-revision", required=True)
+        if name == "set-album":
+            leaf.add_argument("--album", required=True,
+                              help="Album name; an empty string restores the source-derived album")
         if name == "review":
             leaf.add_argument("--timing-reviewed", action=argparse.BooleanOptionalAction)
             leaf.add_argument("--playtested", action=argparse.BooleanOptionalAction)
@@ -150,8 +155,8 @@ def main(argv=None):
                 result = store.create(demo=True)
                 emit({"project": result["project"], "revision": result["revision"]})
             elif args.command == "import-audio":
-                result = store.create(args.audio, title=args.title, artist=args.artist, bpm=args.bpm,
-                                      allow_duplicate=args.allow_duplicate)
+                result = store.create(args.audio, title=args.title, artist=args.artist, album=args.album,
+                                      bpm=args.bpm, allow_duplicate=args.allow_duplicate)
                 emit({"project": result["project"], "revision": result["revision"]})
             elif args.command == "feedback":
                 emit(store.add_feedback(args.project, {"revision": args.revision, "start_beat": args.start,
@@ -160,6 +165,8 @@ def main(argv=None):
                 emit(store.list())
             elif args.project_action == "get":
                 emit(store.get(args.project))
+            elif args.project_action == "set-album":
+                emit(store.set_album(args.project, args.album))
             elif args.project_action == "save":
                 emit(store.save(args.project, read_json(args.arrangement), args.revision, request_id=args.request_id))
             elif args.project_action == "export":

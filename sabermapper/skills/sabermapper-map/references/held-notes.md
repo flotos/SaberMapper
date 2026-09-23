@@ -48,7 +48,11 @@ top-to-bottom to match the pitch change if there is one.
 
 When the evidence report (`music inspect`) shows a vocal `sustains` entry of at
 least 0.7 s, or one full beat, whichever is longer, that sustain takes focus
-priority over backing percussion for its duration. Place a head note at the
+priority over backing percussion for its duration. Intense singing (sustain
+`strength` 0.45 or more) is held from 0.62 s. A held note the user named takes an
+arc whenever a sustain starts within 1.5 beats of the named time and lasts 0.9
+beat or more. The ensemble separator can split one sung hold into sustains just
+under 0.7 s: Living a Lie's 4:24 hold measures 0.698 s. Place a head note at the
 sustain start, an arc across the sustain, and a tail note at the sustain end or
 at the next vocal attack. Do not fill the sustain with stock onset notes.
 

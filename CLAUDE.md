@@ -16,9 +16,15 @@ Build every tool and feature for agent use first. Provide discoverable CLI or pr
 
 The audio is always the focus: map the song's sounds to notes, never place notes that no sound supports, and never leave a playing stretch unmapped. Follow "Audio is the source of every note" in @AGENTS.md; `project save` blocks long unmapped audio, and `project critique` reports the rest.
 
-## Systematic fixes
+## General rules, never song-specific patches
 
-Never fix a map problem for only one song. Trace each problem found through feedback, review or validation to its root cause. Encode the fix as a verifier check, an automated pipeline correction or a skill update, in that order of preference, and add a regression test. Rerun it across every project in the workspace and correct all affected arrangements through `project save`. Follow the full procedure in the "Systematic fixes" section of @AGENTS.md.
+A map problem found in one song is evidence of a rule every song needs. Trace each one found through feedback, review or validation to the general rule it breaks. Encode that rule, in this order of preference, as a verifier check, a build-time placement rule or safer default, or skill guidance, and add a regression test. Rerun it across every project in the workspace and update each affected arrangement through `project save`. Follow the full procedure in the "Systematic fixes" section of @AGENTS.md.
+
+## Write descriptively, never "fix X"
+
+State every rule, check, skill passage, ticket, script, docstring, commit message and code comment as the behaviour it establishes: what the map or tool does, and why. Write "notes sit on the lead's attacks; a kick between two guitar chugs stays unmapped", not "fix the kick filler" or "rework Living a Lie". Name modules, scripts, commands and branches after what they do, not after the problem that prompted them.
+
+Build tools and scripts for the initial authoring flow, so that a first draft made with them already follows every rule. Never write a script that only reworks one song. A song's own decisions (section roles, moments the user named) belong in its arrangement or in a plan that a general tool reads, not in the tool's code. When a general tool for the job is already in progress, such as the SM-036 rhythm draft and placer, add the rule to that tool rather than building a second one.
 
 ## Code changes in worktrees
 

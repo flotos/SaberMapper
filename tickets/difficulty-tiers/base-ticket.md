@@ -72,6 +72,11 @@ Mean angular change and mean grid distance barely differ between tiers, so they 
   agent knows which lever to pull (density, bursts, crossovers, NJS).
 - Validate on the corpus: the closest tier of each source chart's own windows should match its
   real tier more often than with density alone. Report that confusion matrix in the PR.
+- Report notes per beat beside notes per second, per section, so an agent can tell a slow song
+  from an under-mapped one. The tier references come mostly from charts faster than 122 BPM
+  (`chart_notes_per_beat` median 2.34 for challenge). Living a Lie ExpertPlus (2026-09-23, revision
+  `9e348b1d`) reaches 2.5 notes per beat, above the challenge median of 2.25 per window, with every
+  note on a sound. Its median window is still 5.08 nps, so it reads `below_band`.
 - Update tests in `sabermapper/tests/test_difficulties.py` and the `tier_fit` definitions.
 
 ### 3. Map more than the lyrics, never filler (rule change, user decision)

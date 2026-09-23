@@ -3,7 +3,7 @@
   "id": "SaberMapperBridge",
   "name": "SaberMapperBridge",
   "author": "SaberMapper",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Localhost-only (127.0.0.1) control and frame-capture API for the SaberMapper authoring studio. Every command except /health requires the SaberMapper game lease token.",
   "gameVersion": "1.40.8",
   "dependsOn": {

@@ -11,7 +11,9 @@ capture.json (schema 1, read by frames.py / frame_metrics.py):
 
 The dense flash probe hides notes by default (`probe.hide_notes`): nobody cuts notes during a capture, so uncut
 notes fly through the FPFC camera and fill half the frame for one frame each, which a player never sees (they cut
-notes about 1 m ahead). The flash check measures the scene; regular frames keep their notes for review.
+notes about 1 m ahead). The flash check measures the scene. The bridge hides notes continuously from the first probe
+frame to the end of the probe window and shows them again once, so the live game window never blinks them; regular
+frames inside that window are also rendered without notes and flagged, and frames outside it keep their notes.
 """
 from __future__ import annotations
 
@@ -277,7 +279,9 @@ def run_capture(store, project_id: str, *, difficulty: str | None = None, revisi
         probe_frames = [f for f in manifest["frames"] if f["reason"] == "probe"]
         hidden = sum(1 for f in probe_frames if f.get("notes_hidden"))
         report["probe_notes_hidden"] = {"requested": bool(probe and probe["hide_notes"]), "frames": len(probe_frames),
-                                        "notes_hidden": hidden}
+                                        "notes_hidden": hidden,
+                                        "regular_frames_notes_hidden": [f["file"] for f in manifest["frames"]
+                                                                        if f["reason"] != "probe" and f.get("notes_hidden")]}
         if probe and probe["hide_notes"] and probe_frames and hidden < len(probe_frames):
             report["warnings"] = [{
                 "code": "probe_notes_visible",

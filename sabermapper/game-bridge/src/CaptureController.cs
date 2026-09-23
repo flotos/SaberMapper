@@ -14,11 +14,15 @@ namespace SaberMapperBridge
     /// image effect, so Vivify post-processing on the player camera is included), read back asynchronously from the
     /// GPU and encoded on worker threads so gameplay keeps its frame rate.
     ///
-    /// Requests due in a frame are taken in LateUpdate, when the song time is final. A request with hide_notes (the
-    /// whole job, or only the probe) turns rendering off for every renderer under active notes, bombs, chains and arcs
-    /// at the first camera cull of that frame, and turns exactly those renderers back on after the end-of-frame grab.
-    /// Nobody cuts notes during a capture, so uncut notes fly through the camera and fill the frame; the flash probe
-    /// measures the scene the player sees, not notes hitting the lens. Walls, sabers and the scene stay visible.</summary>
+    /// Requests due in a frame are taken in LateUpdate, when the song time is final. Nobody cuts notes during a capture,
+    /// so uncut notes fly through the camera and fill the frame; the flash probe measures the scene the player sees,
+    /// not notes hitting the lens. Notes, bombs, chains and arcs are therefore hidden through one continuous window:
+    /// the whole job with hide_notes, or from the first probe frame until the probe ends with probe.hide_notes. Every
+    /// frame of the window turns rendering off for the renderers under active notes (including ones spawned that
+    /// frame) at the first camera cull; nothing is turned back on inside the window, so the live game never blinks
+    /// notes on and off. Exactly the renderers the window turned off are turned back on once, when it closes: the probe
+    /// ends, the job finishes, fails or is cancelled, or the level stops. Every frame grabbed inside the window,
+    /// probe or regular, reports notes_hidden. Walls, sabers and the scene stay visible.</summary>
     internal class CaptureController
     {
         private const int MaxPendingWrites = 48;
@@ -31,10 +35,12 @@ namespace SaberMapperBridge
         // Requests taken in LateUpdate and grabbed at the end of the same frame (main thread only).
         private List<FrameRequest> _scheduled;
         private float _scheduledTime;
-        private int _hideFrame = -1, _hiddenFrame = -1;
+        // Continuous notes-hidden window: open while _hideActive, closed (renderers restored) exactly once.
+        private bool _hideActive;
+        private int _hiddenFrame = -1;
         private readonly List<Renderer> _hidden = new List<Renderer>();
 
-        private class FrameRequest { public float Time; public string Name; public string Reason; public bool HideNotes; }
+        private class FrameRequest { public float Time; public string Name; public string Reason; }
 
         private class Probe { public float Start, End, Fps; public int NextIndex; public bool Finished, HideNotes; }
 
@@ -83,7 +89,7 @@ namespace SaberMapperBridge
                     if (!(token is JObject f)) throw new BridgeException("bad_request", "frames must be objects {time, name}");
                     var time = BridgeServer.OptNullableFloat(f, "time") ?? throw new BridgeException("bad_request", "every frame needs a time");
                     var name = SafeName(BridgeServer.OptString(f, "name", $"t{time:0000.000}.png"));
-                    job.Frames.Add(new FrameRequest { Time = time, Name = name, Reason = BridgeServer.OptString(f, "reason"), HideNotes = job.HideNotes });
+                    job.Frames.Add(new FrameRequest { Time = time, Name = name, Reason = BridgeServer.OptString(f, "reason") });
                 }
                 job.Frames = job.Frames.OrderBy(f => f.Time).ToList();
             }
@@ -117,13 +123,17 @@ namespace SaberMapperBridge
                 if (_job == null || _job.Status != "running") return new JObject { ["cancelled"] = false };
                 _job.Status = "cancelled";
             }
+            CloseHideWindow(); // Cancel runs on the main thread (GameController.Invoke)
             return Status(true);
         }
 
+        /// <summary>Main thread only (GameController's LateUpdate and end-of-frame handlers).</summary>
         public void Fail(Exception e)
         {
             lock (_lock)
                 if (_job != null && _job.Status == "running") { _job.Status = "failed"; _job.Error = e.Message; }
+            try { CloseHideWindow(); }
+            catch (Exception restore) { Plugin.Log.Error($"restoring notes failed: {restore}"); }
         }
 
         public JObject Status(bool withFrames)
@@ -137,6 +147,7 @@ namespace SaberMapperBridge
                     ["requested"] = _job.Frames.Count, ["next"] = _job.Next, ["captured"] = _job.Captured, ["written"] = _job.Written,
                     ["pending"] = _job.Pending, ["dropped"] = _job.Dropped, ["error"] = _job.Error,
                     ["hide_notes"] = _job.HideNotes, ["notes_hidden_frames"] = _job.NotesHiddenFrames,
+                    ["notes_hidden_now"] = _hideActive,
                     ["probe"] = _job.Probe == null ? null : new JObject
                     {
                         ["start"] = _job.Probe.Start, ["end"] = _job.Probe.End, ["fps"] = _job.Probe.Fps, ["finished"] = _job.Probe.Finished,
@@ -149,49 +160,60 @@ namespace SaberMapperBridge
             }
         }
 
-        /// <summary>LateUpdate: takes the requests due at this frame's song time. A due probe frame decides whether the
-        /// frame hides notes; a regular request whose hide_notes differs waits for the next frame, so frames that keep
-        /// notes never share a render with a notes-hidden probe frame.</summary>
-        public void Schedule(bool playing, float songTime)
+        /// <summary>LateUpdate: takes the requests due at this frame's song time and opens or closes the notes-hidden
+        /// window. The window is open while the job runs in a level and either the job hides notes or the probe hides
+        /// notes, has taken its first frame and has not ended; pausing keeps it open, leaving the level closes it.</summary>
+        public void Schedule(bool inLevel, bool playing, float songTime)
         {
             _scheduled = null;
             Job job;
             lock (_lock) job = _job;
-            if (job == null || job.Status != "running" || !playing) return;
+            bool running = job != null && job.Status == "running";
             var due = new List<FrameRequest>();
-            var probe = job.Probe;
-            if (probe != null && !probe.Finished && songTime >= probe.Start)
+            if (running && playing)
             {
-                if (songTime > probe.End + 0.5f / probe.Fps) probe.Finished = true;
-                else
+                var probe = job.Probe;
+                if (probe != null && !probe.Finished && songTime >= probe.Start)
                 {
-                    int index = Mathf.FloorToInt((songTime - probe.Start) * probe.Fps + 1e-4f);
-                    if (index >= probe.NextIndex)
+                    if (songTime > probe.End + 0.5f / probe.Fps) probe.Finished = true;
+                    else
                     {
-                        due.Add(new FrameRequest { Time = probe.Start + index / probe.Fps, Name = $"probe-{index:D5}.png", Reason = "probe", HideNotes = probe.HideNotes });
-                        probe.NextIndex = index + 1;
+                        int index = Mathf.FloorToInt((songTime - probe.Start) * probe.Fps + 1e-4f);
+                        if (index >= probe.NextIndex)
+                        {
+                            due.Add(new FrameRequest { Time = probe.Start + index / probe.Fps, Name = $"probe-{index:D5}.png", Reason = "probe" });
+                            probe.NextIndex = index + 1;
+                        }
                     }
                 }
+                while (job.Next < job.Frames.Count && job.Frames[job.Next].Time <= songTime) due.Add(job.Frames[job.Next++]);
             }
-            while (job.Next < job.Frames.Count && job.Frames[job.Next].Time <= songTime)
-            {
-                var request = job.Frames[job.Next];
-                if (due.Count > 0 && request.HideNotes != due[0].HideNotes) break;
-                due.Add(request);
-                job.Next++;
-            }
+            bool hide = running && inLevel && (job.HideNotes
+                || (job.Probe != null && job.Probe.HideNotes && job.Probe.NextIndex > 0 && !job.Probe.Finished));
+            if (hide) _hideActive = true;
+            else CloseHideWindow();
             if (due.Count == 0) return;
             _scheduled = due;
             _scheduledTime = songTime;
-            if (due[0].HideNotes) _hideFrame = Time.frameCount;
         }
 
-        /// <summary>First camera cull of a notes-hidden frame. It runs after every LateUpdate, so notes spawned or moved
-        /// this frame are covered; Vivify note prefabs are parented under the note object, so its children cover them.</summary>
+        /// <summary>Turns back on exactly the renderers the window turned off, once. Safe to call when it is closed.</summary>
+        private void CloseHideWindow()
+        {
+            _hideActive = false;
+            if (_hidden.Count == 0) return;
+            int restored = _hidden.Count;
+            RestoreNotes();
+            Plugin.Log.Info($"capture notes visible again ({restored} renderers)");
+        }
+
+        /// <summary>First camera cull of each frame while the window is open. It runs after every LateUpdate, so notes
+        /// spawned or moved this frame are covered; renderers already turned off stay off (nothing toggles). Vivify note
+        /// prefabs are parented under the note object, so its children cover them.</summary>
         private void OnPreCull(Camera camera)
         {
             int frame = Time.frameCount;
-            if (_hideFrame != frame || _hiddenFrame == frame) return;
+            if (!_hideActive || _hiddenFrame == frame) return;
             _hiddenFrame = frame;
             try
             {
@@ -231,14 +253,22 @@ namespace SaberMapperBridge
             {
                 if (job != null && job.Status == "running" && due != null) Grab(job, due, songTime, notesHidden, hiddenRenderers);
             }
-            finally { RestoreNotes(); }
+            finally
+            {
+                bool running;
+                lock (_lock) running = job != null && job.Status == "running";
+                if (!running) CloseHideWindow();
+            }
             if (job == null) return;
+            bool finished = false;
             lock (_lock)
                 if (job.Status == "running" && job.AllScheduled && job.Pending == 0)
                 {
                     job.Status = "done";
+                    finished = true;
                     Plugin.Log.Info($"capture job {job.Id} done: {job.Written} written, {job.Dropped} dropped, {job.NotesHiddenFrames} with notes hidden");
                 }
+            if (finished) CloseHideWindow();
         }
 
         private void Grab(Job job, List<FrameRequest> due, float songTime, bool notesHidden, int hiddenRenderers)

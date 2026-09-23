@@ -132,11 +132,13 @@ namespace SaberMapperBridge
             }
         }
 
-        /// <summary>Takes this frame's capture requests once every Update has set the song time. Notes of a
-        /// notes-hidden frame are hidden later, at the first camera cull, after every LateUpdate.</summary>
+        /// <summary>Takes this frame's capture requests once every Update has set the song time, and opens or closes the
+        /// capture's notes-hidden window (closed as soon as no level is playing). Notes are hidden at the first camera
+        /// cull, after every LateUpdate.</summary>
         private void LateUpdate()
         {
-            try { Capture.Schedule(InLevel && _audio.state == AudioTimeSyncController.State.Playing, InLevel ? _audio.songTime : -1f); }
+            bool inLevel = InLevel && !InTransition;
+            try { Capture.Schedule(inLevel, inLevel && _audio.state == AudioTimeSyncController.State.Playing, inLevel ? _audio.songTime : -1f); }
             catch (Exception e) { Capture.Fail(e); Plugin.Log.Error($"capture failed: {e}"); }
         }
 

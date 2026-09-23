@@ -126,12 +126,18 @@ class FakeBridge:
             out.mkdir(parents=True, exist_ok=True)
             frames = []
             # A bridge before 0.2.0 ignores hide_notes and reports no notes_hidden field.
+            # Like the bridge, notes are hidden in one continuous window: the whole job, or from the first probe frame
+            # until the probe ends (end + half a probe step), regular frames inside it included.
             hide_all = bool(body.get("hide_notes")) and self.hides_notes
-            requests = [dict(f, reason=f.get("reason"), hide=hide_all) for f in body.get("frames", [])]
             probe = body.get("probe")
+            hide_probe = bool(probe) and (hide_all or (bool(probe.get("hide_notes")) and self.hides_notes))
+
+            def hidden(t):
+                return hide_all or (hide_probe and probe["start"] <= t <= probe["end"] + 0.5 / probe["fps"])
+
+            requests = [dict(f, reason=f.get("reason"), hide=hidden(f["time"])) for f in body.get("frames", [])]
             if probe:
                 count = int((probe["end"] - probe["start"]) * probe["fps"]) + 1
-                hide_probe = hide_all or (bool(probe.get("hide_notes")) and self.hides_notes)
                 requests += [{"time": probe["start"] + i / probe["fps"], "name": f"probe-{i:05d}.png", "reason": "probe",
                               "hide": hide_probe} for i in range(count)]
             for request in requests:
@@ -456,22 +462,27 @@ class ApiTests(Fixture):
     def _capture_body(self):
         return next(body for method, path, body in self.bridge.calls if (method, path) == ("POST", "/capture"))
 
-    def test_probe_frames_hide_notes_and_regular_frames_keep_them(self):
+    def test_probe_window_hides_notes_and_frames_outside_it_keep_them(self):
         out = Path(self.tmp.name) / "hidden"
-        report = capture.run_capture(self.store, self.project_id, times=[2.0, 5.0], probe={"start": 3, "end": 3.2, "fps": 10},
-                                     out=out, game=self.game())
+        report = capture.run_capture(self.store, self.project_id, times=[2.0, 3.1, 5.0],
+                                     probe={"start": 3, "end": 3.2, "fps": 10}, out=out, game=self.game())
         body = self._capture_body()
         self.assertTrue(body["probe"]["hide_notes"])
-        self.assertNotIn("hide_notes", body)  # the job itself keeps notes on regular frames
+        self.assertNotIn("hide_notes", body)  # only the probe window hides notes, not the whole job
         manifest = json.loads((out / "capture.json").read_text(encoding="utf-8"))
         probe_frames = [f for f in manifest["frames"] if f["reason"] == "probe"]
-        regular = [f for f in manifest["frames"] if f["reason"] != "probe"]
+        regular = {f["file"]: f for f in manifest["frames"] if f["reason"] != "probe"}
         self.assertEqual(len(probe_frames), 3)
         self.assertTrue(all(f["notes_hidden"] is True for f in probe_frames))
-        self.assertTrue(all("notes_hidden" not in f for f in regular))
-        self.assertEqual(set(regular[0]), {"file", "requested_time", "song_time", "beat", "section_id", "reason"})
+        # A regular frame inside the probe window is rendered in that window and says so; the rest keep notes.
+        self.assertIs(regular["t0003.100.png"]["notes_hidden"], True)
+        self.assertNotIn("notes_hidden", regular["t0002.000.png"])
+        self.assertNotIn("notes_hidden", regular["t0005.000.png"])
+        self.assertEqual(set(regular["t0002.000.png"]),
+                         {"file", "requested_time", "song_time", "beat", "section_id", "reason"})
         self.assertTrue(manifest["probe"]["hide_notes"])
-        self.assertEqual(report["probe_notes_hidden"], {"requested": True, "frames": 3, "notes_hidden": 3})
+        self.assertEqual(report["probe_notes_hidden"], {"requested": True, "frames": 3, "notes_hidden": 3,
+                                                        "regular_frames_notes_hidden": ["t0003.100.png"]})
         self.assertNotIn("warnings", report)
 
     def test_probe_with_notes_keeps_notes_on_every_frame(self):
@@ -504,6 +515,36 @@ class ApiTests(Fixture):
 
 
 class BuildTests(unittest.TestCase):
+    def test_capture_never_toggles_note_visibility_per_frame(self):
+        """The live game window is watched: hidden notes come back once, when the window closes, never per frame."""
+        import re
+        source = (build.BRIDGE_DIR / "src" / "CaptureController.cs").read_text(encoding="utf-8")
+
+        def body(signature):
+            start = source.index(signature)
+            depth, i = 0, source.index("{", start)
+            while True:
+                depth += {"{": 1, "}": -1}.get(source[i], 0)
+                if depth == 0:
+                    return source[start:i]
+                i += 1
+
+        # forceRenderingOff is written only by HideUnder (off) and RestoreNotes (back on) ...
+        writers = [m.start() for m in re.finditer(r"forceRenderingOff\s*=", source)]
+        self.assertEqual(len(writers), 2)
+        self.assertTrue(all(source.rfind("private void", 0, w) in (source.index("private void HideUnder"),
+                                                                    source.index("private void RestoreNotes"))
+                            for w in writers))
+        # ... RestoreNotes runs only through CloseHideWindow ...
+        self.assertEqual(len(re.findall(r"\bRestoreNotes\(\);", source)), 1)
+        self.assertIn("RestoreNotes();", body("private void CloseHideWindow"))
+        # ... and the end-of-frame grab closes the window only when the job stopped running or finished.
+        end_of_frame = body("public void OnEndOfFrame")
+        for call in re.finditer(r"CloseHideWindow\(\);", end_of_frame):
+            line = end_of_frame[end_of_frame.rfind("\n", 0, call.start()):call.start()]
+            self.assertRegex(line, r"if \((!running|finished)\)")
+        self.assertNotIn("_hideFrame", source)
+
     def test_command_embeds_manifest_and_references(self):
         command = build.csc_command(Path("csc.exe"), [Path("G/Managed/Main.dll")], [Path("src/Plugin.cs")],
                                     Path("bin/SaberMapperBridge.dll"), Path("manifest.json"))

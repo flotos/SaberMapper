@@ -625,6 +625,7 @@ def _combine(open_slots, options, group):
     if len(open_slots) > 4:
         options = [o[:2] for o in options]
     fixed = [s for s in group if _cell_fixed(s) and s not in open_slots]
+    tall = Counter(s.value["color"] for s in group if s.stack)  # notes in each hand's stack
     best = [None, None]
 
     def pair_cost(a_slot, a, b_slot, b):
@@ -636,19 +637,21 @@ def _combine(open_slots, options, group):
             red, blue = (ax, bx) if ca == 0 else (bx, ax)
             crossed = 0.0 if red < blue else 50.0  # hands crossed on a double
             return crossed + (DOUBLE_PARITY_COST if _parity(ad, ca, 0) != _parity(bd, cb, 0) else 0.0)
+        stack = a_slot.stack and b_slot.stack
         if ad != bd:
-            return 50.0  # one saber cuts a chord in one direction
-        # A chord lies along its cut, its notes next to each other; a stack must (the third note of a stack of
-        # three fills the gap two cells apart).
-        off = 50.0 if a_slot.stack and b_slot.stack else 5.0
+            return BLOCK if stack else 50.0  # one saber cuts a chord in one direction
+        # A chord lies along its cut, its notes next to each other; a stack must, even if a stored cell or cut
+        # moves for it (the third note of a stack of three fills the gap two cells apart).
+        off = HARD if stack else 5.0
+        gap = 1.0 if not stack or tall[ca] >= 3 else off  # two cells apart: only a third note fills the gap
         dx, dy = bx - ax, by - ay
         if ad == 8:
-            return 0.0 if max(abs(dx), abs(dy)) == 1 else (1.0 if max(abs(dx), abs(dy)) == 2
+            return 0.0 if max(abs(dx), abs(dy)) == 1 else (gap if max(abs(dx), abs(dy)) == 2
                                                          and dx % 2 == 0 and dy % 2 == 0 else off)
         vx, vy = _VECTORS[ad]
         if (dx, dy) in ((vx, vy), (-vx, -vy)):
             return 0.0
-        return 1.0 if (dx, dy) in ((2 * vx, 2 * vy), (-2 * vx, -2 * vy)) else off
+        return gap if (dx, dy) in ((2 * vx, 2 * vy), (-2 * vx, -2 * vy)) else off
 
     def search(index, chosen, total):
         if best[0] is not None and total >= best[0]:

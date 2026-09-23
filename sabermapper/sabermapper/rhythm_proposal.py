@@ -919,7 +919,7 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
 
     ``arrangement`` is placed. Additions are rhythm-only notes (``beat`` plus the evidence) that the placer
     places on save; removals and retimes name the notes; ``set_weights`` rewrites a focus phrase; ``stack`` turns
-    the note on a unison hit into a stack (the other hand's note at that time leaves).
+    the note on a unison hit into a stack (a note of the other hand at that time stays).
     """
     wanted = [f for f in findings if f["code"] in AUDIO_SUGGESTED and not f["suggestions"]]
     if not wanted or not report:
@@ -1067,11 +1067,8 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
                              key=lambda n: (abs(n["beat"] - target), n["beat"]))
             why = "cut the unison hit as a stack: one hand, notes in a line along the cut"
             if literal:
-                keep = literal[0]
-                others = [n["id"] for n in notes if n["beat"] == keep["beat"] and n["id"] != keep["id"]]
-                if all("/note/" in i for i in others):
-                    finding["suggestions"].append({"op": "stack", "object_id": keep["id"], "size": size,
-                                                   "remove": others, "reason": why})
+                finding["suggestions"].append({"op": "stack", "object_id": literal[0]["id"], "size": size,
+                                               "reason": why})
             elif not any(abs(target - t) < MIN_GAP_BEATS for t in times):
                 finding["suggestions"].append({"op": "stack", "beat": _relative(target), "size": size,
                                                "reason": why})

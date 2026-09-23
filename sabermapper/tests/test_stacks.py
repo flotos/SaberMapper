@@ -81,6 +81,35 @@ class PlacementTests(unittest.TestCase):
         self.assertTrue(stack_line([(n["x"], n["y"]) for n in stack], stack[0]["direction"]))
 
 
+    def test_a_stored_cell_moves_so_a_stack_lines_up(self):
+        """A note already placed in a corner joins a stack: its stored cell gives way to the line."""
+        stored = place_arrangement(arrangement(rhythm([0, 1, 2, 3])))["arrangement"]
+        note = next(n for n in stored["sections"][0]["notes"] if n["beat"] == 2)
+        note.update(x=0 if note["color"] == 0 else 3, y=0, direction=4 if note["color"] == 0 else 5, stack=True)
+        stored["sections"][0]["notes"].append({"id": "partner", "beat": 2, "stack": True})
+        stack = stacks_of(place_arrangement(stored, strict=False)["arrangement"])[2]
+        self.assertTrue(stack_line([(n["x"], n["y"]) for n in stack], stack[0]["direction"]), stack)
+
+    def test_a_stack_of_two_never_spans_a_gap_around_the_other_hand(self):
+        """A stored note at (0,0) cutting up-right, the other hand at (1,1): the pair moves, it does not skip."""
+        notes = [{"id": "other", "beat": 2, "x": 1, "y": 1, "color": 1, "direction": 5},
+                 {"id": "kept", "beat": 2, "x": 0, "y": 0, "color": 0, "direction": 5, "stack": True,
+                  "placed": ["x", "y", "direction"]},
+                 {"id": "partner", "beat": 2, "color": 0, "stack": True}]
+        stack = stacks_of(place_arrangement(arrangement(notes), strict=False)["arrangement"])[2]
+        self.assertTrue(stack_line([(n["x"], n["y"]) for n in stack], stack[0]["direction"]), stack)
+
+
+class DemandTests(unittest.TestCase):
+    def test_a_stack_demands_its_span(self):
+        from sabermapper.critique import intensity_bars
+        evidence = {"passages": [{"start_seconds": 0, "end_seconds": 8, "energy_ratio": 1.0, "support_score": 1.0}]}
+        single = [{"id": "a", "beat": Fraction(1), "x": 0, "y": 0, "color": 0, "direction": 1}]
+        stack = single + [{"id": "b", "beat": Fraction(1), "x": 0, "y": 1, "color": 0, "direction": 1}]
+        demand = [intensity_bars(arrangement([]), evidence, notes)[1][0]["demand"] for notes in (single, stack)]
+        self.assertGreater(demand[1], demand[0])
+
+
 class ValidationTests(unittest.TestCase):
     def placed(self, notes):
         return validate_arrangement(arrangement(notes))

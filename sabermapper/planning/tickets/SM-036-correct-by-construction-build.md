@@ -117,9 +117,9 @@ These come from authoring Living a Lie from its ensemble stems and spectrograms 
 
 ## References to check
 
-- `sabermapper/movement.py` (`flow_break`, `hidden_note`, `hidden_window`, `one_hand_bursts`, `reach_proxy`)
-- `sabermapper/audio_repair.py` (`insert_note` and its helpers, `_lead_targets`, `_harden_targets`)
-- `sabermapper/swing_repair.py`, `sabermapper/visibility_repair.py`
-- `sabermapper/projects.py` (`check_save`)
-- `workspace/authoring/fireflies/hand_bars.py` (an existing build-by-insertion workflow)
+- `sabermapper/placement.py` (the placer: `place_arrangement`, `pin_edits`, `rule_violations`), `sabermapper/check.py` (`project check`, the save gate, movement suggestions)
+- `sabermapper/rhythm_proposal.py` (`music rhythm --propose`, the audio and critique suggestions)
+- `sabermapper/movement.py` (`flow_break`, `is_rest`, `hidden_note`, `hidden_window`, `one_hand_bursts`, `REACH_SPEED`)
+- `sabermapper/projects.py` (`prepare_save`, `check`, `lock_conflicts`)
+- `workspace/authoring/sm-036/compare_placement.py` and `comparison.json` (Expansion step 3)
 - [SM-030](SM-030-movement-and-strain-model.md), [SM-034](../../docs/tickets-sm-032-034.md)

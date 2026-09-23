@@ -80,7 +80,7 @@ class ProposalTests(unittest.TestCase):
         self.assertEqual([d for d in validate_arrangement(placed) if d["severity"] == "error"], [])
         self.assertGreater(result["note_count"], 100)
         notes = [n for bar in result["bars"] for n in bar["notes"]]
-        self.assertEqual(len(notes), result["note_count"])
+        self.assertEqual(sum(2 if n.get("double") else 1 for n in notes), result["note_count"])
         self.assertTrue(all(n["evidence"]["layer"] and n["role"] for n in notes), "every time names its sound")
 
     def test_the_draft_follows_the_lead_and_the_loudness(self):
@@ -232,6 +232,113 @@ class AudioSuggestionTests(unittest.TestCase):
         self.assertEqual((suggestion["op"], suggestion["lead"]), ("set_weights", "drums"))
         fixed = self.apply(draft, suggestion)
         self.assertFalse([f for f in self.check(fixed, evidence)["findings"] if f["code"] == "focus_on_quiet_stem"])
+
+
+def song():
+    """96 beats at 120 BPM: a quiet opening on melody changes, a guitar riff over sixteenth kicks with crashes,
+    a sung verse with a held note and a gap in the voice, then the riff again."""
+    def ev(layer, beats, strength, method="spectral_flux"):
+        return [{"id": f"{layer}:{method}:{i}", "seconds": b / 2, "method": method, "strength": strength}
+                for i, b in enumerate(sorted(beats))]
+    riff_bars = [b for b in range(16, 48)] + [b for b in range(80, 96)]
+    chugs = [b + off for b in riff_bars if b % 4 != 3 for off in (0, 0.5)]
+    kicks = [b + off for b in riff_bars for off in (0, 0.25, 0.5, 0.75)]
+    crashes = [b for b in riff_bars if b % 4 == 0]
+    verse_drums = [b + off for b in range(48, 80) for off in (0, 0.5)]
+    syllables = [b + off for b in range(48, 80) for off in (0, 0.5)
+                 if not (56 < b + off < 59.5) and not (64 < b + off < 67)]
+    sustains = [{"id": f"s{i}", "start_seconds": a / 2, "end_seconds": b / 2, "strength": 0.3}
+                for i, (a, b) in enumerate([(48.1, 49.3), (52.1, 53.3), (60.1, 61.3), (64.1, 65.3), (68.1, 69.3),
+                                            (76.1, 77.3)])]
+    sustains += [{"id": "held", "start_seconds": 28.0, "end_seconds": 29.7, "strength": 0.4},   # beats 56-59.4
+                 {"id": "named", "start_seconds": 36.0, "end_seconds": 36.45, "strength": 0.3}]  # beats 72-72.9
+    melody = [b / 4 for b in range(0, 64)]
+    mix_attacks = sorted(set(chugs) | set(kicks) | set(verse_drums) | set(syllables))
+    passages = []
+    for t in range(0, 48, 2):
+        quiet = t < 8
+        passages.append({"start_seconds": t, "end_seconds": t + 2, "drum_onset_density": 0 if quiet else 4,
+                         "energy_ratio": 0.5 if quiet else 1.0, "support_score": 0.4 if quiet else 0.95})
+    contour = [{"seconds": i / 10, "energy": 0.5} for i in range(480)]
+    return {"source": {"sha256": "fixture", "duration_seconds": 48}, "created_at": "2026-09-23T00:00:00+00:00",
+            "backend": "fixture", "preset": "balanced", "passages": passages,
+            "layers": {"mix": {"events": ev("mix", mix_attacks, 0.6) + ev("mix", melody, 0.6, "melody_change"),
+                               "energy_contour": contour},
+                       "drums": {"events": ev("drums", kicks + verse_drums, 0.6) + ev("drums", crashes, 0.95)},
+                       "guitar": {"events": ev("guitar", chugs, 0.9)},
+                       "vocals": {"events": ev("vocals", syllables, 0.8), "sustains": sustains}}}
+
+
+def song_arrangement(tier="band"):
+    return {"schema_version": "0.1",
+            "song": {"title": "Rules", "artist": "Tests", "bpm": 120, "audio_offset_seconds": 0.0},
+            "difficulty": {"name": "ExpertPlus", "rank": 9, "njs": 18, "spawn_offset_beats": 0, "target_tier": tier},
+            "motifs": {},
+            "sections": [{"id": name, "start_beat": a, "length_beats": b - a, "intent": name, "locked": False,
+                          "resolved": True, "patterns": [], "notes": []}
+                         for name, a, b in (("intro", 0, 16), ("riff", 16, 48), ("verse", 48, 80), ("out", 80, 96))]}
+
+
+class MusicalRuleTests(unittest.TestCase):
+    """The rules SM-036 records from authoring Living a Lie, each drafted for every song."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.evidence = song()
+        cls.result = propose_rhythm(song_arrangement(), cls.evidence, held=[36.0])
+        cls.bars = {b["start_beat"]: b for b in cls.result["bars"]}
+        cls.times = {Fraction(str(n["beat"])): n for b in cls.result["bars"] for n in b["notes"]}
+        cls.placed = place_arrangement(cls.result["draft"])["arrangement"]
+
+    def test_each_bar_has_one_role(self):
+        self.assertEqual([self.bars[b]["role"] for b in (0, 20, 52)], ["soft", "riff", "sung"])
+
+    def test_soft_bars_map_changes_half_a_beat_apart(self):
+        soft = sorted(t for t in self.times if t < 16)
+        self.assertTrue(soft)
+        self.assertTrue(all(b - a >= Fraction(1, 2) for a, b in zip(soft, soft[1:])), soft)
+
+    def test_riff_bars_follow_the_riff_and_keep_its_rests(self):
+        riff = [t for t in self.times if 20 <= t < 24]
+        for chug in (20, Fraction(41, 2), 21, Fraction(43, 2), 22, Fraction(45, 2)):
+            self.assertIn(chug, riff)
+        between = [t for t in riff if t % 1 in (Fraction(1, 4),) and t < 23]
+        self.assertEqual(between, [], "a kick between two chugs stays unmapped")
+
+    def test_sung_bars_follow_the_syllables_and_the_band_fills_the_gaps(self):
+        sung = [t for t in self.times if 48 <= t < 56]
+        roles = [self.times[t]["role"] for t in sung]
+        self.assertGreaterEqual(roles.count("vocals"), 0.6 * 16)
+        band = roles.count("band")
+        self.assertLess(band, 0.25 * len(roles) + 1e-9)
+        gap = [self.times[t]["role"] for t in self.times if 64 < t < 67]
+        self.assertIn("band_gap", gap, "the band carries the voice's gap")
+
+    def test_held_singing_becomes_an_arc_with_the_band_on_the_free_hand(self):
+        arcs = {(Fraction(str(a["head"])), Fraction(str(a["tail"]))) for a in self.result["arcs"]}
+        self.assertTrue(any(head == 56 and 59 < tail < 60 for head, tail in arcs), arcs)
+        self.assertIn(72, {head for head, _ in arcs}, "a hold the user named becomes an arc")
+        arc = next(a for s in self.placed["sections"] for a in s.get("arcs", []) if s["id"] == "verse"
+                   and Fraction(str(a["beat"])) + 48 == 56)
+        tail = 48 + Fraction(str(arc["tail_beat"]))
+        inside = [n for n in expanded_notes(self.placed) if 56 < n["beat"] < tail]
+        self.assertTrue(inside)
+        self.assertTrue(all(n["color"] != arc["color"] for n in inside))
+
+    def test_doubles_mark_the_heaviest_accents_on_one_parity(self):
+        from sabermapper.movement import _parity
+        doubles = [t for t, n in self.times.items() if n.get("double")]
+        self.assertTrue(doubles)
+        for beat in doubles:
+            self.assertNotIn(beat - Fraction(1, 4), [t for t in self.times if self.times[t]["role"] != "lead"])
+            pair = [n for n in expanded_notes(self.placed) if n["beat"] == beat]
+            self.assertEqual(sorted(n["color"] for n in pair), [0, 1])
+            self.assertEqual(len({_parity(n["direction"], n["color"], 0) for n in pair}), 1, pair)
+
+    def test_the_draft_raises_none_of_the_checked_findings(self):
+        warnings = critique_arrangement(self.placed, self.evidence)["warnings"]
+        self.assertEqual([w["code"] for w in warnings if w["code"] in TARGET_CODES], [])
+        self.assertEqual([d for d in validate_arrangement(self.placed) if d["severity"] == "error"], [])
 
 
 if __name__ == "__main__":

@@ -42,6 +42,9 @@ def register_musical(commands):
                                      "scaled to the difficulty's target tier, then placed and checked so the draft "
                                      "carries no rhythm finding the critique would raise")
             parser.add_argument("--tier", help="Target tier for --propose; default: difficulty.target_tier, else band")
+            parser.add_argument("--held", type=float, action="append", default=[],
+                                help="With --propose: source seconds of a held vocal the user named (repeatable); "
+                                     "it becomes an arc. The player profile's held_vocals for this project are added")
             parser.add_argument("--draft", type=Path,
                                 help="With --propose: write the arrangement with the range's notes replaced by the "
                                      "drafted rhythm-only notes (id and beat), ready to edit and `project save`")
@@ -113,7 +116,14 @@ def dispatch_musical(args, emit):
         with store.lock:
             arrangement = read_json(store.arrangement_file(directory, args.difficulty))
         run_id, report = _run(directory, args.run)
-        result = propose_rhythm(arrangement, report, start=args.start, end=args.end, tier=args.tier)
+        reference_path = store.root / "corpus" / "tier-reference.json"
+        profile_path = store.root / "player-profile.json"
+        named = [float(item["seconds"]) for item in (read_json(profile_path).get("held_vocals") or []
+                                                     if profile_path.exists() else [])
+                 if isinstance(item, dict) and item.get("project") == args.project and "seconds" in item]
+        result = propose_rhythm(arrangement, report, start=args.start, end=args.end, tier=args.tier,
+                                tier_reference=read_json(reference_path) if reference_path.exists() else None,
+                                held=sorted(set(named + args.held)))
         draft = result.pop("draft")
         if args.draft:
             args.draft.parent.mkdir(parents=True, exist_ok=True)

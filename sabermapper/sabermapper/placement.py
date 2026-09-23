@@ -32,7 +32,7 @@ from fractions import Fraction
 from math import hypot
 
 from .movement import (BURST_SECONDS, BURST_SWINGS, CHORD_BEATS, CHORD_SECONDS, FAST_BREAK_SECONDS, REACH_SPEED,
-                       _OPPOSITE, _VECTORS, analyze_movement, flow_break, hidden_window, is_rest, next_effective,
+                       _OPPOSITE, _VECTORS, _parity, analyze_movement, flow_break, hidden_window, is_rest, next_effective,
                        turn_degrees)
 from .validation import _beat
 
@@ -46,10 +46,12 @@ HARD = 1e9  # breaking a review rule the placer also keeps (one_hand_burst, reac
 SOFT = 1e6  # re-choosing a value an earlier placement stored in ``placed``
 LANES = {0: (0, 1), 1: (2, 3)}
 FIRST_CUTS = (1, 6, 7, 0, 4, 5)  # a hand's first swing: down cuts first
-UP_CUTS, DOWN_CUTS = (0, 4, 5), (1, 6, 7)
 CYCLE_LOOKBACK = range(2, 17)  # the strict-cycle lags SM-034 measures (critique.CYCLE_RANGE)
 VARIETY_WINDOW = 48
 TOP_ROW_SHARE = 0.15  # below this recent top-row share, the top row is preferred
+# A double reads as one accent only when both hands cut it on the same forehand/backhand: the beam then hands
+# the last single note before it to whichever hand leaves both hands on that parity.
+DOUBLE_PARITY_COST = 3.0
 # Rules the placer satisfies; each maps to the note fields that can resolve it.
 RULE_FIELDS = {"fast_direction_break": ("direction", "color"), "flow_parity_break": ("direction", "color"),
                "one_hand_burst": ("color",), "arc_note_conflict": ("color",), "chain_note_conflict": ("color",),
@@ -68,12 +70,13 @@ class PlacementError(ValueError):
 
 class _Slot:
     __slots__ = ("index", "oid", "beat", "seconds", "fixed", "soft", "pinned", "note", "locked", "value",
-                 "anchored", "motif", "anchor")
+                 "anchored", "motif", "anchor", "held_cut")
 
     def __init__(self, oid, beat, fixed, soft, pinned, note, locked, motif=None):
         self.oid, self.beat, self.fixed, self.soft, self.pinned = oid, beat, fixed, soft, pinned
         self.note, self.locked, self.motif = note, locked, motif
         self.value, self.anchored, self.index, self.seconds, self.anchor = {}, set(), 0, 0.0, None
+        self.held_cut = None  # a cut pass 1 settled that pass 2 keeps (a double's parity)
 
     @property
     def chosen(self):
@@ -354,8 +357,8 @@ def _plan_cuts(groups, held, bpm, width=BEAMS[0][0], per_timing_limit=BEAMS[0][1
     empty = (None, None, None, None, 0, None, None)
     beam = [(0.0, (empty, empty), None, None, None)]  # cost, hand states, last single hand, last beat, node
     for group in groups:
-        beat, seconds = group[0].beat, group[0].seconds
-        busy = _held_colors(held, beat)
+        beat, seconds = float(group[0].beat), group[0].seconds
+        busy = _held_colors(held, group[0].beat)
         candidates = {}
         for cost, hands, last_hand, last_beat, node in beam:
             for colors, assign_cost, assign_violations in _assignments(group, busy):
@@ -384,8 +387,8 @@ def _plan_cuts(groups, held, bpm, width=BEAMS[0][0], per_timing_limit=BEAMS[0][1
                         violations += option_violations
                         new_hands[hand] = state
                         decisions += [(s.index, hand, direction) for s in by_hand[hand]]
-                    if len(parts) == 2 and (parts[0][1] in UP_CUTS) != (parts[1][1] in UP_CUTS):
-                        total += 0.4  # a double reads best as a parallel cut
+                    if len(parts) == 2 and _parity(parts[0][1], parts[0][0], 0) != _parity(parts[1][1], parts[1][0], 0):
+                        total += DOUBLE_PARITY_COST
                     new_hands = tuple(new_hands)
                     single = used[0] if len(used) == 1 else None
                     signature = (new_hands, single)
@@ -424,6 +427,11 @@ def _cell_fixed(slot):
     return "x" in slot.fixed and "y" in slot.fixed
 
 
+def _cut_fixed(slot):
+    """The cut pass 2 may not change: pinned, anchored, or settled by pass 1 for a double."""
+    return slot.fixed.get("direction", slot.held_cut)
+
+
 def _place_cells(groups, slots, bpm, joint=True):
     """Choose every open cell (and, when ``joint``, every open cut) in time order.
 
@@ -452,7 +460,7 @@ def _place_cells(groups, slots, bpm, joint=True):
     for group in groups:
         beat, seconds = group[0].beat, group[0].seconds
         occupied = {(s.fixed["x"], s.fixed["y"]) for s in group if _cell_fixed(s)}
-        open_slots = sorted((s for s in group if not _cell_fixed(s) or (joint and "direction" not in s.fixed)),
+        open_slots = sorted((s for s in group if not _cell_fixed(s) or (joint and _cut_fixed(s) is None)),
                             key=lambda s: (s.value["color"], s.oid))
         context = {"recent": Counter(sequence[-VARIETY_WINDOW:]), "sequence": sequence, "used": used,
                    "top_share": sum(1 for p in sequence[-VARIETY_WINDOW:] if p[1] == 2)
@@ -504,7 +512,7 @@ class _HandState:
 def _cut_choices(slot, state, ahead, beat, seconds, bpm, joint):
     """(direction, cost) cuts pass 2 may give ``slot``."""
     hand = slot.value["color"]
-    if "direction" in slot.fixed or not joint:
+    if _cut_fixed(slot) is not None or not joint:
         return [(slot.value["direction"], 0.0)]
     gap = None if state.seconds is None else seconds - state.seconds
     reset = state.reset(beat, seconds, bpm)
@@ -523,10 +531,10 @@ def _cut_choices(slot, state, ahead, beat, seconds, bpm, joint):
         if state.effective is not None and gap and not reset and not state.merges(beat, seconds, direction):
             if flow_break(state.effective, direction, hand, gap, False):
                 cost += BLOCK
-        if ahead is not None and "direction" in ahead.fixed and direction != 8:
+        if ahead is not None and _cut_fixed(ahead) is not None and direction != 8:
             later_gap = ahead.seconds - seconds
             if later_gap > 0 and not is_rest(later_gap) and flow_break(
-                    direction, ahead.fixed["direction"], hand, later_gap, False):
+                    direction, _cut_fixed(ahead), hand, later_gap, False):
                 cost += BLOCK  # would break the flow into the hand's next pinned cut
         result.append((direction, cost))
     return result
@@ -615,7 +623,7 @@ def _combine(open_slots, options, group):
         if ca != cb:
             red, blue = (ax, bx) if ca == 0 else (bx, ax)
             crossed = 0.0 if red < blue else 50.0  # hands crossed on a double
-            return crossed + (0.4 if (ad in UP_CUTS) != (bd in UP_CUTS) else 0.0)  # doubles read best parallel
+            return crossed + (DOUBLE_PARITY_COST if _parity(ad, ca, 0) != _parity(bd, cb, 0) else 0.0)
         if ad != bd:
             return 50.0  # one saber cuts a chord in one direction
         if ad == 8:
@@ -695,7 +703,7 @@ def _free(slot):
     return [f for f in FIELDS if f not in slot.fixed and f not in slot.soft]
 
 
-def _place(arrangement, *, unpin=False):
+def _place(arrangement, *, unpin=False, beams=BEAMS):
     """Place a copy of ``arrangement``; returns (placed copy, report, violations, slots by ID) or None.
 
     None means the notes are not readable (validation reports why).
@@ -723,7 +731,7 @@ def _place(arrangement, *, unpin=False):
             return trial, _report(slots, motifs), violations, by_id
     groups = _groups(slots)
     outcome = None
-    for width, per_timing in BEAMS:
+    for width, per_timing in beams:
         plan = _plan_cuts(groups, held, bpm, width, per_timing)
         for joint in (True, False):
             # Cuts chosen with their cells follow the hand's path; pass 1's cuts are the verified fallback.
@@ -731,6 +739,11 @@ def _place(arrangement, *, unpin=False):
                 hand, direction = plan[slot.index]
                 slot.value = {"color": slot.fixed.get("color", hand),
                               "direction": slot.fixed.get("direction", direction)}
+                slot.held_cut = None
+            for group in groups:  # a double keeps the parity pass 1 found for both hands
+                if len({s.value["color"] for s in group}) == 2:
+                    for slot in group:
+                        slot.held_cut = slot.value["direction"]
             _place_cells(groups, slots, bpm, joint)
             trial = copy.deepcopy(result)
             _write(trial, _collect_for(trial, slots))
@@ -798,19 +811,20 @@ def _place_motifs(arrangement):
 
 
 def place_arrangement(arrangement: dict, *, unpin: bool = False, strict: bool = True,
-                      alternatives: bool = True) -> dict:
+                      alternatives: bool = True, thorough: bool = True) -> dict:
     """Fill every open note field so the movement rules hold; the input is not modified.
 
     Returns ``{"arrangement", "report", "errors"}``. A fully specified arrangement with no ``placed`` record
     is returned unchanged (the same object). ``unpin`` re-places every unlocked literal note from scratch,
     ignoring its stored values (for comparing a stored map with a fresh placement). When a rule cannot hold,
     ``strict`` raises :class:`PlacementError`; otherwise the best placement comes back with the errors.
-    ``alternatives=False`` skips verifying alternatives for the errors (a draft generator's inner loop).
+    ``alternatives=False`` skips verifying alternatives for the errors, and ``thorough=False`` the wider beam
+    retried after a broken rule (both for a draft generator's inner loop).
     """
     empty = {"placed_notes": 0, "rechosen": [], "motifs": []}
     if not unpin and not needs_placement(arrangement):
         return {"arrangement": arrangement, "report": empty, "errors": []}
-    done = _place(arrangement, unpin=unpin)
+    done = _place(arrangement, unpin=unpin, beams=BEAMS if thorough else BEAMS[:1])
     if done is None:
         return {"arrangement": arrangement, "report": {**empty, "skipped": "unreadable notes; see validation"},
                 "errors": []}

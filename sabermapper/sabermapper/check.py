@@ -182,12 +182,12 @@ def _candidates(timeline, finding):
     edits = []
     for oid in targets:
         note = timeline.by_id[oid]
-        if code in ("fast_direction_break", "flow_parity_break"):
+        if code in ("fast_direction_break", "flow_parity_break", "cut_path_blocked"):
             for direction in sorted(range(8), key=lambda d: (turn_degrees(note["direction"], d)
                                                             if note["direction"] != 8 else 0, d)):
                 if direction != note["direction"]:
                     edits.append({"op": "set", "object_id": oid, "to": {"direction": direction}})
-        if code in ("hidden_note", "reach_proxy"):
+        if code in ("hidden_note", "reach_proxy", "stack_shape", "stack_touch", "cut_path_blocked"):
             cells = sorted(((abs(x - note["x"]) + abs(y - note["y"]), x, y) for x in range(4) for y in range(3)
                             if (x, y) != (note["x"], note["y"])))
             edits += [{"op": "move", "object_id": oid, "to": {"x": x, "y": y}} for _, x, y in cells]

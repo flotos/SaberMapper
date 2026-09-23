@@ -80,7 +80,6 @@ class PlacementTests(unittest.TestCase):
         self.assertEqual({n["color"] for n in stack}, {1})
         self.assertTrue(stack_line([(n["x"], n["y"]) for n in stack], stack[0]["direction"]))
 
-
     def test_a_stored_cell_moves_so_a_stack_lines_up(self):
         """A note already placed in a corner joins a stack: its stored cell gives way to the line."""
         stored = place_arrangement(arrangement(rhythm([0, 1, 2, 3])))["arrangement"]
@@ -98,6 +97,50 @@ class PlacementTests(unittest.TestCase):
                  {"id": "partner", "beat": 2, "color": 0, "stack": True}]
         stack = stacks_of(place_arrangement(arrangement(notes), strict=False)["arrangement"])[2]
         self.assertTrue(stack_line([(n["x"], n["y"]) for n in stack], stack[0]["direction"]), stack)
+
+
+    def test_a_stack_of_three_never_runs_sideways(self):
+        """After a left cut a quick reversal would be a right cut; a stack of three takes a diagonal instead."""
+        notes = [{"id": "left", "beat": 0, "x": 1, "y": 1, "color": 0, "direction": 2}]
+        notes += [{"id": f"s{i}", "beat": "1/2", "stack": True, "color": 0} for i in range(3)]
+        notes += rhythm([2, 3])
+        stack = stacks_of(place_arrangement(arrangement(notes), strict=False)["arrangement"])[Fraction(1, 2)]
+        self.assertNotIn(stack[0]["direction"], (2, 3, 8))
+        self.assertTrue(stack_line([(n["x"], n["y"]) for n in stack], stack[0]["direction"]), stack)
+
+    def test_quick_notes_after_a_stack_stay_out_of_its_cells_and_it_keeps_to_the_side(self):
+        beats = [0, 1, 2, "5/2", "11/4", 3, "13/4", "7/2", 4]
+        notes = rhythm(beats) + [{"id": "s", "beat": 2, "stack": True}]
+        notes = [dict(n, stack=True) if n["beat"] == 2 else n for n in notes]
+        placed = place_arrangement(arrangement(notes))["arrangement"]
+        stack = stacks_of(placed)[2]
+        cells = {(n["x"], n["y"]) for n in stack}
+        self.assertTrue(all(x in (0, 3) for x, _ in cells), cells)
+        after = [n for n in expanded_notes(placed) if 2 < n["beat"] and float(n["beat"] - 2) * 0.5 < 0.4]
+        self.assertTrue(after)
+        self.assertFalse([n for n in after if (n["x"], n["y"]) in cells], after)
+        self.assertNotIn("hidden_note", {d["code"] for d in validate_arrangement(placed)})
+
+
+    def test_a_double_beside_a_stack_keeps_a_free_cell(self):
+        for size in (2, 3):
+            notes = rhythm([0, 1, 3]) + [{"id": "other", "beat": 2, "color": 1}]
+            notes += [{"id": f"s{i}", "beat": 2, "stack": True, "color": 0} for i in range(size)]
+            placed = place_arrangement(arrangement(notes))["arrangement"]
+            at = [n for n in expanded_notes(placed) if n["beat"] == 2]
+            red = [n for n in at if n["color"] == 0]
+            blue = next(n for n in at if n["color"] == 1)
+            self.assertTrue(all(max(abs(n["x"] - blue["x"]), abs(n["y"] - blue["y"])) >= 2 for n in red), at)
+            self.assertNotIn("stack_touch", {d["code"] for d in validate_arrangement(placed)})
+
+
+    def test_the_placer_keeps_the_other_hand_off_a_cut(self):
+        notes = rhythm([0, 1, 3]) + [{"id": "red", "beat": 2, "x": 1, "y": 1, "color": 0, "direction": 3},
+                                     {"id": "blue", "beat": 2, "color": 1}]
+        placed = place_arrangement(arrangement(notes))["arrangement"]
+        self.assertNotIn("cut_path_blocked", {d["code"] for d in validate_arrangement(placed)})
+        blue = next(n for n in expanded_notes(placed) if n["beat"] == 2 and n["color"] == 1)
+        self.assertNotIn((blue["x"], blue["y"]), {(0, 1), (1, 1), (2, 1)})
 
 
 class DemandTests(unittest.TestCase):
@@ -144,10 +187,65 @@ class MovementTests(unittest.TestCase):
         self.assertTrue(self.shape([(0, 0), (0, 2)], 1))                 # a gap in the line
         self.assertTrue(self.shape([(0, 0), (1, 0), (2, 0), (3, 0)], 2))  # four notes
 
+    def test_a_stack_of_three_runs_vertically_or_diagonally(self):
+        self.assertEqual(self.shape([(0, 0), (0, 1), (0, 2)], 1), [])
+        self.assertEqual(self.shape([(1, 0), (2, 1), (3, 2)], 6), [])
+        self.assertTrue(self.shape([(0, 0), (1, 0), (2, 0)], 2))  # sideways
+        self.assertTrue(self.shape([(0, 1), (1, 1), (2, 1)], 8))  # a dot stack along a row
+        self.assertEqual(self.shape([(0, 0), (1, 0)], 2), [])     # a pair may lie sideways
+
+    def test_a_note_behind_a_stack_cell_stays_hidden_longer(self):
+        stack = [{"id": f"s{y}", "beat": 0, "x": 3, "y": y, "color": 1, "direction": 1} for y in (0, 1)]
+        after = {"id": "late", "beat": 0.6, "x": 3, "y": 0, "color": 0, "direction": 1}  # 0.3 s at 120 BPM
+        single = [stack[0], after]
+        codes = lambda notes: {w["code"] for w in analyze_movement(notes, bpm=120)["warnings"]}
+        self.assertNotIn("hidden_note", codes(single))
+        self.assertIn("hidden_note", codes(stack + [after]))
+
+    def test_the_other_hand_never_touches_a_stack(self):
+        red = [{"id": f"r{y}", "beat": 0, "x": 0, "y": y, "color": 0, "direction": 1} for y in (0, 1)]
+        touch = lambda x, y: [w for w in analyze_movement(red + [{"id": "b", "beat": 0, "x": x, "y": y, "color": 1,
+                                                                   "direction": 1}])["warnings"]
+                              if w["code"] == "stack_touch"]
+        self.assertTrue(touch(0, 2))  # at the stack's tip
+        self.assertTrue(touch(1, 2))  # corner to corner
+        self.assertTrue(touch(1, 0))  # beside it
+        self.assertEqual(touch(2, 1), [])  # a free cell between them
+
+    def test_no_cut_sweeps_through_the_other_color(self):
+        red = {"id": "r", "beat": 0, "x": 1, "y": 1, "color": 0, "direction": 3}  # a right cut
+        blocked = lambda x, y, direction=1, beat=0: [
+            w for w in analyze_movement([red, {"id": "b", "beat": beat, "x": x, "y": y, "color": 1,
+                                               "direction": direction}])["warnings"] if w["code"] == "cut_path_blocked"]
+        self.assertTrue(blocked(2, 1))             # the cut heads straight into it
+        self.assertTrue(blocked(0, 1))             # the wind-up passes through it
+        self.assertEqual(blocked(3, 1), [])        # past the cut's reach
+        self.assertEqual(blocked(2, 0), [])        # off its line
+        self.assertEqual(blocked(2, 1, beat=1), [])  # not at the same instant
+        self.assertEqual(blocked(2, 1)[0]["severity"], "error")
+
     def test_notes_a_sixteenth_apart_are_no_stack(self):
         notes = [{"id": "a", "beat": 0, "x": 0, "y": 0, "color": 0, "direction": 1},
                  {"id": "b", "beat": 1 / 16, "x": 2, "y": 0, "color": 0, "direction": 1}]
         self.assertEqual([w for w in analyze_movement(notes)["warnings"] if w["code"] == "stack_shape"], [])
+
+
+class TallStackTests(unittest.TestCase):
+    def test_three_notes_need_four_stems_on_one_of_the_very_loudest_attacks(self):
+        from sabermapper.critique import unison_hits
+        mix = [{"seconds": i / 4, "method": "spectral_flux", "strength": 0.3 + 0.6 * (i % 20) / 19}
+               for i in range(400)]
+        layers = {"mix": {"events": mix}}
+        hits = {40: 0.97, 48: 0.84}  # beat: mix strength (120 BPM); both above the 85th percentile, one above the 95th
+        for beat, strength in hits.items():
+            mix.append({"seconds": beat / 2 + 0.01, "method": "spectral_flux", "strength": strength})
+        for name in ("drums", "bass", "guitar", "other"):
+            layers[name] = {"kind": "audio_layer", "events": [
+                {"seconds": beat / 2, "method": "spectral_flux", "strength": 0.8} for beat in hits]}
+        mix.sort(key=lambda e: e["seconds"])
+        found = {round(h[0]): h[1] for bar in (40, 48)
+                 for h in unison_hits(layers, arrangement([]), bar, bar + 4, {})}
+        self.assertEqual(found, {40: 3, 48: 2})
 
 
 class DraftTests(unittest.TestCase):
@@ -202,6 +300,19 @@ class CheckTests(unittest.TestCase):
         report = check_arrangement(fixed, evidence)
         self.assertEqual([f for f in report["findings"] if f["code"] in ("unison_hit_unstacked", "stack_shape")], [])
         self.assertEqual(report["blocking_count"], 0)
+
+    def test_a_stack_of_three_off_a_tall_hit_is_reported_and_trimmed_to_two(self):
+        evidence = unison_song()
+        draft = propose_rhythm(song_arrangement(), evidence, held=[36.0])["draft"]
+        section = next(s for s in draft["sections"] if s["id"] == "riff")
+        pair = [n for n in section["notes"] if n.get("stack") and n["beat"] == 8]  # beat 24: two notes earned
+        self.assertEqual(len(pair), 2)
+        section["notes"].append({"id": "extra", "beat": 8, "stack": True})
+        found = [f for f in check_arrangement(draft, evidence)["findings"] if f["code"] == "stack_too_tall"]
+        self.assertEqual([round(f["beats"][0]) for f in found], [24])
+        trimmed = apply_suggestion(draft, found[0]["suggestions"][0])
+        self.assertFalse([f for f in check_arrangement(trimmed, evidence)["findings"]
+                          if f["code"] in ("stack_too_tall", "unison_hit_unstacked")])
 
 
 if __name__ == "__main__":

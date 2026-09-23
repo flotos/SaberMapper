@@ -163,6 +163,28 @@ class FollowLeadRepairTests(unittest.TestCase):
         self.assertEqual([d for d in validate_arrangement(result["arrangement"]) if d["severity"] == "error"], [])
         self.assertNotIn("lead_rhythm_diluted", codes(critique_arrangement(result["arrangement"], report())))
 
+    def test_an_even_stream_that_blocks_a_dense_lead_is_rebuilt(self):
+        # The guitar plays syncopated sixteenths (beats x.25 and x.75); an eighth stream leaves no room for them.
+        data = report()
+        data["layers"]["guitar"]["events"] = events("guitar", [b + d for b in range(32) for d in (0.25, 0.75)])
+        before = critique_arrangement(arrangement(STREAM), data)
+        self.assertIn("lead_rhythm_unmapped", codes(before))
+        self.assertNotIn("lead_rhythm_diluted", codes(before))
+        result = follow_lead(arrangement(STREAM), data)
+        self.assertEqual({c["code"] for c in result["changes"]}, {"lead_rhythm_unmapped"})
+        after = critique_arrangement(result["arrangement"], data)
+        self.assertNotIn("lead_rhythm_unmapped", codes(after))
+        self.assertEqual([d for d in validate_arrangement(result["arrangement"]) if d["severity"] == "error"], [])
+
+    def test_a_rebuild_that_maps_no_more_of_the_lead_is_restored(self):
+        # The guitar attacks sit where the drums already are, too close together for any hand to take more.
+        data = report()
+        data["layers"]["guitar"]["events"] = events("guitar", [b + d for b in range(32) for d in (0, 0.1, 0.2)])
+        source = arrangement(KICKS)
+        result = follow_lead(source, data)
+        self.assertEqual(result["changes"], [])
+        self.assertEqual(result["arrangement"], source)
+
     def test_arc_anchors_survive_the_rebuild(self):
         source = arrangement(STREAM)
         section = source["sections"][0]

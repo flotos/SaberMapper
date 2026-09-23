@@ -18,12 +18,14 @@ Two passes, both judged against one musical evidence run:
    ``lead_rhythm_unmapped`` adds notes on the declared lead's strongest attack
    per half-beat.
 3. **Follow the lead.** Each bar flagged ``lead_rhythm_diluted`` (notes filling
-   the space between the lead's attacks) is rebuilt: its free notes are cleared,
+   the space between the lead's attacks) or ``lead_rhythm_unmapped`` (an even
+   stream leaving no room for the lead's attacks) is rebuilt: its free notes are cleared,
    then flow-safe notes go on the lead's strongest attack per half-beat (and
    on sixteenth attacks of strength 0.6 or more), and
    another stem's strongest attack fills each beat where the lead is silent. A
-   rebuilt bar that adds a blocking diagnostic, a ``reach_proxy`` warning, or
-   keeps fewer than min(4, old count) notes is restored.
+   rebuilt bar that adds a blocking diagnostic, a ``reach_proxy`` warning,
+   keeps fewer than min(4, old count) notes, or puts no more notes on the lead's
+   attacks than before (for ``lead_rhythm_unmapped``) is restored.
 
 Between the two, ``density_exceeds_audio`` windows (thin, quiet audio mapped as
 densely as the full band) are thinned: note times with the weakest audio under
@@ -617,21 +619,39 @@ def _lead_targets(arrangement, report, lead, first, last):
     return targets, fills
 
 
+def _lead_mapped(arrangement, report, lead, first, last):
+    """How many of the lead's strongest attacks per half-beat in [first, last) carry a note."""
+    found = lead_onsets(report.get("layers") or {}, lead, arrangement, LEAD_SUPPORT_STRENGTH)
+    strong = [beat for beat, strength in strongest_per_slot(found)
+              if strength >= LEAD_ONSET_STRENGTH and first <= beat < last]
+    times = sorted(float(n["beat"]) for n in expanded_notes(arrangement))
+    return sum(1 for beat in strong
+               if bisect_left(times, beat - SALIENCE_MATCH_BEATS) < len(times)
+               and times[bisect_left(times, beat - SALIENCE_MATCH_BEATS)] <= beat + SALIENCE_MATCH_BEATS)
+
+
+REBUILD_CODES = ("lead_rhythm_diluted", "lead_rhythm_unmapped")
+
+
 def follow_lead(arrangement: dict, report: dict) -> dict:
-    """Pass 3: rebuild bars whose notes bury the lead's rhythm in filler."""
+    """Pass 3: rebuild bars whose notes bury the lead's rhythm in filler or in an even stream."""
     result = copy.deepcopy(arrangement)
     changes, unresolved, counter = [], [], 0
     critique = critique_arrangement(result, report)
     leads = {bar["start_beat"]: bar["lead"] for bar in critique["metrics"]["lead_rhythm"]["bars"]}
-    bars = sorted({bar for w in critique["warnings"] if w["code"] == "lead_rhythm_diluted"
-                   for bar in range(int(w["beats"][0]), int(w["beats"][1]), SALIENCE_BAR_BEATS)})
+    flagged = {}
+    for warning in critique["warnings"]:
+        if warning["code"] in REBUILD_CODES:
+            for bar in range(int(warning["beats"][0]), int(warning["beats"][1]), SALIENCE_BAR_BEATS):
+                flagged.setdefault(bar, warning["code"])
     baseline = _errors(result)
-    for bar in bars:
+    for bar, code in sorted(flagged.items()):
         first, last = Fraction(bar), Fraction(bar + SALIENCE_BAR_BEATS)
         snapshot = copy.deepcopy(result)
+        before = _lead_mapped(result, report, leads[bar], float(first), float(last))
         view = _Map(result)
         free = _free_notes(view, first, last)
-        record = {"beat": float(first), "code": "lead_rhythm_diluted", "object_ids": []}
+        record = {"beat": float(first), "code": code, "object_ids": []}
         if free is None:
             unresolved.append({**record, "reason": "motif-expanded notes in the bar; edit the motif"})
             continue
@@ -647,14 +667,16 @@ def follow_lead(arrangement: dict, report: dict) -> dict:
             if change is not None:
                 added.append(change)
         times = {n["beat"] for n in expanded_notes(result) if first <= n["beat"] < last}
-        if len(times) < min(REBUILD_MIN_NOTES, old) or _errors(result) - baseline:
+        worse = code == "lead_rhythm_unmapped" and _lead_mapped(
+            result, report, leads[bar], float(first), float(last)) <= before
+        if len(times) < min(REBUILD_MIN_NOTES, old) or worse or _errors(result) - baseline:
             result.clear()
             result.update(snapshot)
             unresolved.append({**record, "reason": "no flow-safe rebuild on the lead's attacks; re-author by hand"})
             continue
         changes.append({**record, "action": "rebuilt", "lead": leads[bar], "removed_ids": removed,
                         "object_ids": [i for c in added for i in c["object_ids"]],
-                        "reason": f'notes follow the {leads[bar]} attacks instead of filling between them'})
+                        "reason": f'notes follow the {leads[bar]} attacks instead of an even stream'})
     return {"arrangement": result, "changes": changes, "unresolved": unresolved}
 
 

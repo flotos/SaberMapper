@@ -161,6 +161,8 @@ def main(argv=None):
     register_game(commands)
     from .show_cli import register_show, dispatch_show
     register_show(commands)
+    from .forge_cli import register_forge, dispatch_forge
+    register_forge(commands)
     args = parser.parse_args(argv)
     try:
         if (code := dispatch_game(args, emit)) is not None:
@@ -169,6 +171,8 @@ def main(argv=None):
             return 0
         if dispatch_show(args, emit):
             return 0
+        if (code := dispatch_forge(args, emit)) is not None:
+            return code
         if dispatch(args):
             return 0
         if args.command == "serve":

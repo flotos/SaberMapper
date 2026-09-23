@@ -1,0 +1,30 @@
+{
+    "name": "SaberMapper.ForgeXR",
+    "rootNamespace": "SaberMapper.XR",
+    "references": [
+        "Unity.XR.Management",
+        "Unity.XR.Management.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.xr.management",
+            "expression": "4.0.0",
+            "define": "SABERMAPPER_XR_MANAGEMENT"
+        },
+        {
+            "name": "com.unity.xr.openxr",
+            "expression": "1.0.0",
+            "define": "SABERMAPPER_OPENXR"
+        }
+    ],
+    "noEngineReferences": false
+}

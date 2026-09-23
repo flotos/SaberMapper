@@ -343,7 +343,8 @@ def make_server(workspace: str | Path, port: int = 8765, game=None, token: str |
                             if data.get("revision") != current["revision"]:
                                 raise ConflictError("Project changed. Reload it before previewing.")
                             result = store.export(project_id)
-                        local_url = f"http://{self.headers['Host']}{result['url']}"
+                        # ArcViewer cannot render Vivify: a vivified export previews its vanilla twin.
+                        local_url = f"http://{self.headers['Host']}{result.get('vanilla_twin_url', result['url'])}"
                         result["viewer_url"] = "/arcviewer/?" + urlencode({
                             "url": local_url, "noProxy": "true", "t": min(start, current["project"]["duration_seconds"]),
                             "mode": "Standard", "difficulty": current["difficulty"]})

@@ -159,11 +159,15 @@ def main(argv=None):
     register_subcommands(commands)
     from .game.cli import register_game, dispatch_game
     register_game(commands)
+    from .show_cli import register_show, dispatch_show
+    register_show(commands)
     args = parser.parse_args(argv)
     try:
         if (code := dispatch_game(args, emit)) is not None:
             return code
         if dispatch_musical(args, emit) or dispatch_frames(args, emit) or dispatch_feedback(args, emit):
+            return 0
+        if dispatch_show(args, emit):
             return 0
         if dispatch(args):
             return 0
@@ -342,6 +346,9 @@ def main(argv=None):
         print("Interrupted; saved artifacts are preserved.", file=sys.stderr)
         return 130
     except (OSError, ValueError, KeyError, TypeError, ImportError) as exc:
+        if isinstance(getattr(exc, "code", None), str):  # typed errors carry a stable code for agents
+            print(json.dumps({"error": {"code": exc.code, "message": str(exc)}}, ensure_ascii=False), file=sys.stderr)
+            return 1
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

@@ -48,6 +48,8 @@ Every saved project also gets an audio-driven lightshow. When a musical evidence
 
 To make the bundled skills discoverable in Codex from this repository, run `python scripts/install_skills.py`. It copies all three complete directories into workspace-root `.agents/skills/` for Codex and `.claude/skills/` for Claude. Root `AGENTS.md` and `CLAUDE.md` provide the shared project overview. Use `--update` to refresh existing copies after edits. You can then invoke `$sabermapper-map`, `$sabermapper-research`, or `$sabermapper-review` explicitly. Codex's [official skill documentation](https://developers.openai.com/es-419/docs/build-skills) describes repository and user discovery locations; restart Codex if a newly copied skill is not shown.
 
+Vivified maps add a project-level `show.json`, which is independent of difficulty, and optional arrangement 0.2 `presentation` blocks. The agent saves the show with `show save ID --workspace workspace --show show.json --revision CURRENT` (`none` for the first save). It checks the show with `show validate ID` and inspects the merged events and their audio provenance with `show compile ID`. The bundle set (`bundleinfo.json` plus `bundle*.vivify`) lives in `<project>/assets/`. `project export` then also writes a `-vanilla.zip` twin for ArcViewer and a `.show.json` provenance sidecar. See [vivify-show.md](vivify-show.md).
+
 ## Verify in the game and leave notes
 
 The studio's **Verify in game** panel is the human's whole verification job, in four actions: pick a revision, press **Play in game** (map start) or **Play at playhead** (or **Watch** for an autoplay run), scrub with the song-time slider, and press **Note** (or the `N` key) to leave a comment at the current song time. Everything else is agent work.

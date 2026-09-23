@@ -5,7 +5,7 @@ from __future__ import annotations
 from fractions import Fraction
 from math import isfinite
 
-from .movement import analyze_movement
+from .movement import STACK_MAX_NOTES, analyze_movement
 
 
 def _finite_number(value):
@@ -91,7 +91,7 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
     if not isinstance(motifs, dict) or not isinstance(sections, list):
         add("error", "invalid_type", "motifs must be an object and sections an array")
         return findings
-    expanded, held, notes_ok = [], [], [True]
+    expanded, held, notes_ok, stacks = [], [], [True], {}
 
     def note_check(note, where, sid, origin, base):
         before = len(findings)
@@ -100,7 +100,7 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
             notes_ok[0] = False
 
     def _note_check(note, where, sid, origin, base):
-        if not keys(note, {"id", "beat", "x", "y", "color", "direction"}, where, sid, optional={"placed"}):
+        if not keys(note, {"id", "beat", "x", "y", "color", "direction"}, where, sid, optional={"placed", "stack"}):
             return
         nid = note["id"]
         if not isinstance(nid, str) or not nid or "/" in nid:
@@ -131,6 +131,11 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
         if not exportable:
             add("error", "unexportable_beat", f"{oid} absolute beat exceeds v3 numeric range", sid, [oid])
             return
+        if "stack" in note and note["stack"] is not True:
+            add("error", "invalid_stack", f"{oid}.stack must be true when present (the note joins a stack)", sid, [oid])
+            return
+        if note.get("stack") and not origin.startswith("motif/"):
+            stacks.setdefault(absolute, []).append((note["color"], note["direction"], oid, sid))
         expanded.append((absolute, note["x"], note["y"], note["color"], note["direction"], sid, oid))
 
     def object_check(item, kind, sid, start, length):
@@ -379,6 +384,16 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
             validate_lightshow(arrangement, add)
         except (ValueError, TypeError, KeyError, ZeroDivisionError, OverflowError) as exc:
             add("error", "invalid_lightshow", f"lightshow cannot be checked: {exc}")
+
+    # A stack is two or three notes marked ``stack`` at one beat, cut by one hand in one direction.
+    for beat, members in sorted(stacks.items()):
+        ids = [m[2] for m in members]
+        if not 2 <= len(members) <= STACK_MAX_NOTES:
+            add("error", "invalid_stack", f"beat {float(beat):g} marks {len(members)} note(s) as a stack; a stack "
+                f"holds 2 to {STACK_MAX_NOTES} notes at one beat", members[-1][3], ids)
+        elif len({(m[0], m[1]) for m in members}) > 1:
+            add("error", "invalid_stack", f"the stack at beat {float(beat):g} mixes hands or cuts; its notes share "
+                "one color and one direction (unpin them so the placer chooses one)", members[-1][3], ids)
 
     seen = {}
     for item in expanded:

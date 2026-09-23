@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from math import atan2, cos, degrees, hypot, isfinite, radians, sin
 
-MODEL_VERSION = "1.6"
+MODEL_VERSION = "1.7"
 # A same-hand swing arriving sooner than this must nearly reverse the previous
 # cut; a sideways (90-degree) or repeated cut this fast forces a wrist reset.
 FAST_BREAK_SECONDS = 0.3
@@ -32,6 +32,9 @@ REACH_SPEED = 12
 # Same-hand notes this close (in beats and seconds) with one cut direction are cut in one swing.
 CHORD_BEATS = 1 / 16
 CHORD_SECONDS = 0.06
+# A stack (same-hand notes at one instant, one cut) reads as one longer note: its cells form an unbroken
+# line along the cut (vertical for an up or down cut, diagonal for a diagonal one), two or three long.
+STACK_MAX_NOTES = 3
 _VECTORS = {0: (0, 1), 1: (0, -1), 2: (-1, 0), 3: (1, 0),
             4: (-1, 1), 5: (1, 1), 6: (-1, -1), 7: (1, -1)}
 _OPPOSITE = {0: 1, 1: 0, 2: 3, 3: 2, 4: 7, 7: 4, 5: 6, 6: 5}
@@ -75,6 +78,23 @@ def turn_degrees(previous, direction, previous_angle=0.0, angle=0.0):
     """Angle in degrees between two cut directions (0 = same, 180 = reversal)."""
     a, b = _vector(previous, previous_angle), _vector(direction, angle)
     return abs((degrees(atan2(b[1], b[0])) - degrees(atan2(a[1], a[0])) + 180) % 360 - 180)
+
+
+def stack_line(cells, direction) -> bool:
+    """True when ``cells`` (same-hand notes at one instant) form one unbroken line along ``direction``.
+
+    A dot stack may lie along any of the eight directions.
+    """
+    cells = sorted(set(cells))
+    if len(cells) < 2:
+        return len(cells) == 1
+    vectors = [_VECTORS[direction]] if direction != 8 else list(_VECTORS.values())
+    for vx, vy in vectors:
+        for start in cells:
+            line = {(start[0] + k * vx, start[1] + k * vy) for k in range(len(cells))}
+            if line == set(cells):
+                return True
+    return False
 
 
 def is_rest(gap_seconds):
@@ -129,6 +149,29 @@ def one_hand_bursts(swings: list) -> list:
                                         "strongest sounds (project check lists edits)"})
             run = [swing] if swing is not None else []
     return sorted(found, key=lambda w: w["beat"])
+
+
+def stack_shapes(swings: list, notes: list) -> list:
+    """Review warnings for stacks that do not read as one longer note (see STACK_MAX_NOTES)."""
+    by_id = {n["id"]: n for n in notes}
+    found = []
+    for swing in swings:
+        if len(swing["note_ids"]) < 2:
+            continue
+        stacked = [by_id[i] for i in swing["note_ids"] if by_id[i]["beat"] == swing["beat"]]
+        if len(stacked) < 2:
+            continue  # notes a sixteenth apart cut in one swing are no stack
+        cells = [(n["x"], n["y"]) for n in stacked]
+        if len(stacked) <= STACK_MAX_NOTES and stack_line(cells, swing["direction"]):
+            continue
+        found.append({"code": "stack_shape", "note_ids": [n["id"] for n in stacked], "beat": swing["beat"],
+                      "confidence": "medium",
+                      "reason": f"{'right' if swing['hand'] else 'left'} hand stacks {len(stacked)} notes at "
+                                f"{', '.join(f'({x},{y})' for x, y in cells)}; a stack reads as one longer note "
+                                f"only as {STACK_MAX_NOTES} or fewer notes in an unbroken line along their cut. "
+                                "Move a note onto the line, drop one, or unpin the cells (and cut) so the "
+                                "placer lines them up"})
+    return found
 
 
 def hidden_window(x, y):
@@ -254,6 +297,7 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
             effective = flow[note["color"]]
             flow[note["color"]] = ((_OPPOSITE[effective[0]], effective[1])
                                    if effective and not reset else None)
+    warnings.extend(stack_shapes(swings, clean))
     warnings.extend(one_hand_bursts(swings))
     span = swings[-1]["seconds"] - swings[0]["seconds"] if len(swings) > 1 else 0
     longest, run = (1, 1) if swings else (0, 0)

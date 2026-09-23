@@ -354,6 +354,28 @@ feel the whole song weight in addition of tracked thing."
   Leave the sixteenth before it empty, and give the last single note before it
   to the hand that leaves both hands cutting the same way.
 
+## Unison hits are stacks
+
+Standing user rule (2026-09-23, `unison_stacks` in `player-profile.json`), from
+Living a Lie at 4:37: where several instruments strike at once on a loud sound,
+one hand cuts a stack, two notes of one color side by side in one direction,
+shaping a longer, taller note, at most three, diagonal where the flow allows.
+
+- A unison hit is one of the song's loudest mix attacks (85th percentile) where
+  the drums and at least two more stems attack within 0.05 s, in a loud bar.
+  Four or more stems make a stack of three; three stems make two. Up to three
+  per bar, a beat apart, so a run of band hits (4:37: beats 562, 563, 564)
+  becomes a run of stacks.
+- Write a stack as notes at one beat marked `"stack": true`. The placer gives
+  them one hand and one cut and puts their cells in an unbroken line along the
+  cut: a column for up or down, a diagonal for a diagonal cut, which it prefers.
+- A stack takes the place of a double on the same sound. It needs one hand:
+  under a held vocal arc the free hand cuts it, so the voice and the band both
+  carry the moment. A stack on a unison hit never counts as filler for
+  `lead_rhythm_diluted`.
+- `unison_hit_unstacked` names each loud unison hit the map cuts without a
+  stack; `stack_shape` names a same-hand chord that is no clean line.
+
 ## Salience: who leads, bar by bar
 
 Standing user rule (2026-09-22, `salience_lead` in `player-profile.json`), from

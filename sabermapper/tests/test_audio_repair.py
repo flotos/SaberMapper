@@ -7,7 +7,7 @@ from contextlib import redirect_stdout
 from fractions import Fraction
 
 from sabermapper.audio_grounding import note_support
-from sabermapper.audio_repair import _grid_beat, ground_notes, insert_note, repair_audio
+from sabermapper.audio_repair import _grid_beat, ground_notes, insert_note, repair_audio, thin_quiet
 from sabermapper.critique import critique_arrangement
 from sabermapper.validation import validate_arrangement
 
@@ -148,6 +148,59 @@ class RepairAudioTests(unittest.TestCase):
     def test_missing_evidence_is_an_actionable_error(self):
         with self.assertRaisesRegex(ValueError, "music analyze"):
             repair_audio(arrangement([0, 1]), None)
+
+
+def quiet_intro(*, intro_energy=0.4):
+    """64 s at 120 BPM, a note every half beat on a melody onset; the first 16 s are thin and soft."""
+    beats = [b / 2 for b in range(256)]
+    evidence = report([], vocals=[4, 12])
+    evidence["layers"]["other"] = {"events": [{"id": f"other:{i}", "seconds": b / 2, "method": "spectral_flux",
+                                               "strength": 0.3 if b % 1 else 0.6} for i, b in enumerate(beats)]}
+    evidence["source"]["duration_seconds"] = 64.0
+    evidence["passages"] = [{"start_seconds": t, "end_seconds": t + 2,
+                             "energy_ratio": intro_energy if t < 16 else 1.0,
+                             "support_score": 0.2 if t < 16 else 1.0} for t in range(0, 64, 2)]
+    return arrangement(beats, length=128), evidence
+
+
+class QuietDensityTests(unittest.TestCase):
+    def test_a_thin_quiet_intro_mapped_like_the_full_band_is_flagged(self):
+        source, evidence = quiet_intro()
+        flagged = [w for w in critique_arrangement(source, evidence)["warnings"]
+                   if w["code"] == "density_exceeds_audio"]
+        self.assertEqual(len(flagged), 1)
+        # Windows straddling the intro's end still average as thin, so the run ends a little past beat 32.
+        self.assertEqual(flagged[0]["beats"][0], 0)
+        self.assertTrue(32 <= flagged[0]["beats"][1] <= 40)
+        self.assertEqual(flagged[0]["threshold"], 1.5)
+        self.assertGreater(flagged[0]["value"], 1.5)
+
+    def test_a_loud_drumless_passage_is_not_quiet(self):
+        source, evidence = quiet_intro(intro_energy=1.0)
+        self.assertNotIn("density_exceeds_audio", {w["code"] for w in critique_arrangement(source, evidence)["warnings"]})
+
+    def test_without_passages_the_check_does_not_run(self):
+        source, evidence = quiet_intro()
+        del evidence["passages"]
+        self.assertEqual(critique_arrangement(source, evidence)["metrics"]["quiet_density"], {"checked": False})
+
+    def test_repair_thins_the_intro_evenly_and_keeps_the_voice(self):
+        source, evidence = quiet_intro()
+        result = repair_audio(source, evidence)
+        self.assertNotIn("density_exceeds_audio", {w["code"] for w in result["remaining"]})
+        self.assertEqual(errors(result["arrangement"]), [])
+        removed = [c["beat"] for c in result["changes"] if c["action"] == "removed"]
+        self.assertTrue(removed and all(b < 32 for b in removed), "only the quiet intro is thinned")
+        kept = sorted(float(n["beat"]) for n in result["arrangement"]["sections"][0]["notes"])
+        self.assertTrue({4.0, 12.0} <= set(kept), "notes on vocal onsets stay")
+        intro = [b for b in kept if b < 32]
+        self.assertLessEqual(max(y - x for x, y in zip(intro, intro[1:])), 4, "no phrase empties")
+        self.assertLessEqual(len(intro), 1.5 * 0.2 * 4 * 16 + 1)
+
+    def test_locked_sections_are_not_thinned(self):
+        source, evidence = quiet_intro()
+        source["sections"][0]["locked"] = True
+        self.assertEqual(thin_quiet(source, evidence)["changes"], [])
 
 
 class RepairAudioCommandTests(unittest.TestCase):

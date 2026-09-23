@@ -16,6 +16,12 @@ Two passes, both judged against one musical evidence run:
    note takes the hand and cut direction that add no flow break with either
    neighbouring swing of that hand; otherwise the onset is reported unresolved.
 
+Between the two, ``density_exceeds_audio`` windows (thin, quiet audio mapped as
+densely as the full band) are thinned: note times with the weakest audio under
+them and the least room around them go first, off-beat before on-beat, until the window fits the density its
+audio support allows. Notes on vocal or drum onsets that the salience checks
+count, arc anchors and doubles are kept.
+
 Locked sections, chain anchors and motif-expanded notes are never changed.
 Every change is re-validated; one that introduces a blocking diagnostic or a
 ``reach_proxy`` warning is reverted. The input arrangement is not mutated.
@@ -29,8 +35,9 @@ from fractions import Fraction
 
 from .arrangement import expanded_notes
 from .audio_grounding import SUPPORT_BEATS, SUPPORT_STRENGTH, ONSET_METHODS, ONSET_STRENGTH, _stem_onsets
-from .critique import (ACCENT_STRENGTH, DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT, SALIENCE_MATCH_BEATS,
-                       VOCAL_ONSET_STRENGTH, beat_to_seconds, critique_arrangement)
+from .critique import (ACCENT_STRENGTH, DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT, QUIET_WINDOW_SECONDS,
+                       SALIENCE_MATCH_BEATS, VOCAL_ONSET_STRENGTH, beat_to_seconds, critique_arrangement,
+                       quiet_windows)
 from .movement import turn_degrees, _OPPOSITE
 from .swing_repair import _count_breaks, _hand_swings
 from .validation import _beat, validate_arrangement
@@ -45,6 +52,8 @@ MIN_GAP_BEATS = Fraction(1, 4)
 HAND_GAP_BEATS = Fraction(1, 2)
 REACH_SPEED = 12  # grid cells per second; above this the movement model reports reach_proxy
 MAX_ROUNDS = 12
+THIN_STRENGTH_FLOOR = 0.25
+THIN_OFFBEAT_FACTOR = 0.8
 FILL_CODES = ("vocal_line_unmapped", "drum_rhythm_unmapped", "boundary_accent_unmapped", "density_collapse")
 LANES = {0: (0, 1), 1: (2, 3)}
 UP_CUTS, DOWN_CUTS = (0, 4, 5), (1, 6, 7)
@@ -235,6 +244,94 @@ def ground_notes(arrangement: dict, report: dict) -> dict:
             changes.append({**record, "action": "removed",
                             "reason": f"no audio onset within {SNAP_BEATS} beat that the hand can reach in time"})
     _revert_breaking(result, arrangement, changes, unresolved, baseline)
+    return {"arrangement": result, "changes": changes, "unresolved": unresolved}
+
+
+def _strength_near(report, arrangement, layers, threshold, methods=ONSET_METHODS):
+    """Sorted (seconds, strength) onsets of ``layers`` (None: all) at or above ``threshold``."""
+    found = []
+    for name, layer in (report.get("layers") or {}).items():
+        if layers is not None and name not in layers:
+            continue
+        found.extend((float(e["seconds"]), e["strength"]) for e in layer.get("events", [])
+                     if e.get("method") in methods and e.get("strength", 0) >= threshold)
+    return sorted(found)
+
+
+def thin_quiet(arrangement: dict, report: dict) -> dict:
+    """Remove the weakest-supported note times from density_exceeds_audio windows."""
+    result = copy.deepcopy(arrangement)
+    view = _Map(result)
+    baseline = _errors(result)
+    tolerance = SUPPORT_BEATS * 60 / view.bpm
+    support = _strength_near(report, result, None, SUPPORT_STRENGTH)
+    support_seconds = [t for t, _ in support]
+    # Onsets the salience checks count: removing their notes would open a vocal or drum finding.
+    keep = sorted(t for t, _ in _strength_near(report, result, ("vocals",), VOCAL_ONSET_STRENGTH, ("spectral_flux",))
+                  + _strength_near(report, result, ("drums",), DRUM_ONSET_STRENGTH, ("spectral_flux",)))
+    match = SALIENCE_MATCH_BEATS * 60 / view.bpm
+
+    def strength(seconds):
+        lo, hi = bisect_left(support_seconds, seconds - tolerance), bisect_left(support_seconds, seconds + tolerance)
+        return max((s for _, s in support[lo:hi]), default=0.0)
+
+    def kept(seconds):
+        index = bisect_left(keep, seconds - match)
+        return index < len(keep) and keep[index] <= seconds + match
+
+    changes, unresolved, tried, blocked = [], [], set(), set()
+    progress = True
+    while progress:
+        progress = False
+        times = sorted(beat_to_seconds(n["beat"], result) for n in expanded_notes(result))
+        by_time, expanded = {}, {}
+        for section, note, beat in view.entries():
+            by_time.setdefault(beat, []).append((section, note))
+        for note in expanded_notes(result):
+            expanded[note["beat"]] = expanded.get(note["beat"], 0) + 1
+        for window in quiet_windows(result, times, report)[1]:
+            if not window.get("excess") or window["start_seconds"] in blocked:
+                continue
+            candidates = []
+            for beat, group in by_time.items():
+                seconds = beat_to_seconds(beat, result)
+                if not window["start_seconds"] <= seconds < window["end_seconds"] or beat in tried:
+                    continue
+                section, start = view.section_at(beat)
+                if (len(group) != 1 or expanded.get(beat, 0) != 1 or section["locked"] or kept(seconds)
+                        or view.arcs_at(section, start, group[0][1], beat)
+                        or view.chain_anchored(section, start, group[0][1], beat)):
+                    continue
+                # Thin evenly: the cheapest removal is a weak, off-beat note in a crowded spot, so no
+                # phrase empties while a run beside it stays dense.
+                index = bisect_left(times, seconds)
+                previous = times[index - 1] if index else seconds - QUIET_WINDOW_SECONDS
+                following = times[index + 1] if index + 1 < len(times) else seconds + QUIET_WINDOW_SECONDS
+                cost = (strength(seconds) + THIN_STRENGTH_FLOOR) * (following - previous)
+                cost *= 1.0 if beat.denominator == 1 else THIN_OFFBEAT_FACTOR
+                candidates.append((cost, beat, group[0]))
+            if not candidates:
+                blocked.add(window["start_seconds"])
+                unresolved.append({"beat": round(window["start_beat"], 4), "code": "density_exceeds_audio",
+                                   "object_ids": [],
+                                   "reason": f'{window["notes"]} notes in {window["start_seconds"]:g}-'
+                                             f'{window["end_seconds"]:g} s remain above {window["allowed_nps"]:.2f} '
+                                             "nps; the rest sit on vocal or drum onsets, arcs, doubles or locked "
+                                             "sections, or their removal would break flow"})
+                continue
+            _, beat, (section, note) = min(candidates, key=lambda c: (c[0], c[1]))
+            tried.add(beat)
+            progress = True
+            section["notes"].remove(note)
+            if _errors(result) - baseline:
+                section["notes"].append(note)
+                section["notes"].sort(key=lambda n: _beat(n["beat"]))
+                break
+            changes.append({"beat": float(beat), "object_ids": [f'{section["id"]}/note/{note["id"]}'],
+                            "action": "removed", "code": "density_exceeds_audio",
+                            "reason": f'thins a quiet passage ({window["nps"]:.2f} nps against '
+                                      f'{window["allowed_nps"]:.2f} allowed): weakest audio support in the window'})
+            break
     return {"arrangement": result, "changes": changes, "unresolved": unresolved}
 
 
@@ -469,6 +566,9 @@ def repair_audio(arrangement: dict, report: dict | None) -> dict:
         raise ValueError("Fix blocking diagnostics before repairing audio findings: "
                          + "; ".join(d["message"] for d in blocking[:5]))
     grounded = ground_notes(arrangement, report)
+    thinned = thin_quiet(grounded["arrangement"], report)
+    grounded = {"arrangement": thinned["arrangement"], "changes": grounded["changes"] + thinned["changes"],
+                "unresolved": grounded["unresolved"] + thinned["unresolved"]}
     filled = fill_findings(grounded["arrangement"], report)
     remaining = [{k: w[k] for k in ("code", "message", "section_id")}
                  for w in critique_arrangement(filled["arrangement"], report)["warnings"]]

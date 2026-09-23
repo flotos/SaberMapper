@@ -564,3 +564,195 @@ def _lead_pool(evidence, span):
                     found.append(item)
     return found
 
+
+# ---------------------------------------------------------------------------------------------------------
+# Suggestions for the audio and critique codes (project check)
+# ---------------------------------------------------------------------------------------------------------
+
+AUDIO_SUGGESTED = ("audio_unmapped", "note_without_audio", "density_exceeds_audio", "difficulty_exceeds_intensity",
+                   "lead_rhythm_diluted", "lead_rhythm_unmapped", "vocal_line_unmapped", "drum_rhythm_unmapped",
+                   "drum_entry_unmapped", "melody_unmapped", "ensemble_unmapped", "boundary_accent_unmapped",
+                   "density_collapse", "intensity_underplayed", "focus_on_quiet_stem")
+RETIME_REACH = Fraction(1, 2)
+
+
+def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dict]) -> None:
+    """Attach concrete edits to audio and critique findings, drawn from the rhythm draft's own generators.
+
+    ``arrangement`` is placed. Additions are rhythm-only notes (``beat`` plus the evidence) that the placer
+    places on save; removals and retimes name the notes; ``set_weights`` rewrites a focus phrase.
+    """
+    wanted = [f for f in findings if f["code"] in AUDIO_SUGGESTED and not f["suggestions"]]
+    if not wanted or not report:
+        return
+    from .arrangement import expanded_notes
+    from .critique import intensity_bars
+    evidence = _Evidence(arrangement, report)
+    notes = expanded_notes(arrangement)
+    times = sorted({n["beat"] for n in notes})
+    by_id = {n["id"]: n for n in notes}
+    context = critique_arrangement(arrangement, report)
+    singing = {b["start_beat"] for b in context["metrics"]["salience"].get("bars", []) if b["salient"] == "vocals"}
+    soft = {b["start_beat"] for b in intensity_bars(arrangement, report, notes)[1] if b.get("relative", 1.0) < SOFT_RATIO}
+    tier = arrangement["difficulty"].get("target_tier") or "band"
+
+    def open_times(candidates):
+        """Candidates on a sound that crowd no note and no other candidate, strongest first."""
+        chosen = []
+        for item in sorted(candidates, key=lambda c: (ROLE_RANK[c["role"]], -c["strength"], c["beat"])):
+            beat = item["beat"]
+            if evidence.strength_at(beat) <= 0 and item["role"] not in ("lead", "melody", "ensemble"):
+                continue
+            nearby = times[bisect_left(times, beat - MIN_GAP_BEATS + Fraction(1, 10**6)):]
+            if nearby and nearby[0] < beat + MIN_GAP_BEATS:
+                continue
+            if any(abs(beat - other["beat"]) < MIN_GAP_BEATS for other in chosen):
+                continue
+            chosen.append(item)
+        return sorted(chosen, key=lambda c: c["beat"])
+
+    def unmapped(candidates):
+        """Candidates whose sound no note carries yet (none within SALIENCE_MATCH_BEATS)."""
+        return [c for c in candidates if not _near([float(t) for t in times], c["evidence"]["onset_beat"],
+                                                   SALIENCE_MATCH_BEATS)]
+
+    def add(finding, candidates, why):
+        found = open_times(unmapped(candidates))
+        if found:
+            finding["suggestions"].append({"op": "add", "notes": [
+                {"beat": _relative(c["beat"]), "role": c["role"], "evidence": c["evidence"]} for c in found],
+                "reason": why})
+
+    def span_of(finding):
+        beats = finding.get("beats") or []
+        return (Fraction(str(beats[0])), Fraction(str(beats[1]))) if len(beats) == 2 else (None, None)
+
+    def weakest(ids, count, why):
+        """Remove the ``count`` note times under the weakest sounds (off-beat first), editable notes only."""
+        editable = [by_id[i] for i in ids if i in by_id and "/note/" in i]
+        ordered = sorted(editable, key=lambda n: (evidence.strength_at(n["beat"]), n["beat"].denominator == 1,
+                                                  n["beat"]))
+        victims = [n["id"] for n in ordered[:max(0, count)]]
+        if victims:
+            return {"op": "remove", "object_ids": victims, "reason": why}
+        return None
+
+    for finding in wanted:
+        code = finding["code"]
+        first, last = span_of(finding)
+        if code == "audio_unmapped" and first is not None:
+            pool = []
+            for bar in range(int(first // SALIENCE_BAR_BEATS) * SALIENCE_BAR_BEATS, math.ceil(last), SALIENCE_BAR_BEATS):
+                _, primary, _ = _bar_candidates(evidence, bar, bar + SALIENCE_BAR_BEATS, singing, tier, bar in soft)
+                pool += [c for c in primary if first <= c["beat"] < last]
+            add(finding, pool, "map the stretch's audible layers (the rhythm draft for these bars)")
+        elif code == "note_without_audio":
+            for oid in finding["object_ids"]:
+                note = by_id.get(oid)
+                if note is None or "/note/" not in oid:
+                    continue
+                options = []
+                for beat, strength, *_ in [e for name in evidence.layers
+                                           for e in evidence.events(name, ONSET_METHODS, SUPPORT_STRENGTH)]:
+                    target = grid_beat(beat)
+                    if abs(target - note["beat"]) <= RETIME_REACH and target != note["beat"]:
+                        crowded = any(abs(target - t) < MIN_GAP_BEATS for t in times if t != note["beat"])
+                        if not crowded and evidence.strength_at(target) > 0:
+                            options.append((abs(target - note["beat"]), -strength, target))
+                if options:
+                    finding["suggestions"].append({"op": "retime", "object_id": oid,
+                                                   "to_beat": _relative(min(options)[2]),
+                                                   "reason": "move onto the nearest supporting onset"})
+                else:
+                    finding["suggestions"].append({"op": "remove", "object_id": oid,
+                                                   "reason": f"no onset within {RETIME_REACH} beat"})
+        elif code == "lead_rhythm_diluted":
+            stray = [i for i in finding["object_ids"] if "/note/" in i]
+            if stray:
+                finding["suggestions"].append({"op": "remove", "object_ids": stray,
+                                               "reason": "these times sit between the lead's attacks"})
+        elif code == "density_exceeds_audio" and first is not None:
+            from .critique import beat_to_seconds as seconds, quiet_windows
+            salient, tolerance = salient_onsets(arrangement, report)
+            windows = [w for w in quiet_windows(arrangement, sorted(seconds(n["beat"], arrangement) for n in notes),
+                                                report)[1]
+                       if w.get("excess") and w["end_beat"] > float(first) and w["start_beat"] < float(last)]
+            excess = max((math.ceil(w["free_notes"] - w["allowed_nps"] * (w["end_seconds"] - w["start_seconds"]))
+                          for w in windows), default=1)
+            free = [n["id"] for n in notes if first <= n["beat"] < last
+                    and not on_onset(salient, tolerance, seconds(n["beat"], arrangement))]
+            suggestion = weakest(free, excess, "thin the quiet passage: these notes sit on its weakest sounds, "
+                                               "off the vocal, drum and melody onsets")
+            if suggestion:
+                finding["suggestions"].append(suggestion)
+        elif code == "difficulty_exceeds_intensity" and first is not None:
+            bars = [b for b in intensity_bars(arrangement, report, notes)[1]
+                    if b.get("excess") and first <= b["start_beat"] < last]
+            ids = [i for b in bars for i in b["note_ids"]]
+            count = sum(math.ceil(b["swings"] * (1 - b["allowed"] / b["demand"])) for b in bars)
+            suggestion = weakest(ids, count, "ease the soft bars: drop their weakest sounds")
+            if suggestion:
+                finding["suggestions"].append(suggestion)
+        elif code in ("lead_rhythm_unmapped", "vocal_line_unmapped", "drum_rhythm_unmapped", "drum_entry_unmapped",
+                      "melody_unmapped", "density_collapse", "intensity_underplayed") and first is not None:
+            pool = []
+            if code in ("drum_rhythm_unmapped", "drum_entry_unmapped"):
+                hits = [(b, s) for b, s, *_ in evidence.events("drums", ("spectral_flux",), DRUM_ONSET_STRENGTH)
+                        if float(first) <= b < float(last)]
+                pool = [_candidate(b, s, "drums", "drums", "spectral_flux", b, beat_to_seconds(b, arrangement))
+                        for b, s in strongest_per_slot(hits, DRUM_SLOTS_PER_BEAT)]
+            elif code == "melody_unmapped":
+                pool = [_candidate(b, 0.3, "melody", "mix", "melody_change", b, beat_to_seconds(b, arrangement),
+                                   melodic=True) for b in melody_onsets(report, arrangement, float(first), float(last))]
+            else:
+                roles = {"lead_rhythm_unmapped": ("lead", "run"), "vocal_line_unmapped": ("lead", "vocals")}.get(code)
+                for bar in range(int(first // SALIENCE_BAR_BEATS) * SALIENCE_BAR_BEATS, math.ceil(last),
+                                 SALIENCE_BAR_BEATS):
+                    _, primary, reserve = _bar_candidates(evidence, bar, bar + SALIENCE_BAR_BEATS, singing, tier,
+                                                          bar in soft)
+                    picks = [c for c in primary if roles is None or c["role"] in roles]
+                    picks += reserve if code in ("intensity_underplayed", "density_collapse") else []
+                    pool += [c for c in picks if first <= c["beat"] < last]
+            add(finding, pool, "map the sounds this finding names")
+        elif code in ("ensemble_unmapped", "boundary_accent_unmapped"):
+            targets = finding.get("targets") or ([[float(first), 1.0]] if first is not None else [])
+            pool = [_candidate(beat, strength, "ensemble", "mix", "spectral_flux", beat, beat_to_seconds(beat, arrangement))
+                    for beat, strength in targets]
+            add(finding, pool, "map the band's heaviest accents")
+        elif code == "focus_on_quiet_stem":
+            finding["suggestions"] += focus_weights(arrangement, report, context, finding.get("section_id"))
+
+
+def focus_weights(arrangement, report, context=None, section_id=None):
+    """``set_weights`` suggestions dropping stems absent from a focus phrase (focus_on_quiet_stem).
+
+    A stem QUIET_STEM_DB below its own usual level only carries separator bleed. When the declared lead is
+    absent, the most active stem takes its weight and becomes the lead; when every stem is absent the phrase
+    follows the mix.
+    """
+    from .critique import QUIET_STEM_DB
+    context = context or critique_arrangement(arrangement, report)
+    levels = {(p["section_id"], p["focus_id"]): p for p in context["metrics"]["focus_stems"].get("phrases", [])}
+    found = []
+    for section in arrangement["sections"]:
+        if section.get("locked") or (section_id and section["id"] != section_id):
+            continue
+        for phrase in section.get("musical_focus") or []:
+            level = levels.get((section["id"], phrase["id"]))
+            if not level:
+                continue
+            db, active = level["db_vs_own_level"], level["most_active"]
+            quiet = {name for name in phrase["weights"] if name in db and db[name] <= -QUIET_STEM_DB}
+            if not quiet:
+                continue
+            weights = {name: w for name, w in phrase["weights"].items() if name not in quiet and w > 0}
+            lead = phrase["lead"]
+            if lead in quiet or not weights:
+                lead = active if db[active] > -QUIET_STEM_DB else "mix"
+                weights[lead] = weights.get(lead, 0) + phrase["weights"].get(phrase["lead"], 0) or 1.0
+            total = sum(weights.values())
+            weights = {name: round(w / total, 4) for name, w in weights.items()}
+            weights[lead] = round(weights[lead] + 1 - sum(weights.values()), 4)
+            found.append({"op": "set_weights", "section_id": section["id"], "focus_id": phrase["id"], "lead": lead,
+                          "weights": weights, "reason": f"{', '.join(sorted(quiet))} absent here"})
+    return found

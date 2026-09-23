@@ -166,5 +166,73 @@ class ProposalCommandTests(unittest.TestCase):
             self.assertEqual(main(["music", "rhythm", project, "--workspace", folder]), 1, "a grid needs a range")
 
 
+class AudioSuggestionTests(unittest.TestCase):
+    """project check suggests concrete edits for the audio codes; applying one clears its finding."""
+
+    def check(self, draft, evidence):
+        from sabermapper.check import check_arrangement
+        return check_arrangement(draft, evidence)
+
+    def apply(self, draft, suggestion):
+        from sabermapper.check import apply_suggestion
+        return apply_suggestion(draft, suggestion)
+
+    def test_an_unmapped_stretch_gets_the_rhythm_draft_for_it(self):
+        evidence = report()
+        draft = propose_rhythm(arrangement(), evidence)["draft"]
+        section = draft["sections"][0]
+        section["notes"] = [n for n in section["notes"] if not 40 <= Fraction(str(n["beat"])) < 64]
+        found = [f for f in self.check(draft, evidence)["findings"] if f["code"] == "audio_unmapped"]
+        self.assertTrue(found and found[0]["blocking"])
+        suggestion = found[0]["suggestions"][0]
+        self.assertEqual(suggestion["op"], "add")
+        fixed = self.apply(draft, suggestion)
+        after = self.check(fixed, evidence)
+        self.assertFalse([f for f in after["findings"] if f["code"] == "audio_unmapped"])
+        self.assertEqual(after["blocking_count"], 0)
+
+    def test_a_missed_lead_gets_its_attacks(self):
+        evidence = report()
+        draft = propose_rhythm(arrangement(), evidence)["draft"]
+        section = draft["sections"][0]
+        section["notes"] = [n for n in section["notes"]
+                            if not (48 <= Fraction(str(n["beat"])) < 52 and Fraction(str(n["beat"])).denominator == 2)]
+        found = [f for f in self.check(draft, evidence)["findings"] if f["code"] == "lead_rhythm_unmapped"]
+        self.assertTrue(found)
+        fixed = self.apply(draft, found[0]["suggestions"][0])
+        self.assertFalse([f for f in self.check(fixed, evidence)["findings"] if f["code"] == "lead_rhythm_unmapped"
+                          and f["beats"] == found[0]["beats"]])
+
+    def test_a_note_off_every_sound_moves_onto_one(self):
+        evidence = report()
+        draft = propose_rhythm(arrangement(), evidence)["draft"]
+        section = draft["sections"][0]
+        for note in section["notes"]:
+            beat = Fraction(str(note["beat"]))
+            if 16 <= beat < 24:
+                note["beat"] = str(beat + Fraction(3, 8))  # a grid shift that leaves the kicks
+        found = [f for f in self.check(draft, evidence)["findings"] if f["code"] == "note_without_audio"]
+        self.assertTrue(found)
+        fixed = draft
+        for suggestion in found[0]["suggestions"]:
+            self.assertIn(suggestion["op"], ("retime", "remove"))
+            fixed = self.apply(fixed, suggestion)
+        self.assertFalse([f for f in self.check(fixed, evidence)["findings"] if f["code"] == "note_without_audio"])
+
+    def test_a_focus_on_an_absent_stem_gets_new_weights(self):
+        evidence = report()
+        contour = [{"seconds": i / 10, "energy": 0.5} for i in range(BEATS * 5)]
+        silent = [{"seconds": i / 10, "energy": 1e-6 if 16 <= i / 10 < 48 else 0.5} for i in range(BEATS * 5)]
+        evidence["layers"]["guitar"].update(kind="audio_layer", energy_contour=silent)
+        evidence["layers"]["drums"].update(kind="audio_layer", energy_contour=contour)
+        draft = propose_rhythm(arrangement(), evidence)["draft"]
+        found = [f for f in self.check(draft, evidence)["findings"] if f["code"] == "focus_on_quiet_stem"]
+        self.assertTrue(found)
+        suggestion = found[0]["suggestions"][0]
+        self.assertEqual((suggestion["op"], suggestion["lead"]), ("set_weights", "drums"))
+        fixed = self.apply(draft, suggestion)
+        self.assertFalse([f for f in self.check(fixed, evidence)["findings"] if f["code"] == "focus_on_quiet_stem"])
+
+
 if __name__ == "__main__":
     unittest.main()

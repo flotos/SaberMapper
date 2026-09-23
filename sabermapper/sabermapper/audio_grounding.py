@@ -163,9 +163,11 @@ def audio_findings(arrangement: dict, report: dict | None) -> tuple[dict, list[d
         return {"checked": False}, []
     findings = []
 
-    def add(severity, code, message, *, value, threshold, section_id=None, object_ids=()):
+    def add(severity, code, message, *, value, threshold, section_id=None, object_ids=(), beats=None):
         findings.append({"severity": severity, "code": code, "message": message, "section_id": section_id,
                          "object_ids": list(object_ids), "value": value, "threshold": threshold})
+        if beats is not None:
+            findings[-1]["beats"] = beats
 
     spans = underfilled_spans(arrangement, report)
     for span in spans:
@@ -175,7 +177,7 @@ def audio_findings(arrangement: dict, report: dict | None) -> tuple[dict, list[d
             f'over {span["seconds"]:.1f} s. Strong onsets there: {_layers_text(span["strong_onsets"])}. '
             "Map the audible layers in this stretch.",
             value=span["seconds"], threshold=BLOCKING_SECONDS,
-            section_id=_section_at(arrangement, span["start_beat"]))
+            section_id=_section_at(arrangement, span["start_beat"]), beats=[span["start_beat"], span["end_beat"]])
     support = note_support(arrangement, report) if arrangement["sections"] else {
         "note_times": 0, "supported": 0, "share": 1.0, "unsupported_runs": []}
     if support["note_times"] and support["share"] < SUPPORT_SHARE:
@@ -188,7 +190,8 @@ def audio_findings(arrangement: dict, report: dict | None) -> tuple[dict, list[d
             f'Beats {run["start_beat"]:g}-{run["end_beat"]:g}: {run["note_times"]} consecutive note times have no '
             "audio event under them.",
             value=run["note_times"], threshold=UNSUPPORTED_RUN,
-            section_id=_section_at(arrangement, run["start_beat"]), object_ids=run["object_ids"])
+            section_id=_section_at(arrangement, run["start_beat"]), object_ids=run["object_ids"],
+            beats=[run["start_beat"], run["end_beat"]])
     metrics = {"checked": True, "unmapped_spans": spans,
                "note_support": {k: v for k, v in support.items() if k != "unsupported_runs"},
                "unsupported_runs": [{k: v for k, v in r.items() if k != "object_ids"}

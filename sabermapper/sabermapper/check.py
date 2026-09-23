@@ -77,6 +77,12 @@ def check_arrangement(arrangement: dict, report: dict | None = None, *, run_id: 
                 + [_finding(f, "critique", beats) for f in warnings]
                 + [_finding(f, "project", beats) for f in extra])
     _suggest(placed, findings)
+    if report:
+        from .rhythm_proposal import audio_suggestions
+        try:
+            audio_suggestions(placed, report, findings)
+        except (ValueError, KeyError, TypeError, ZeroDivisionError):
+            pass  # a broken arrangement already carries its own errors
     result = {"run_id": run_id, "placement": placement,
               "blocking_count": sum(1 for f in findings if f["blocking"]),
               "counts": _counts(findings), "findings": findings}
@@ -236,9 +242,36 @@ def _apply(notes, edit):
 
 
 def apply_suggestion(arrangement: dict, suggestion: dict) -> dict:
-    """Apply one suggestion to a copy of ``arrangement``; a set or moved field becomes the agent's pin."""
+    """Apply one suggestion to a copy of ``arrangement``; a set or moved field becomes the agent's pin.
+
+    ``add`` inserts rhythm-only notes (the placer places them), ``remove`` takes ``object_id`` or
+    ``object_ids``, ``set_weights`` rewrites a focus phrase's lead and weights.
+    """
     import copy
+    from fractions import Fraction
     result = copy.deepcopy(arrangement)
+    if suggestion["op"] == "add":
+        for item in suggestion["notes"]:
+            beat = Fraction(str(item["beat"]))
+            section = next(s for s in result["sections"] if Fraction(str(s["start_beat"])) <= beat
+                           < Fraction(str(s["start_beat"])) + Fraction(str(s["length_beats"])))
+            relative = beat - Fraction(str(section["start_beat"]))
+            taken = {n["id"] for n in section["notes"]}
+            note_id = "s-" + str(beat).replace("/", "_")
+            while note_id in taken:
+                note_id += "x"
+            section["notes"].append({"id": note_id, "beat": int(relative) if relative.denominator == 1
+                                     else str(relative)})
+        return result
+    if suggestion["op"] == "set_weights":
+        section = next(s for s in result["sections"] if s["id"] == suggestion["section_id"])
+        phrase = next(p for p in section["musical_focus"] if p["id"] == suggestion["focus_id"])
+        phrase.update(lead=suggestion["lead"], weights=dict(suggestion["weights"]))
+        return result
+    if suggestion["op"] == "remove" and "object_ids" in suggestion:
+        for oid in suggestion["object_ids"]:
+            result = apply_suggestion(result, {"op": "remove", "object_id": oid})
+        return result
     sid, kind, nid = suggestion["object_id"].split("/", 2)
     if kind != "note":
         raise ValueError(f"{suggestion['object_id']} is not a literal note")

@@ -402,7 +402,7 @@ class ProjectStore:
             missing = None if reference else missing_reference_warning(subject)
             extra += [missing] if missing else []
             result = check_arrangement(subject, report, run_id=run_id, tier_reference=reference, extra=extra,
-                                       metrics=metrics)
+                                       metrics=metrics, listen=self.listen_sections(path, run_id, subject))
             if arrangement is not None:
                 try:
                     from .placement import place_arrangement
@@ -419,6 +419,14 @@ class ProjectStore:
                 result["warnings"].append(missing)
             return {"project": project_id, "difficulty": name, "revision": arrangement_revision(stored),
                     "subject": "stored revision" if arrangement is None else "draft (not saved)", **result}
+
+    def listen_sections(self, path: Path, run_id: str | None, arrangement: dict) -> list | None:
+        """The listen sections of evidence run ``run_id`` on ``arrangement``'s grid, None before `music listen`."""
+        from .listen import listen_path, rebeat
+        file = listen_path(path / "musical" / run_id) if run_id else None
+        if file is None or not file.exists():
+            return None
+        return rebeat(read_json(file), arrangement).get("sections")
 
     def evidence(self, path: Path, run: str | None = None) -> tuple[str | None, dict | None]:
         """(run ID, report) of the requested evidence run, else the newest run of the current audio."""

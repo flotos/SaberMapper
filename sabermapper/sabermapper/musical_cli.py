@@ -123,7 +123,8 @@ def dispatch_musical(args, emit):
                  if isinstance(item, dict) and item.get("project") == args.project and "seconds" in item]
         result = propose_rhythm(arrangement, report, start=args.start, end=args.end, tier=args.tier,
                                 tier_reference=read_json(reference_path) if reference_path.exists() else None,
-                                held=sorted(set(named + args.held)))
+                                held=sorted(set(named + args.held)),
+                                listen=store.listen_sections(directory, run_id, arrangement))
         draft = result.pop("draft")
         if args.draft:
             args.draft.parent.mkdir(parents=True, exist_ok=True)

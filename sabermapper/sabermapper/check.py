@@ -48,8 +48,12 @@ def _from_alternative(alternative):
 
 
 def check_arrangement(arrangement: dict, report: dict | None = None, *, run_id: str | None = None,
-                      tier_reference: dict | None = None, extra: list[dict] = (), metrics: bool = False) -> dict:
-    """The full report for one arrangement; ``report`` is the musical evidence run (None skips the audio)."""
+                      tier_reference: dict | None = None, extra: list[dict] = (), metrics: bool = False,
+                      listen: list | None = None) -> dict:
+    """The full report for one arrangement; ``report`` is the musical evidence run (None skips the audio).
+
+    ``listen`` is the run's listen section list, whose repetition groups mark recurring parts.
+    """
     from .audio_grounding import audio_findings
     from .critique import critique_arrangement
     placed, placement, placement_findings = placed_for_check(arrangement)
@@ -60,7 +64,7 @@ def check_arrangement(arrangement: dict, report: dict | None = None, *, run_id: 
     if not any(is_blocking(d) and d["code"] != "unresolved_section" for d in diagnostics):
         try:
             audio = audio_findings(placed, report)[1] if report else []
-            critique = critique_arrangement(placed, report, tier_reference)
+            critique = critique_arrangement(placed, report, tier_reference, listen)
         except (ValueError, KeyError, TypeError, ZeroDivisionError):
             pass  # structurally broken input carries its own errors
     seen = {(f["code"], tuple(f["object_ids"]), f["message"]) for f in audio}
@@ -245,10 +249,14 @@ def apply_suggestion(arrangement: dict, suggestion: dict) -> dict:
     """Apply one suggestion to a copy of ``arrangement``; a set or moved field becomes the agent's pin.
 
     ``add`` inserts rhythm-only notes (the placer places them), ``remove`` takes ``object_id`` or
-    ``object_ids``, ``set_weights`` rewrites a focus phrase's lead and weights.
+    ``object_ids``, ``set_weights`` rewrites a focus phrase's lead and weights, ``add_theme`` declares a theme
+    and reopens its echo notes for the placer.
     """
     import copy
     from fractions import Fraction
+    if suggestion["op"] == "add_theme":
+        from .recurrence import add_theme
+        return add_theme(arrangement, suggestion["theme"])
     result = copy.deepcopy(arrangement)
     if suggestion["op"] == "add":
         for item in suggestion["notes"]:

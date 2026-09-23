@@ -155,7 +155,9 @@ where `low_intensity` is true, place mostly on `melody_change` and `pitch_change
 attacks (`spectral_flux` on layers that are not `sustained_layer`); never place
 from `energy_rise` on a `sustained_layer`; select the lead by rhythmic salience,
 such as a grid-locked piano, rather than loudness; quantize to 1/2 or whole
-beats, never 1/4; check section seams so a strong accent on a seam still gets a
+beats and never stream quarters, but let a single note take the quarter beat where
+the sound itself lands there (a legato pitch change arriving just after the beat,
+Living a Lie 2026-09-23); check section seams so a strong accent on a seam still gets a
 note; and keep density well below the body of the song.
 
 A passage is quiet only where the evidence says so (`low_intensity` true, mix
@@ -179,9 +181,10 @@ the pitched line is what the player hears, and its pitch changes are the rhythm.
 
 - List the changes with `music inspect ID --workspace workspace --run RUN --start A --end B --layer mix`
   (method `melody_change`, with `from_midi`/`to_midi`), and `music rhythm --layers mix`.
-- Put a note on each change. A legato pad or voice reaches its new pitch just
-  after the beat, so quantize to the nearest half beat, never onto an even grid
-  that ignores the line.
+- Put a note on each change, within 0.13 beat of it: the whole or half beat when
+  the change is on it, else the nearest quarter. A legato pad or voice reaches its
+  new pitch just after the beat; a note on the beat before it misses the sound.
+  Keep the line's own spacing; never an even grid that ignores it.
 - Let the row follow the contour: the highest notes of the phrase on the top
   row, the lowest on the bottom, and a step up or down moves the next note the
   same way. Cut direction keeps the flow rules; the row carries the pitch.

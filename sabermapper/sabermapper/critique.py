@@ -73,9 +73,6 @@ MELODY_LAYER = "mix"
 MELODY_ONSET_STRENGTH = 0.3
 MELODY_MIN_CHANGES = 3
 MELODY_MAPPED_THRESHOLD = 0.5
-# Legato pads and voices reach a new pitch gradually, often just after the beat, and quiet passages are
-# quantized to half beats: a note within a quarter beat marks the change.
-MELODY_MATCH_BEATS = 0.25
 FOCUS_CODES = ("vocal_line_unmapped", "drum_rhythm_unmapped", "lead_rhythm_unmapped",
                "lead_rhythm_diluted", "melody_unmapped", "focus_on_quiet_stem")
 
@@ -110,7 +107,7 @@ DEFINITIONS = {
                    "than 6 strong drum hits: the drums do not carry it, so the pitched line is what the player hears.",
     "melody_unmapped": "One or more consecutive melodic bars with at least 3 mix melody_change events (the predominant "
                        "pitch settling on a new held note) of strength 0.3 or more, strongest per half-beat slot, "
-                       "fewer than 50% of which have a note within 0.25 beat: the notes ignore the pitch changes of "
+                       "fewer than 50% of which have a note within 0.13 beat: the notes ignore the pitch changes of "
                        "a pad, choir or legato line.",
     "grid_alignment": "For each 32-beat window, the median signed offset in milliseconds of strong drums (else percussive, low or mix) spectral_flux onsets of strength 0.3 or more from the nearest quarter beat, counting only onsets within 0.1 beat of it; windows need at least 8 such onsets.",
     "grid_drift": "Some grid_alignment window's median offset differs from the song-wide median by more than 30 ms: the tempo or offset drifts there, so notes placed on the grid miss the audio.",
@@ -504,8 +501,8 @@ def _melody(arrangement, spans, notes, report, salience, warn):
     beats = sorted(float(n["beat"]) for n in notes)
 
     def near(beat):
-        index = bisect_left(beats, beat - MELODY_MATCH_BEATS)
-        return index < len(beats) and beats[index] <= beat + MELODY_MATCH_BEATS
+        index = bisect_left(beats, beat - SALIENCE_MATCH_BEATS)
+        return index < len(beats) and beats[index] <= beat + SALIENCE_MATCH_BEATS
     bars = []
     for bar in salience["bars"]:
         if bar["salient"] not in (None, "drums") or bar["onsets"] >= DRUM_PATTERN_MIN_ONSETS:

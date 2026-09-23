@@ -278,9 +278,13 @@ class MelodyTests(unittest.TestCase):
         self.assertEqual(result["metrics"]["melody"]["bars"][0]["unmapped_beats"], [1, 2, 3])
 
     def test_following_the_pitch_changes_passes(self):
-        # A legato change heard just after the beat is marked by the note on the beat.
-        result = self.result([1, 2, 3, 5, 6, 7], self.report(changes=(1, 2, 3.2, 5, 6.15, 7)))
+        # A legato change heard just after the beat takes the quarter beat nearest it.
+        result = self.result([1, 2, 3.25, 5, 6.25, 7], self.report(changes=(1, 2, 3.2, 5, 6.15, 7)))
         self.assertNotIn("melody_unmapped", codes(result))
+
+    def test_a_note_on_the_half_beat_grid_misses_a_late_legato_change(self):
+        result = self.result([1, 2, 3, 5, 6, 7], self.report(changes=(1.2, 2.2, 3.2, 5.2, 6.2, 7.2)))
+        self.assertIn("melody_unmapped", codes(result))
 
     def test_sung_bars_and_sparse_changes_are_left_to_other_checks(self):
         sung = self.result([0, 4], self.report(changes=(1, 2, 3, 5), vocals=(0, 1, 2, 3)))

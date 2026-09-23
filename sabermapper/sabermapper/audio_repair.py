@@ -17,7 +17,7 @@ Two passes, both judged against one musical evidence run:
    neighbouring swing of that hand; otherwise the onset is reported unresolved.
    ``lead_rhythm_unmapped`` adds notes on the declared lead's strongest attack
    per half-beat, and ``melody_unmapped`` on the strongest melody change per
-   half-beat of a melodic bar.
+   half-beat of a melodic bar, on the whole, half or quarter beat nearest it.
 3. **Follow the lead.** Each bar flagged ``lead_rhythm_diluted`` (notes filling
    the space between the lead's attacks) or ``lead_rhythm_unmapped`` (an even
    stream leaving no room for the lead's attacks) is rebuilt: its free notes are cleared,
@@ -51,7 +51,7 @@ from fractions import Fraction
 from .arrangement import expanded_notes
 from .audio_grounding import SUPPORT_BEATS, SUPPORT_STRENGTH, ONSET_METHODS, ONSET_STRENGTH, _stem_onsets
 from .critique import (ACCENT_STRENGTH, DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT, LEAD_ONSET_STRENGTH,
-                       LEAD_SUPPORT_STRENGTH, MELODY_LAYER, MELODY_MATCH_BEATS, MELODY_ONSET_STRENGTH, QUIET_WINDOW_SECONDS,
+                       LEAD_SUPPORT_STRENGTH, MELODY_LAYER, MELODY_ONSET_STRENGTH, QUIET_WINDOW_SECONDS,
                        SALIENCE_BAR_BEATS, SALIENCE_MATCH_BEATS, VOCAL_ONSET_STRENGTH, _sections, beat_to_seconds,
                        critique_arrangement, focus_lead, lead_onsets, on_onset, quiet_bar, quiet_windows,
                        salient_onsets, strongest_per_slot)
@@ -86,6 +86,19 @@ def _grid_beat(beat: float) -> Fraction:
         if abs(float(candidate) - beat) <= SNAP_TOLERANCE:
             return candidate
     return Fraction(round(beat * 16), 16)
+
+
+def _melody_beat(beat: float) -> Fraction:
+    """A whole or half beat within SNAP_TOLERANCE of a melody change, else the nearest quarter.
+
+    A legato line reaches its new pitch just after the beat; the note sits on the sound, but a
+    melodic passage never takes the triplet or sixteenth grids.
+    """
+    for denominator in (1, 2):
+        candidate = Fraction(round(beat * denominator), denominator)
+        if abs(float(candidate) - beat) <= SNAP_TOLERANCE:
+            return candidate
+    return Fraction(round(beat * 4), 4)
 
 
 def _relative(beat: Fraction):
@@ -550,15 +563,11 @@ def fill_findings(arrangement: dict, report: dict) -> dict:
         added = 0
         for warning in warnings:
             beats = sorted(float(n["beat"]) for n in expanded_notes(result))
-            melody = warning["code"] == "melody_unmapped"
-            reach = MELODY_MATCH_BEATS if melody else SALIENCE_MATCH_BEATS
             for strength, onset in _fill_targets(result, report, warning):
-                index = bisect_left(beats, onset - reach)
-                if index < len(beats) and beats[index] <= onset + reach:
+                index = bisect_left(beats, onset - SALIENCE_MATCH_BEATS)
+                if index < len(beats) and beats[index] <= onset + SALIENCE_MATCH_BEATS:
                     continue  # already mapped
-                # A legato pitch change lands just after the beat; melodic bars keep the half-beat grid.
-                half = Fraction(round(onset * 2), 2)
-                target = half if melody and abs(float(half) - onset) <= MELODY_MATCH_BEATS else _grid_beat(onset)
+                target = _melody_beat(onset) if warning["code"] == "melody_unmapped" else _grid_beat(onset)
                 key = (warning["code"], target)
                 if key in tried:
                     continue

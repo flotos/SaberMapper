@@ -311,9 +311,14 @@ namespace SaberMapper
         static Mesh GenerateMesh(ForgeParams m, string id)
         {
             string className = m.String("class", null);
+            string data = m.String("data_unity_path", null);
             ForgeParams p = m.Child("params");
             Mesh mesh;
-            if (className == null)
+            if (data != null)
+            {
+                mesh = ForgeMeshes.FromData(data, id);
+            }
+            else if (className == null)
             {
                 mesh = ForgeMeshes.Generate(m.String("generator", "quad"), p);
             }

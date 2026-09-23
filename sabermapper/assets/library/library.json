@@ -160,6 +160,24 @@
         "_Glow": {"type": "Float", "default": 0, "safe": [0, 0.3], "meaning": "Alpha written for Beat Saber's bloom"}
       }
     },
+    "sm_sky_panorama": {
+      "file": "shaders/sm_sky_panorama.shader",
+      "shader_name": "SaberMapper/Sky/Panorama",
+      "kinds": ["skybox", "material"],
+      "intent": "A real place or painted world as the backdrop: a fetched sky panorama (assets fetch get --kind sky) behind the whole map or one section.",
+      "description": "The equirectangular photo or painting surrounds the player at infinity, like standing inside it. Exposure and tint push it into the palette, rotation turns the world slowly, and a softly darker cone straight ahead keeps the notes readable.",
+      "properties": {
+        "_Tex": {"type": "Texture", "default": "black", "meaning": "The panorama texture asset (2:1 equirectangular, srgb, wrap clamp)"},
+        "_Tint": {"type": "Color", "default": [1, 1, 1, 1], "meaning": "Multiplied into the image; use a palette colour to pull the photo into the concept"},
+        "_Exposure": {"type": "Float", "default": 0, "safe": [-3, 1], "meaning": "Brightness in stops; photos usually want -1 to -2 behind notes"},
+        "_Saturation": {"type": "Float", "default": 1, "safe": [0, 1.5], "meaning": "0 is monochrome"},
+        "_Rotation": {"type": "Float", "default": 0, "safe": [0, 360], "meaning": "Turns the world around the up axis; animate very slowly (under 1 degree per second)"},
+        "_Horizon": {"type": "Float", "default": 0, "safe": [-0.3, 0.3], "meaning": "Moves the horizon up (positive) or down"},
+        "_LaneDim": {"type": "Float", "default": 0.35, "safe": [0, 0.8], "meaning": "How much darker the cone straight ahead is"},
+        "_LaneWidth": {"type": "Float", "default": 28, "safe": [15, 45], "meaning": "Half-angle of that cone in degrees"},
+        "_Glow": {"type": "Float", "default": 0, "safe": [0, 0.1], "meaning": "Alpha written for Beat Saber's bloom; keep 0 for a sky"}
+      }
+    },
     "sm_unlit_emissive": {
       "file": "shaders/sm_unlit_emissive.shader",
       "shader_name": "SaberMapper/Surface/UnlitEmissive",

@@ -3,12 +3,14 @@
 // a fresnel rim that carries the bloom, world-space hologram lines (anti-aliased, stereo-stable),
 // a travelling bulge wave for hits, distance fog to a colour and a noise dissolve of far geometry.
 // A ShadowCaster pass with the same displacement puts it in the depth texture when a map enables it.
+// _VertexColor 1 multiplies in the mesh's vertex colours (fetched Kenney models carry their palette there).
 Shader "SaberMapper/Template/StageSurface"
 {
     Properties
     {
         _Base ("Base colour", Color) = (0.05, 0.06, 0.12, 1)
         _Lit ("Lit colour", Color) = (0.25, 0.35, 0.6, 1)
+        _VertexColor ("Use the mesh vertex colours", Range(0, 1)) = 0
         _LightDir ("Light direction (world, towards the light)", Vector) = (0.3, 0.8, -0.4, 0)
         _Bands ("Light bands (0 = smooth)", Range(0, 6)) = 3
         _RimColor ("Rim colour", Color) = (0.4, 0.8, 1, 1)
@@ -55,6 +57,7 @@ Shader "SaberMapper/Template/StageSurface"
             {
                 float4 vertex : POSITION;
                 float3 normal : NORMAL;
+                float4 color : COLOR;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -63,9 +66,11 @@ Shader "SaberMapper/Template/StageSurface"
                 float4 vertex : SV_POSITION;
                 float3 worldPos : TEXCOORD0;
                 float3 worldNormal : TEXCOORD1;
+                float4 color : COLOR;
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
+            float _VertexColor;
             float4 _Base, _Lit, _LightDir, _RimColor, _LineColor, _FogColor;
             float _Bands, _RimPower, _RimStrength, _RimBloom, _LineDensity, _LineScroll;
             float _FogStart, _FogEnd, _DissolveStart, _DissolveEnd;
@@ -99,6 +104,7 @@ Shader "SaberMapper/Template/StageSurface"
                 o.vertex = UnityWorldToClipPos(worldPos);
                 o.worldPos = worldPos;
                 o.worldNormal = worldNormal;
+                o.color = v.color;
                 return o;
             }
 
@@ -118,7 +124,7 @@ Shader "SaberMapper/Template/StageSurface"
                     float w = fwidth(stepped);
                     light = (floor(stepped) + smoothstep(1.0 - w, 1.0, frac(stepped))) / _Bands;
                 }
-                float3 col = lerp(_Base.rgb, _Lit.rgb, light);
+                float3 col = lerp(_Base.rgb, _Lit.rgb, light) * lerp(1.0, i.color.rgb, _VertexColor);
 
                 float rim = pow(1.0 - saturate(dot(n, v)), _RimPower);
                 col += _RimColor.rgb * rim * _RimStrength;

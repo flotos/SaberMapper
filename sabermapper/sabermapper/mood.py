@@ -98,6 +98,8 @@ def section_features(frames, section, report, arrangement=None):
             level = decibels(stem["rms"][left:right])
             steps = np.abs(np.diff(level))[mask[1:]] if mask[1:].any() else np.array([0.0])
             timbre[name] = {"flatness": round(_weighted(np.asarray(stem["flatness"][left:right])[mask], weights[mask]), 4),
+                            "presence_flatness": round(_weighted(np.asarray(stem["presence_flatness"][left:right])[mask],
+                                                                 weights[mask]), 4),
                             "centroid_hz": round(_weighted(np.asarray(stem["centroid_hz"][left:right])[mask], weights[mask]), 1),
                             "level_jitter_db": round(float(np.median(steps)), 3)}
         features["stem_timbre"] = timbre
@@ -134,10 +136,11 @@ def heuristic_mood(features):
         tag("bass_heavy", _ramp(share.get("bass", 0), .2, .45), "bass stem share")
         guitar = timbre.get("guitar")
         if guitar:
-            tag("distorted_guitar", _ramp(share.get("guitar", 0), .08, .3) * _ramp(guitar["flatness"], .02, .12) *
-                _ramp(guitar["centroid_hz"], 700, 1600), "guitar stem share, spectral flatness and centroid")
-            tag("clean_guitar", _ramp(share.get("guitar", 0), .08, .3) * (1 - _ramp(guitar["flatness"], .02, .12)),
-                "guitar stem share with a tonal (low-flatness) spectrum")
+            # Distortion fills the 1-6 kHz presence band with dense, noise-like partials (high flatness there).
+            tag("distorted_guitar", _ramp(share.get("guitar", 0), .08, .3) * _ramp(guitar["presence_flatness"], .08, .25) *
+                _ramp(guitar["centroid_hz"], 700, 1600), "guitar stem share, 1-6 kHz spectral flatness and centroid")
+            tag("clean_guitar", _ramp(share.get("guitar", 0), .08, .3) * (1 - _ramp(guitar["presence_flatness"], .08, .2)),
+                "guitar stem share with a tonal (low-flatness) 1-6 kHz band")
         tag("piano", _ramp(share.get("piano", 0), .06, .25) * _ramp(active.get("piano", 0), .1, .5),
             "piano stem share and active fraction (separator estimate)")
         other = timbre.get("other")

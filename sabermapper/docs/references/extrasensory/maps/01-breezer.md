@@ -52,14 +52,15 @@ silence at the 25–38% mark is the map's central dropout — the horror beat, n
 
 14–15 tracks: `playerTrack`, `corpse0`, `corpse1`, `fall`, `tumble`, `everythingParent`.
 
-Assets: `vhs.mat`, `staticnotebody.mat`, `staticnotearrow.mat`, `br.prefab`, `tumble.prefab`, and on
-Lawless only `jaroslav.prefab` and `imagpaste.mat`.
+Assets: `vhs.mat`, `staticnotebody.mat`, `staticnotearrow.mat`, `br.prefab`, `tumble.prefab`,
+`jaroslav.prefab` and `imagpaste.mat`. All three difficulties use `jaroslav.prefab` and `imagpaste.mat`
+(rechecked 2026-09-23); only the Standard sets use the two static-note materials.
 
 ## What is distinctive
 
 **It is the only map in the pack whose show differs per difficulty.** Everywhere else the visual
-program is copied verbatim between difficulties; here the Lawless set drops a camera and two blits and
-swaps in two assets the Standard set never touches. The Lawless characteristic exists precisely so the
+program is copied verbatim between difficulties; here the Lawless set drops a camera and the two
+static-note blits (`staticnotebody.mat`, `staticnotearrow.mat`) that the Standard sets use. The Lawless characteristic exists precisely so the
 "unstable build" can misbehave differently.
 
 **It is the only map that ships its Vivify bundles inside the BeatSaver zip.** All three —

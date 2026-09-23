@@ -8,9 +8,13 @@ def register_concept(commands):
     helps = {"template": "Skeleton concept pre-filled with the listen evidence (moments, section mood, lyric lines)",
              "validate": "Check a concept file's structure and references against the latest listen evidence",
              "save": "Validate and store a concept (revision-aware; first save uses --revision none)",
-             "get": "The stored concept, its computed totals, current validation and history"}
-    for action in ("template", "validate", "save", "get"):
+             "get": "The stored concept, its computed totals, current validation and history",
+             "corpus": "Reference treatments reverse-engineered from the EXSII Vivify maps"}
+    for action in ("template", "validate", "save", "get", "corpus"):
         parser = actions.add_parser(action, help=helps[action])
+        if action == "corpus":
+            parser.add_argument("--id", dest="entry_id", help="One treatment in full")
+            continue
         parser.add_argument("--workspace", type=Path, default=Path("workspace"))
         if action == "validate":
             parser.add_argument("--project", required=True)
@@ -27,11 +31,14 @@ def register_concept(commands):
 def dispatch_concept(args, emit):
     if args.command != "concept":
         return False
-    from .concept import ConceptError, concept_template, get_concept, save_concept, validate_file
+    from .concept import ConceptError, concept_corpus, concept_template, get_concept, save_concept, validate_file
     from .projects import ConflictError, ProjectStore
     from .storage import read_json
-    store = ProjectStore(args.workspace)
     try:
+        if args.concept_action == "corpus":
+            emit(concept_corpus(args.entry_id))
+            return True
+        store = ProjectStore(args.workspace)
         if args.concept_action == "template":
             emit(concept_template(store, args.project), args.output)
         elif args.concept_action == "get":

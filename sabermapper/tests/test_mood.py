@@ -41,13 +41,15 @@ class HeuristicMoodTests(unittest.TestCase):
     def test_stem_tags(self):
         vocal = heuristic_mood(features(stem_share={"vocals": .4, "drums": .1, "bass": .1, "guitar": .1, "other": .3},
                                         stem_active={"vocals": .9, "drums": .3, "bass": .3, "guitar": .2, "other": .8},
-                                        stem_timbre={"other": {"flatness": .01, "centroid_hz": 900, "level_jitter_db": .3}}))
+                                        stem_timbre={"other": {"flatness": .01, "presence_flatness": .05, "centroid_hz": 900,
+                                                              "level_jitter_db": .3}}))
         self.assertGreater(tags(vocal)["vocal_led"], .8)
         self.assertIn("sustained_pad", tags(vocal))
         self.assertNotIn("drum_heavy", tags(vocal))
         metal = heuristic_mood(features(stem_share={"vocals": .1, "drums": .35, "bass": .15, "guitar": .4},
                                         stem_active={"vocals": .5, "drums": 1, "bass": 1, "guitar": 1},
-                                        stem_timbre={"guitar": {"flatness": .15, "centroid_hz": 2200, "level_jitter_db": .5}}))
+                                        stem_timbre={"guitar": {"flatness": .06, "presence_flatness": .3, "centroid_hz": 2200,
+                                                               "level_jitter_db": .5}}))
         self.assertGreater(tags(metal)["distorted_guitar"], .8)
         self.assertNotIn("clean_guitar", tags(metal))
         self.assertIn("drum_heavy", tags(metal))

@@ -411,3 +411,58 @@ def concept_template(store, project_id):
             "next": f"Fill `concept`, write it to a file, `concept validate --project {project_id} --file F`, then "
                     f"`concept save {project_id} --file F --revision "
                     f"{read_json(current)['revision'] if current.exists() else 'none'}`"}
+
+
+# ---- reference corpus (EXSII treatments) -------------------------------------------------------
+
+def corpus_path():
+    from .musical import APP_DIRECTORY
+    return APP_DIRECTORY / "docs" / "references" / "extrasensory" / "concept-corpus.json"
+
+
+def corpus_problems(entry):
+    """Schema problems of one reference treatment (same fields as a candidate; moments by beat)."""
+    problems = []
+    palette = entry.get("palette")
+    if not isinstance(palette, list) or not 2 <= len(palette) <= 8 or any(not HEX.match(str(c)) for c in palette):
+        problems.append("palette: 2-8 #rrggbb colours")
+    motifs = entry.get("motifs")
+    if not isinstance(motifs, list) or not 2 <= len(motifs) <= 4 or \
+            any(not isinstance(m.get("development"), dict) or len(m["development"]) < 2 for m in motifs):
+        problems.append("motifs: 2-4, each developing across >= 2 sections")
+    moments = entry.get("key_moments")
+    if not isinstance(moments, list) or not 1 <= len(moments) <= 3 or \
+            sum(bool(m.get("held_for_end")) for m in moments) != 1:
+        problems.append("key_moments: 1-3 with exactly one held_for_end")
+    if entry.get("possession") not in POSSESSION:
+        problems.append("possession")
+    tiers = (entry.get("buildability") or {}).get("tiers")
+    if not isinstance(tiers, list) or not tiers or any(t not in TIERS for t in tiers):
+        problems.append("buildability.tiers")
+    rubric = entry.get("rubric") or {}
+    if set(rubric) != set(RUBRIC) or any(not isinstance(v.get("score"), int) or not 1 <= v["score"] <= 5 or
+                                         not _text(v.get("why")) for v in rubric.values()):
+        problems.append("rubric: five criteria, integer 1-5 with a why")
+    for field in ("id", "title", "central_idea"):
+        if not _text(entry.get(field)):
+            problems.append(field)
+    return problems
+
+
+def concept_corpus(entry_id=None):
+    """Reference treatments reverse-engineered from the EXSII maps, with their rubric totals."""
+    data = read_json(corpus_path())
+    entries = data["entries"]
+    if entry_id is not None:
+        entries = [e for e in entries if e["id"] == entry_id]
+        if not entries:
+            raise ConceptError("corpus_entry_unknown", f"No reference treatment {entry_id}",
+                               "Run `concept corpus` to list the ids")
+        return {**entries[0], "total": sum(v["score"] for v in entries[0]["rubric"].values())}
+    return {"description": data.get("description"), "rights": data.get("rights"),
+            "entries": [{"id": e["id"], "map": e["source"]["map"], "title": e["title"],
+                         "central_idea": e["central_idea"], "possession": e["possession"],
+                         "held_for_end": next((m for m in e["key_moments"] if m.get("held_for_end")), None),
+                         "tiers": e["buildability"]["tiers"],
+                         "total": sum(v["score"] for v in e["rubric"].values())} for e in entries],
+            "next": "`concept corpus --id ID` prints a full treatment; use them as references, never copy assets."}

@@ -24,6 +24,7 @@ DROP_LOUD_DB = -8.0         # the level after a drop, against the loud level
 DROP_LOW_JUMP_DB = 4.0
 DROP_BASS_SLAM_DB = 12.0
 DROP_SPACING_SECONDS = 8.0
+DROP_SNAP_SECONDS = .5
 BUILD_LENGTHS = (16.0, 12.0, 8.0, 6.0, 4.0)
 BUILD_RISE_DB = 4.0
 BUILD_CENTROID_OCTAVES = .5
@@ -211,9 +212,16 @@ def _low_rms(frames):
 def _drops(frames, report, loud, sections):
     rms = np.asarray(frames["mix"]["rms"], dtype=float)
     low, low_source = _low_rms(frames)
-    times = {round(t, 3): (s, i) for t, s, i in _onsets(report)}
+    onsets = _onsets(report)
+    times = {round(t, 3): (s, i) for t, s, i in onsets}
     for section in sections[1:]:
-        times.setdefault(round(section["start"], 3), (None, None))
+        # A section boundary is a candidate too; it moves onto the strongest onset within DROP_SNAP_SECONDS.
+        near = [o for o in onsets if abs(o[0] - section["start"]) <= DROP_SNAP_SECONDS]
+        if near:
+            best = max(near, key=lambda o: o[1])
+            times.setdefault(round(best[0], 3), (best[1], best[2]))
+        else:
+            times.setdefault(round(section["start"], 3), (None, None))
     level = smooth_db(rms, .5)
     audible = np.flatnonzero(level >= loud + SILENCE_DB)
     first = audible[0] * FRAME if len(audible) else 0.0

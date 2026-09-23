@@ -9,8 +9,8 @@ import tempfile
 import unittest
 
 from sabermapper.__main__ import main
-from sabermapper.concept import (ConceptError, concept_template, evidence_index, get_concept, save_concept,
-                                 validate_concept)
+from sabermapper.concept import (ConceptError, concept_corpus, concept_template, corpus_path, corpus_problems,
+                                 evidence_index, get_concept, save_concept, validate_concept)
 from sabermapper.listen import latest_listen, listen_project
 from sabermapper.projects import ConflictError, ProjectStore
 from sabermapper.storage import read_json, write_json
@@ -195,6 +195,24 @@ class ConceptTests(unittest.TestCase):
                   "--revision", revision])
         self.assertEqual(exited.exception.code, 2)
         self.assertEqual(json.loads(out.getvalue())["error"]["code"], "concept_invalid")
+
+
+class ConceptCorpusTests(unittest.TestCase):
+    def test_every_exsii_treatment_matches_the_candidate_schema(self):
+        entries = read_json(corpus_path())["entries"]
+        self.assertEqual(len(entries), 10)
+        self.assertEqual(len({e["id"] for e in entries}), 10)
+        for entry in entries:
+            self.assertEqual(corpus_problems(entry), [], entry["id"])
+            self.assertTrue(Path(corpus_path().parent / entry["source"]["writeup"]).exists())
+
+    def test_corpus_listing_and_entry(self):
+        listing = concept_corpus()
+        self.assertEqual(len(listing["entries"]), 10)
+        first = listing["entries"][0]["id"]
+        self.assertEqual(concept_corpus(first)["id"], first)
+        with self.assertRaises(ConceptError):
+            concept_corpus("missing")
 
 
 if __name__ == "__main__":

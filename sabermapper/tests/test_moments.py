@@ -11,7 +11,7 @@ import soundfile as sf
 
 from sabermapper.__main__ import main
 from sabermapper.audio import _hash, _write_vorbis
-from sabermapper.listen import derive, latest_listen, listen_project, measure, segment
+from sabermapper.listen import derive, latest_listen, listen_project, measure, segment, spectral_features
 from sabermapper.moments import _final_chorus, detect_moments
 from sabermapper.projects import ProjectStore
 from sabermapper.storage import read_json, write_json
@@ -161,6 +161,21 @@ class MomentDetectionTests(unittest.TestCase):
         self.assertGreater(len(sections), 1)
         moments = detect_moments(self.frames, sections, self.report, None)
         self.assertTrue(all(m["beat"] is None for m in moments))
+
+
+class SpectralFeatureTests(unittest.TestCase):
+    def test_flatness_stays_bounded_on_near_silent_stems(self):
+        rng = np.random.default_rng(1)
+        for signal in (np.zeros(RATE * 2, dtype=np.float32), 1e-9 * rng.standard_normal(RATE * 2).astype(np.float32),
+                       .3 * rng.standard_normal(RATE * 2).astype(np.float32)):
+            features = spectral_features(signal, 40)
+            for name in ("flatness", "presence_flatness"):
+                self.assertTrue(np.all((features[name] >= 0) & (features[name] <= 1 + 1e-6)), name)
+        noise = spectral_features(.3 * rng.standard_normal(RATE * 2).astype(np.float32), 40)
+        t = np.arange(RATE * 2) / RATE
+        harmonic = sum(np.sin(2 * np.pi * 220 * k * t) / k for k in range(1, 40)).astype(np.float32) * .1
+        tone = spectral_features(harmonic, 40)  # partials fill the 1-6 kHz band but leave gaps between them
+        self.assertGreater(np.median(noise["presence_flatness"]), 10 * np.median(tone["presence_flatness"]))
 
 
 class FinalChorusTests(unittest.TestCase):

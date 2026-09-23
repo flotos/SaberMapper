@@ -78,11 +78,14 @@ def spectral_features(signal, count, *, hpss=False):
     power = magnitude ** 2
     total = power.sum(axis=0) + 1e-20
     weight = magnitude.sum(axis=0) + 1e-20
-    band = (frequencies >= 100) & (frequencies < 8000)
-    logs = np.log(power[band] + 1e-12)
+    def flatness(low, high):
+        # Geometric over arithmetic mean power (<= 1); the floor keeps silent frames at 1, not overflowing.
+        values = power[(frequencies >= low) & (frequencies < high)].astype(np.float64) + 1e-10
+        return np.exp(np.log(values).mean(axis=0)) / values.mean(axis=0)
     features = {
         "centroid_hz": (frequencies[:, None] * magnitude).sum(axis=0) / weight,
-        "flatness": np.exp(logs.mean(axis=0)) / (power[band].mean(axis=0) + 1e-20),
+        "flatness": flatness(100, 8000),
+        "presence_flatness": flatness(1000, 6000),
         "low_share": power[frequencies < 250].sum(axis=0) / total,
         "high_share": power[frequencies >= 4000].sum(axis=0) / total,
         "air_share": power[frequencies >= 8000].sum(axis=0) / total,

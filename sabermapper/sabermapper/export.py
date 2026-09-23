@@ -142,16 +142,25 @@ def _compile_difficulty(arrangement: dict, audio_duration: float) -> tuple[dict,
                 latest_object = max(latest_object, float(item["b"]) + float(item["d"]))
     if _beat_seconds(latest_object, float(song["bpm"]), beatmap.get("bpmEvents", [])) > audio_duration:
         raise ExportError(f"{name}: compiled gameplay object extends past decoded audio duration")
-    # A small visible pulse at each section start. Basic events live in the v3
-    # beatmap itself; they do not require a separate v4 lightshow file.
-    if not beatmap.get("basicBeatmapEvents"):
+    # Without a lightshow, a small visible pulse at each section start. Basic events live
+    # in the v3 beatmap itself; they do not require a separate v4 lightshow file.
+    has_lightshow = isinstance(arrangement.get("lightshow"), dict)
+    if not has_lightshow and not beatmap.get("basicBeatmapEvents"):
         beats = sorted({float(beat_fraction(section["start_beat"])) + beat_shift for section in arrangement["sections"]})
         beatmap["basicBeatmapEvents"] = [{"b": b, "et": 0, "i": 1, "f": 1.0} for b in beats]
     row = {"difficulty": name, "rank": STANDARD_RANKS[name], "beatmap_filename": f"{name}.dat",
            "njs": difficulty.get("njs", 16), "target_tier": difficulty.get("target_tier"),
            "arrangement_sha256": arrangement_revision(arrangement), "color_note_count": len(beatmap["colorNotes"]),
-           "last_note_seconds": latest_time, "basic_event_count": len(beatmap["basicBeatmapEvents"])}
+           "last_note_seconds": latest_time, "basic_event_count": len(beatmap["basicBeatmapEvents"]),
+           "lighting": {"source": "lightshow" if has_lightshow else "section-pulse fallback",
+                        "environment": _environment(arrangement),
+                        "basic_events": len(beatmap["basicBeatmapEvents"]),
+                        "boost_events": len(beatmap.get("colorBoostBeatmapEvents", []))}}
     return beatmap, row
+
+
+def _environment(arrangement: dict) -> str:
+    return (arrangement.get("lightshow") or {}).get("environment") or "DefaultEnvironment"
 
 
 def export_arrangement(arrangement: dict, audio: str | Path, cover: str | Path, output: str | Path) -> dict:
@@ -203,21 +212,23 @@ def export_arrangements(arrangements: list[dict], audio: str | Path, cover: str 
         raise ExportError(f"output already exists: {destination}")
     compiled = [_compile_difficulty(arrangement, audio_metadata["duration_seconds"]) for arrangement in arrangements]
     by_rank = sorted(zip(arrangements, compiled), key=lambda item: item[1][1]["rank"])
+    # Each difficulty names its lightshow's environment; Info.dat lists them once and indexes them.
+    environments = list(dict.fromkeys([_environment(primary)] + [_environment(a) for a in arrangements]))
     info = {
         "_version": "2.1.0", "_songName": song["title"], "_songSubName": "",
         "_songAuthorName": song["artist"], "_levelAuthorName": str(primary.get("mapper") or "SaberMapper").strip(),
         "_beatsPerMinute": song["bpm"], "_songTimeOffset": 0, "_shuffle": 0,
         "_shufflePeriod": 0, "_previewStartTime": 0, "_previewDuration": 10,
         "_songFilename": "song.ogg", "_coverImageFilename": cover_name,
-        "_environmentName": "DefaultEnvironment", "_allDirectionsEnvironmentName": "GlassDesertEnvironment",
+        "_environmentName": environments[0], "_allDirectionsEnvironmentName": "GlassDesertEnvironment",
         # Info 2.1.0 introduced these collections; declare them explicitly so the
         # file matches the schema version it claims.
-        "_environmentNames": ["DefaultEnvironment"], "_colorSchemes": [],
+        "_environmentNames": environments, "_colorSchemes": [],
         "_difficultyBeatmapSets": [{"_beatmapCharacteristicName": "Standard", "_difficultyBeatmaps": [{
             "_difficulty": row["difficulty"], "_difficultyRank": row["rank"],
             "_beatmapFilename": row["beatmap_filename"], "_noteJumpMovementSpeed": arrangement["difficulty"].get("njs", 16),
             "_noteJumpStartBeatOffset": arrangement["difficulty"].get("spawn_offset_beats", 0),
-            "_beatmapColorSchemeIdx": 0, "_environmentNameIdx": 0,
+            "_beatmapColorSchemeIdx": 0, "_environmentNameIdx": environments.index(_environment(arrangement)),
         } for arrangement, (_, row) in by_rank]}],
     }
     rows = [row for _, row in compiled]
@@ -235,6 +246,7 @@ def export_arrangements(arrangements: list[dict], audio: str | Path, cover: str 
         "baked_audio_offset_seconds": offset_seconds,
         "audio_decoder": audio_metadata["decoder"],
         "basic_event_count": rows[0]["basic_event_count"],
+        "lighting": rows[0]["lighting"],
         "checks": "Vorbis and cover decoded; gameplay duration and structure checked for every difficulty. Musical timing, editor import and in-game playback require separate review.",
     }
     destination.parent.mkdir(parents=True, exist_ok=True)

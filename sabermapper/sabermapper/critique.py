@@ -15,6 +15,7 @@ from statistics import median
 
 from .arrangement import expanded_notes
 from .audio_grounding import DEFINITIONS as AUDIO_DEFINITIONS, audio_findings
+from .lighting import DEFINITIONS as LIGHT_DEFINITIONS, lighting_findings
 from .movement import analyze_movement
 from .tier_fit import DEFINITIONS as TIER_DEFINITIONS, tier_fit
 
@@ -168,6 +169,7 @@ DEFINITIONS = {
                              "swing_demand is below the 90th percentile of the softer bars' demand (relative_loudness "
                              "below 0.8, at least 2 mapped): the heavy passage plays easier than the quieter ones.",
     **AUDIO_DEFINITIONS,
+    **LIGHT_DEFINITIONS,
     **TIER_DEFINITIONS,
 }
 
@@ -1126,5 +1128,9 @@ def critique_arrangement(arrangement: dict, report: dict | None = None, tier_ref
     for finding in findings:
         warn(finding["code"], finding["message"], value=finding["value"], threshold=finding["threshold"],
              section_id=finding["section_id"], object_ids=finding["object_ids"])
+    metrics["lighting"], findings = lighting_findings(arrangement, report)
+    for finding in findings:
+        warn(finding["code"], finding["message"], value=finding["value"], threshold=finding["threshold"],
+             section_id=finding["section_id"], beats=finding.get("beats"))
     return {"model_version": MODEL_VERSION, "metrics": metrics, "warnings": warnings,
             "definitions": DEFINITIONS}

@@ -254,6 +254,8 @@ class ProjectStore:
                     audio, findings = audio_findings(arrangement, report)
                     # Focus and salience warnings travel with every read and save: never blocking, never silent.
                     diagnostics += findings + focus_findings(arrangement, report)
+                from .lighting import lighting_findings
+                diagnostics += lighting_findings(arrangement, report)[1]
             except (ValueError, KeyError, TypeError, ZeroDivisionError):
                 pass  # structurally invalid arrangements already carry their own errors
             notes = []
@@ -333,6 +335,7 @@ class ProjectStore:
             path = self.directory(project_id)
             source = self.arrangement_file(path, difficulty)
             original = self.check_save(project_id, arrangement, expected_revision, difficulty)
+            arrangement, lighting = self.refresh_lights(path, arrangement, original)
             old_revision = arrangement_revision(original)
             revision = arrangement_revision(arrangement)
             if request_id is not None:
@@ -366,8 +369,25 @@ class ProjectStore:
             write_json(path / "revisions" / (uuid.uuid4().hex + ".json"),
                        {"schema_version": "1.0", "previous": old_revision, "revision": revision,
                         "difficulty": name, **({"previous_difficulty": previous_name} if name != previous_name else {}),
-                        "request_id": request_id, "at": now(), "diagnostics": validate_arrangement(arrangement)})
-            return self.get(project_id, None if primary else name)
+                        "request_id": request_id, "at": now(), "lighting": lighting["action"],
+                        "diagnostics": validate_arrangement(arrangement)})
+            return {**self.get(project_id, None if primary else name), "lighting": lighting}
+
+    def refresh_lights(self, path: Path, arrangement: dict, original: dict, *, force=False) -> tuple[dict, dict]:
+        """Carry over, regenerate when missing or stale, and check the lightshow a save will store."""
+        from .lighting import locked_light_changes, refresh_lightshow
+        from .musical import latest_run
+        run_id, report = latest_run(path)
+        arrangement, info = refresh_lightshow(arrangement, original, run_id, report, force=force)
+        if info["action"] == "generated":
+            errors = [d for d in validate_arrangement(arrangement)
+                      if d["severity"] == "error" and d["code"] != "unresolved_section"]
+            if errors:
+                raise ValueError("Generated lightshow failed validation: " + "; ".join(d["message"] for d in errors[:10]))
+        changed = locked_light_changes(original, arrangement)
+        if changed:
+            raise ConflictError(f"Lights of locked section(s) {', '.join(changed)} would change. Unlock them first.")
+        return arrangement, {**info, "run_id": run_id}
 
     def add_difficulty(self, project_id: str, name: str, *, source: str | None = None, njs: float | None = None,
                        target_tier: str | None = None) -> dict:

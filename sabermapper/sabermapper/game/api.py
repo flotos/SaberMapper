@@ -274,18 +274,25 @@ def _human(**options) -> Game:
     return Game(**options)
 
 
+def _with_liveness(info: dict) -> dict:
+    """Lease status whose inner lease also carries `live`/`stale` (the studio ignores dead leases)."""
+    if isinstance(info.get("lease"), dict):
+        info = {**info, "lease": {**info["lease"], "live": info.get("live"), "stale": not info.get("live")}}
+    return info
+
+
 def status(**options) -> dict:
     """Studio poll: {running, lease, bridge: {scene, level, song_time, song_length, paused, speed, fps}|null}."""
     game = _human(**options)
     result = game_status(session=game.session, holder=game.holder, manager=game.manager,
                          client_factory=game.client_factory, find=game.find, alive=game.alive)
-    return {"running": result["running"], "lease": result["lease"], "bridge": result["bridge"],
+    return {"running": result["running"], "lease": _with_liveness(result["lease"]), "bridge": result["bridge"],
             "health": result["health"], "mode": result["mode"]}
 
 
 def lease_status(**options) -> dict:
     game = _human(**options)
-    return game.manager.status(game.session)
+    return _with_liveness(game.manager.status(game.session))
 
 
 def play(store, project_id: str, *, seconds: float = 0.0, difficulty: str | None = None, revision: str | None = None,

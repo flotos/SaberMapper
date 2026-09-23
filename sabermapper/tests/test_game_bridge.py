@@ -401,6 +401,16 @@ class ApiTests(Fixture):
         self.assertTrue(stopped["release"]["released"])
         self.assertEqual(self.pids, [4242])  # the user's VR game keeps running
 
+    def test_studio_sees_live_agent_leases_only(self):
+        from sabermapper.server import live_agent_lease
+        agent = self.game()
+        api.launch(**self.options(agent))
+        human = self.options(self.game(session="studio", holder="human:studio"))
+        self.assertEqual(live_agent_lease(api.lease_status(**human))["holder"], "agent:test")
+        self.assertEqual(live_agent_lease(api.status(**human)["lease"])["holder"], "agent:test")
+        self.pids.clear()  # the agent's game died: its lease is stale
+        self.assertIsNone(live_agent_lease(api.lease_status(**human)))
+
     def test_watch_is_reported_unavailable_without_touching_the_game(self):
         result = api.play(self.store, self.project_id, mode="watch", **self.options(self.game(session="studio")))
         self.assertEqual(result["watch"], "unavailable")

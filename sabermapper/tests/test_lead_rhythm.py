@@ -8,7 +8,6 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from sabermapper.audio_repair import follow_lead, repair_audio
 from sabermapper.critique import critique_arrangement, grid_alignment
 from sabermapper.musical import analyze_layers, rhythm_grid
 from sabermapper.validation import validate_arrangement
@@ -125,14 +124,6 @@ class QuietLeadTests(unittest.TestCase):
         self.assertTrue(all(b["quiet"] for b in result["metrics"]["lead_rhythm"]["bars"]))
         self.assertIn("lead_rhythm_unmapped", codes(critique_arrangement(arrangement(OFFBEATS[::2]), report())))
 
-    def test_a_quiet_rebuild_takes_one_attack_per_beat(self):
-        result = follow_lead(arrangement(STREAM), self.quiet())
-        beats = sorted(float(Fraction(str(n["beat"]))) for n in result["arrangement"]["sections"][0]["notes"])
-        self.assertTrue(beats)
-        self.assertTrue(all(b % 1 == 0.5 for b in beats), beats)
-        self.assertTrue(all(y - x >= 1 for x, y in zip(beats, beats[1:])), beats)
-
-
 class GridAlignmentTests(unittest.TestCase):
     def test_a_window_whose_onsets_drift_is_flagged(self):
         data = report(96)
@@ -147,56 +138,6 @@ class GridAlignmentTests(unittest.TestCase):
         alignment = grid_alignment(arrangement(OFFBEATS, length=96), report(96))
         self.assertTrue(alignment["checked"])
         self.assertEqual(alignment["median_offset_ms"], 0.0)
-
-
-class FollowLeadRepairTests(unittest.TestCase):
-    def test_a_diluted_bar_is_rebuilt_on_the_leads_attacks(self):
-        source = arrangement(STREAM)
-        before = copy.deepcopy(source)
-        result = follow_lead(source, report())
-        self.assertEqual(source, before, "input must not be mutated")
-        self.assertTrue(result["changes"])
-        self.assertEqual({c["action"] for c in result["changes"]}, {"rebuilt"})
-        beats = sorted(float(Fraction(str(n["beat"]))) for n in result["arrangement"]["sections"][0]["notes"])
-        self.assertTrue(beats)
-        self.assertTrue(all(b % 1 == 0.5 for b in beats), beats)
-        self.assertEqual([d for d in validate_arrangement(result["arrangement"]) if d["severity"] == "error"], [])
-        self.assertNotIn("lead_rhythm_diluted", codes(critique_arrangement(result["arrangement"], report())))
-
-    def test_an_even_stream_that_blocks_a_dense_lead_is_rebuilt(self):
-        # The guitar plays syncopated sixteenths (beats x.25 and x.75); an eighth stream leaves no room for them.
-        data = report()
-        data["layers"]["guitar"]["events"] = events("guitar", [b + d for b in range(32) for d in (0.25, 0.75)])
-        before = critique_arrangement(arrangement(STREAM), data)
-        self.assertIn("lead_rhythm_unmapped", codes(before))
-        self.assertNotIn("lead_rhythm_diluted", codes(before))
-        result = follow_lead(arrangement(STREAM), data)
-        self.assertEqual({c["code"] for c in result["changes"]}, {"lead_rhythm_unmapped"})
-        after = critique_arrangement(result["arrangement"], data)
-        self.assertNotIn("lead_rhythm_unmapped", codes(after))
-        self.assertEqual([d for d in validate_arrangement(result["arrangement"]) if d["severity"] == "error"], [])
-
-    def test_a_rebuild_that_maps_no_more_of_the_lead_is_restored(self):
-        # The guitar attacks sit where the drums already are, too close together for any hand to take more.
-        data = report()
-        data["layers"]["guitar"]["events"] = events("guitar", [b + d for b in range(32) for d in (0, 0.1, 0.2)])
-        source = arrangement(KICKS)
-        result = follow_lead(source, data)
-        self.assertEqual(result["changes"], [])
-        self.assertEqual(result["arrangement"], source)
-
-    def test_arc_anchors_survive_the_rebuild(self):
-        source = arrangement(STREAM)
-        section = source["sections"][0]
-        # Consecutive left-hand cuts: no left note may sit inside the hold.
-        head, tail = section["notes"][0], section["notes"][2]
-        section["arcs"] = [{"id": "a1", "beat": head["beat"], "color": 0, "x": head["x"], "y": head["y"],
-                            "direction": head["direction"], "tail_beat": tail["beat"], "tail_x": tail["x"],
-                            "tail_y": tail["y"], "tail_direction": tail["direction"]}]
-        result = repair_audio(source, report())
-        notes = {(float(Fraction(str(n["beat"]))), n["color"]) for n in result["arrangement"]["sections"][0]["notes"]}
-        self.assertIn((0.0, 0), notes)
-        self.assertIn((1.0, 0), notes)
 
 
 class RhythmGridTests(unittest.TestCase):

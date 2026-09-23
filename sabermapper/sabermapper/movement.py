@@ -90,7 +90,8 @@ def flow_break(previous, direction, hand, gap_seconds, reset, previous_angle=0.0
         return ("fast_direction_break",
                 f"same-hand cut {gap_seconds:.3f}s after the previous one turns only {change:.0f} degrees; "
                 f"within {FAST_BREAK_SECONDS}s it must reverse by at least {REVERSAL_DEGREES} degrees. "
-                "Re-angle one cut or remove the weaker note (see project repair-swings)")
+                "Re-angle one cut, give it to the other hand or remove the weaker note; unpin the cut to let the "
+                "placer choose (project check lists edits that clear it)")
     same_parity = (not previous_angle and not angle
                    and _parity(previous, hand, 0) == _parity(direction, hand, 0))
     if change < MIN_TURN_DEGREES or (same_parity and change < REVERSAL_DEGREES):
@@ -98,7 +99,7 @@ def flow_break(previous, direction, hand, gap_seconds, reset, previous_angle=0.0
                 f"same-hand cut {gap_seconds:.3f}s after the previous one turns {change:.0f} degrees"
                 f"{' on the same forehand/backhand' if same_parity else ''} without a full-beat reset; "
                 f"alternate parity and turn at least {MIN_TURN_DEGREES} degrees "
-                "(see project repair-swings)")
+                "(project check lists edits that clear it)")
     return None
 
 
@@ -120,7 +121,7 @@ def one_hand_bursts(swings: list) -> list:
                               "reason": f"{'right' if hand else 'left'} hand swings {len(run)} times in {span:.3f}s, "
                                         f"each under {BURST_SECONDS}s after the last, while the other hand has "
                                         "nothing to cut; alternate hands or keep only the notes on the lead's "
-                                        "strongest sounds (see project repair-audio)"})
+                                        "strongest sounds (project check lists edits)"})
             run = [swing] if swing is not None else []
     return sorted(found, key=lambda w: w["beat"])
 
@@ -139,7 +140,8 @@ def hidden_note(gap_seconds, x, y):
     return ("hidden_note",
             f"note at ({x},{y}) arrives {gap_seconds:.3f}s behind the note in front of it in {where}, "
             f"which hides it until that note is cut; same-cell notes need {window}s here. "
-            "Move one to a free neighbouring cell (see project repair-visibility)")
+            "Move one to a free neighbouring cell, or unpin its cell to let the placer choose (project check "
+            "lists the free cells)")
 
 
 def _reaction_proxy(bpm, njs, spawn_offset_beats):

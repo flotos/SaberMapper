@@ -14,11 +14,11 @@ Build every tool and feature for agent use first. Provide discoverable CLI or pr
 
 ## Audio first
 
-The audio is always the focus: map the song's sounds to notes, never place notes that no sound supports, and never leave a playing stretch unmapped. Follow "Audio is the source of every note" in @AGENTS.md; `project save` blocks long unmapped audio, and `project critique` reports the rest.
+The audio is always the focus: map the song's sounds to notes, never place notes that no sound supports, and never leave a playing stretch unmapped. Follow "Audio is the source of every note" in @AGENTS.md; `project save` blocks long unmapped audio, and `project check` reports the rest.
 
 ## Systematic fixes
 
-Never fix a map problem for only one song. Trace each problem found through feedback, review or validation to its root cause. Encode the fix as a verifier check, an automated pipeline correction or a skill update, in that order of preference, and add a regression test. Rerun it across every project in the workspace and correct all affected arrangements through `project save`. Follow the full procedure in the "Systematic fixes" section of @AGENTS.md.
+Never fix a map problem for only one song. Trace each problem found through feedback, review or validation to its root cause. Encode the fix as a `project check` finding, a build-time placement or rhythm-draft rule, or a skill update, in that order of preference (never a command that rewrites saved maps), and add a regression test. Rerun it across every project in the workspace and correct all affected arrangements through `project save`. Follow the full procedure in the "Systematic fixes" section of @AGENTS.md.
 
 ## Code changes in worktrees
 

@@ -10,7 +10,6 @@ import soundfile as sf
 from PIL import Image
 
 from sabermapper import musical
-from sabermapper.audio_repair import _fill_targets, fill_findings
 from sabermapper.critique import critique_arrangement
 from sabermapper.musical import (analyze_layers, analyze_project, gate_bleed, layer_entries, latest_run,
                                  rhythm_grid, separation_python, split_by_masks)
@@ -69,13 +68,16 @@ class EnsembleWeightTests(unittest.TestCase):
         result = critique_arrangement(arrangement(OFFBEATS), bands)
         self.assertNotIn("ensemble_unmapped", codes(result))
 
-    def test_repair_adds_the_heaviest_hits(self):
+    def test_check_suggests_the_heaviest_hits(self):
+        from sabermapper.check import apply_suggestion, check_arrangement
         base, evidence = arrangement(OFFBEATS), stems_report(drums=DOWNBEATS)
-        warning = next(w for w in critique_arrangement(base, evidence)["warnings"] if w["code"] == "ensemble_unmapped")
-        self.assertEqual(_fill_targets(base, evidence, warning), [(0.9, warning["targets"][0][0])])
-        filled = fill_findings(base, evidence)
-        self.assertTrue(any(c["code"] == "ensemble_unmapped" for c in filled["changes"]))
-        self.assertNotIn("ensemble_unmapped", codes(critique_arrangement(filled["arrangement"], evidence)))
+        found = [f for f in check_arrangement(base, evidence)["findings"] if f["code"] == "ensemble_unmapped"]
+        self.assertTrue(found)
+        suggestion = found[0]["suggestions"][0]
+        self.assertEqual([n["beat"] for n in suggestion["notes"]], [found[0]["targets"][0][0]])
+        fixed = apply_suggestion(base, suggestion)
+        remaining = [f for f in check_arrangement(fixed, evidence)["findings"] if f["code"] == "ensemble_unmapped"]
+        self.assertNotIn(found[0]["beats"], [f["beats"] for f in remaining])
 
 
 class DrumEntryTests(unittest.TestCase):

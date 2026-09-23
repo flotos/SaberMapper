@@ -11,6 +11,9 @@ What it is not:
 
 - **Not a gate.** Every finding carries `severity: "warning"`. The critique
   never emits an `error` and never prevents `compile`, `export` or `project save`.
+  `project check` (SM-036) reports the critique beside placement, validation and
+  audio grounding in one list, marks which findings block a save, and attaches
+  suggested edits.
 - **Not a playability model.** It does not judge flow, parity, swing angles or
   difficulty; `validation.py` and the movement model own those questions.
 - **Not a musical verdict.** A warning marks a measurable property, not a
@@ -24,15 +27,20 @@ compare the same fields.
 ## CLI
 
 ```
-# Standalone, on any arrangement file
-.venv/Scripts/python -m sabermapper critique ARRANGEMENT.json [--report REPORT.json] [--output PATH]
+# The one report: placement, validation, movement, audio grounding and critique findings with suggestions
+.venv/Scripts/python -m sabermapper project check PROJECT_ID --workspace workspace \
+    [--run RUN_ID] [--arrangement DRAFT.json] [--metrics] [--output PATH]
 
-# On a stored project, optionally against a musical evidence run
-.venv/Scripts/python -m sabermapper project critique PROJECT_ID --workspace workspace \
-    [--run RUN_ID] [--output PATH]
+# Aliases kept for existing workflows (SM-036 decision): the same report plus the critique's metrics and warnings
+.venv/Scripts/python -m sabermapper project critique PROJECT_ID --workspace workspace [--run RUN_ID] [--output PATH]
+.venv/Scripts/python -m sabermapper critique ARRANGEMENT.json [--report REPORT.json] [--output PATH]
 ```
 
-Both print the critique JSON; `--output` writes it to a new file instead. The
+The critique forms print the `project check` report with the critique's
+`metrics`, `warnings` and `definitions` added; `--output` writes it to a new
+file instead. Each check finding is `{"code", "severity", "blocking", "source",
+"section_id", "object_ids", "beats", "message", "suggestions"}`. `project save`
+refuses exactly the findings marked `blocking`. The
 project form also reports the project's current `revision` and the `run_id`
 used, so a stored baseline can be tied to an exact arrangement.
 
@@ -122,7 +130,7 @@ simply omit both keys.
 ## Using it as a rewrite baseline
 
 1. Record the baseline before changing anything, tagged by revision:
-   `project critique ID --workspace workspace --run RUN_ID --output baseline.json`.
+   `project check ID --workspace workspace --run RUN_ID --metrics --output baseline.json`.
 2. Note the fields the rewrite is meant to move — usually
    `repetition.cycle_coverage.coverage`, `repetition.placement_entropy.median`,
    `repetition.top_row_share`, the `density_collapse` boundaries and

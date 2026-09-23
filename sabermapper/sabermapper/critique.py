@@ -1116,9 +1116,9 @@ def critique_arrangement(arrangement: dict, report: dict | None = None, tier_ref
         warnings.append({"severity": "warning", "code": code, "message": message,
                          "section_id": section_id, "object_ids": list(object_ids),
                          "value": value, "threshold": threshold})
-        if beats is not None:  # absolute [start, end] beats of the finding, for automated repair
+        if beats is not None:  # absolute [start, end] beats of the finding, for project check's suggestions
             warnings[-1]["beats"] = beats
-        if targets is not None:  # [beat, strength] onsets a repair should map
+        if targets is not None:  # [beat, strength] onsets the suggested edit maps
             warnings[-1]["targets"] = targets
 
     notes = expanded_notes(arrangement)

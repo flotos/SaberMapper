@@ -77,8 +77,8 @@ def main(argv=None):
     sub.add_argument("--difficulty", choices=DIFFICULTIES, help="Difficulty the feedback is about; default: primary")
     sub = commands.add_parser("project", help="Read, revise, restore and export persistent projects")
     project_commands = sub.add_subparsers(dest="project_action", required=True)
-    for name in ("list", "get", "save", "check", "export", "restore", "review", "critique", "repair-swings",
-                 "repair-visibility", "repair-audio", "set-album", "add-difficulty", "remove-difficulty",
+    for name in ("list", "get", "save", "check", "export", "restore", "review", "critique",
+                 "set-album", "add-difficulty", "remove-difficulty",
                  "lights", "lights-inspect"):
         leaf = project_commands.add_parser(name, help={
             "lights": "Regenerate the lightshow from the newest musical evidence run (keeps environment, style, "
@@ -91,25 +91,13 @@ def main(argv=None):
                      "edits. `project save` refuses exactly the findings marked blocking. --arrangement checks a "
                      "draft as save would, writing nothing",
             "critique": "Alias of `project check --metrics` (kept for existing workflows)",
-            "repair-swings": "Fix same-color notes inside a held arc or chain (move to the other hand, or split "
-                             "the arc at the cut), then blocking fast_direction_break/flow_parity_break findings: "
-                             "drop 16th pickups or re-angle one cut (arc directions follow)",
-            "repair-visibility": "Fix blocking hidden_note findings: move a note hidden behind the note in front "
-                                 "of it in the same cell to a free neighbouring cell (arcs follow)",
-            "repair-audio": "Fix audio findings (and split one_hand_burst runs): move notes with no sound under "
-                            "them onto the nearest onset "
-                            "(or remove them), thin quiet passages mapped as densely as the full band, then "
-                            "add flow-safe notes on unmapped vocal, drum, accent and density-collapse onsets; "
-                            "raise heavy bars that play easier than soft ones and ease soft bars that play as "
-                            "hard as the heavy passages",
             "add-difficulty": "Add a difficulty as an unlocked copy of another one (then rewrite it at its level)",
             "remove-difficulty": "Delete a non-primary difficulty; its content stays in history",
             "export": "Export every difficulty of the project into one map ZIP"}.get(name))
         leaf.add_argument("--workspace", type=Path, default=Path("workspace"))
         if name != "list":
             leaf.add_argument("project")
-        if name in ("get", "save", "check", "restore", "review", "critique", "repair-swings", "repair-visibility",
-                    "repair-audio", "lights", "lights-inspect"):
+        if name in ("get", "save", "check", "restore", "review", "critique", "lights", "lights-inspect"):
             leaf.add_argument("--difficulty", choices=DIFFICULTIES,
                               help="Which difficulty to act on; default: the primary one (arrangement.json)")
         if name == "add-difficulty":
@@ -133,12 +121,9 @@ def main(argv=None):
             leaf.add_argument("--end", type=float, required=True, help="End beat (exclusive)")
         if name in ("lights", "lights-inspect"):
             leaf.add_argument("--output", type=Path, help="Write the report here instead of stdout")
-        if name in ("repair-swings", "repair-visibility", "repair-audio", "lights"):
+        if name == "lights":
             leaf.add_argument("--dry-run", action="store_true", help="Report planned changes without saving")
-        if name == "repair-audio":
-            leaf.add_argument("--output", type=Path, help="Write the full report here instead of stdout")
-        if name in ("save", "restore", "review", "repair-swings", "repair-visibility", "repair-audio",
-                    "remove-difficulty", "lights"):
+        if name in ("save", "restore", "review", "remove-difficulty", "lights"):
             leaf.add_argument("--revision", required=True)
         if name == "save":
             leaf.add_argument("--arrangement", type=Path, required=True)
@@ -251,41 +236,6 @@ def main(argv=None):
                 if "metrics" in result:
                     result = {"model_version": MODEL_VERSION, **result, "definitions": DEFINITIONS}
                 emit(result, args.output)
-            elif args.project_action in ("repair-swings", "repair-visibility"):
-                from .swing_repair import repair_fast_breaks
-                from .visibility_repair import repair_hidden_notes
-                record = store.get(args.project, args.difficulty)
-                if record["revision"] != args.revision:
-                    raise ValueError(f"Project is at revision {record['revision']}; reread it before repairing")
-                repair = (repair_fast_breaks if args.project_action == "repair-swings"
-                          else repair_hidden_notes)(record["arrangement"])
-                revision = record["revision"]
-                if repair["changes"] and not args.dry_run:
-                    revision = store.save(args.project, repair["arrangement"], args.revision,
-                                          difficulty=args.difficulty)["revision"]
-                emit({"project": args.project, "difficulty": record["difficulty"],
-                      "previous_revision": record["revision"], "revision": revision,
-                      "saved": revision != record["revision"], "changes": repair["changes"],
-                      "unresolved": repair["unresolved"]})
-            elif args.project_action == "repair-audio":
-                from .audio_repair import repair_audio
-                from .musical import latest_run
-                record = store.get(args.project, args.difficulty)
-                if record["revision"] != args.revision:
-                    raise ValueError(f"Project is at revision {record['revision']}; reread it before repairing")
-                run_id, report = latest_run(store.directory(args.project))
-                repair = repair_audio(record["arrangement"], report)
-                revision = record["revision"]
-                if repair["changes"] and not args.dry_run:
-                    revision = store.save(args.project, repair["arrangement"], args.revision,
-                                          difficulty=args.difficulty)["revision"]
-                emit({"project": args.project, "difficulty": record["difficulty"], "run_id": run_id,
-                      "previous_revision": record["revision"],
-                      "revision": revision, "saved": revision != record["revision"],
-                      "summary": {action: sum(1 for c in repair["changes"] if c["action"] == action)
-                                  for action in ("moved", "removed", "added")},
-                      "changes": repair["changes"], "unresolved": repair["unresolved"],
-                      "remaining_warnings": repair["remaining"]}, args.output)
             elif args.project_action in ("lights", "lights-inspect"):
                 from .lighting import inspect_lights, lighting_findings, refresh_lightshow
                 from .musical import latest_run

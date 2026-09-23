@@ -5,7 +5,6 @@ gets heavier. Heavier, louder, more compressed sound should use harder parts ove
 """
 import unittest
 
-from sabermapper.audio_repair import ease_soft, harden_loud, repair_audio
 from sabermapper.critique import critique_arrangement, intensity_bars
 from sabermapper.validation import validate_arrangement
 
@@ -113,79 +112,6 @@ class IntensityCheckTests(unittest.TestCase):
         source, evidence = hard_intro()
         del evidence["passages"]
         self.assertEqual(critique_arrangement(source, evidence)["metrics"]["intensity"], {"checked": False})
-
-
-class IntensityRepairTests(unittest.TestCase):
-    def test_the_soft_intro_is_eased_and_keeps_the_voice(self):
-        source, evidence = hard_intro()
-        result = ease_soft(source, evidence)
-        removed = [c["beat"] for c in result["changes"] if c["action"] == "removed"]
-        self.assertTrue(removed and all(b < 32 for b in removed), "only the soft intro is eased")
-        self.assertEqual(codes(result["arrangement"], evidence), [])
-        self.assertEqual(errors(result["arrangement"]), [])
-        kept = {float(n["beat"]) for n in result["arrangement"]["sections"][0]["notes"]}
-        self.assertIn(4.0, kept, "the note on the sung onset stays")
-        self.assertTrue(all(any(b <= k < b + 4 for k in kept) for b in range(0, 32, 4)), "no bar empties")
-        self.assertEqual(len(source["sections"][0]["notes"]), 160, "input must not be mutated")
-
-    def test_a_locked_soft_section_is_reported_not_eased(self):
-        source, evidence = hard_intro()
-        source["sections"][0]["locked"] = True
-        result = ease_soft(source, evidence)
-        self.assertEqual(result["changes"], [])
-        self.assertEqual({u["code"] for u in result["unresolved"]}, {"difficulty_exceeds_intensity"})
-
-    def test_the_heavy_run_gains_notes_on_its_attacks(self):
-        source, evidence = sparse_heavy_run()
-        result = harden_loud(source, evidence)
-        added = [c for c in result["changes"] if c["action"] == "added"]
-        self.assertTrue(added)
-        self.assertTrue(all(64 <= c["beat"] < 80 for c in added))
-        self.assertEqual(codes(result["arrangement"], evidence), [])
-        self.assertEqual(errors(result["arrangement"]), [])
-
-    def test_hardening_never_buries_the_declared_lead(self):
-        # The guitar leads the heavy run on each beat, all mapped; drum notes between its attacks would dilute
-        # its rhythm, so the additions are restored. Wider swings alone cannot reach the soft peak, so the bar is
-        # reported for re-authoring.
-        source, evidence = sparse_heavy_run(intro_step=0.5, run_step=1.0)
-        source["sections"][0]["musical_focus"] = [{"id": "riff", "start_beat": 64, "end_beat": 80, "lead": "guitar",
-                                                   "weights": {"guitar": 1.0}, "intent": "riff on the beat"}]
-        evidence["layers"]["guitar"] = {"events": [{"id": f"g{b}", "seconds": b / 2, "method": "spectral_flux",
-                                                    "strength": 0.9} for b in range(64, 80)]}
-        self.assertEqual({w["code"] for w in codes(source, evidence)},
-                         {"intensity_underplayed", "difficulty_exceeds_intensity"})
-        result = harden_loud(source, evidence)
-        self.assertNotIn("added", {c["action"] for c in result["changes"]})
-        self.assertEqual(sorted(float(n["beat"]) for n in result["arrangement"]["sections"][0]["notes"]),
-                         sorted(float(n["beat"]) for n in source["sections"][0]["notes"]), "the rhythm stays")
-        self.assertTrue(result["unresolved"])
-        self.assertIn("musical_focus lead", result["unresolved"][0]["reason"])
-
-    def test_a_heavy_run_with_every_attack_mapped_widens_its_movement(self):
-        # Every drum hit of the run already carries a note, so only wider swings can raise it.
-        source, evidence = sparse_heavy_run(intro_step=0.5, run_step=0.5)
-        far_rows(source, 0, 64)
-        far_rows(source, 80, 128)
-        found = codes(source, evidence)
-        flagged = [w["beats"] for w in found if w["code"] == "intensity_underplayed"]
-        self.assertTrue(flagged and flagged[0][0] <= 64 and flagged[0][1] >= 80)
-        result = harden_loud(source, evidence)
-        self.assertEqual({c["action"] for c in result["changes"]}, {"moved"})
-        moved = {i.split("/")[-1] for c in result["changes"] for i in c["object_ids"]}
-        run = [n for n in result["arrangement"]["sections"][0]["notes"] if 64 <= n["beat"] < 80]
-        self.assertTrue(moved and all(n["y"] == (2 if n["direction"] == 1 else 0) for n in run if n["id"] in moved))
-        self.assertEqual([n["beat"] for n in run], [n["beat"] for n in source["sections"][0]["notes"]
-                                                   if 64 <= n["beat"] < 80], "the rhythm stays")
-        self.assertNotIn("intensity_underplayed", {w["code"] for w in codes(result["arrangement"], evidence)})
-        self.assertEqual(errors(result["arrangement"]), [])
-
-    def test_repair_audio_runs_both_passes(self):
-        source, evidence = hard_intro()
-        result = repair_audio(source, evidence)
-        self.assertIn("difficulty_exceeds_intensity", {c.get("code") for c in result["changes"]})
-        self.assertNotIn("difficulty_exceeds_intensity", {w["code"] for w in result["remaining"]})
-        self.assertEqual(errors(result["arrangement"]), [])
 
 
 if __name__ == "__main__":

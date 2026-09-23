@@ -52,14 +52,9 @@ The rule followed a player report at End of You 0:24: three blue notes in cell
 ones behind it. Like the flow rules, a finding is an error unless every note
 involved is in a locked section.
 
-`sabermapper.visibility_repair.repair_hidden_notes` and `project
-repair-visibility` move one note of each pair to a free cell at most two cells
-away. Timing and cut direction are unchanged. The chosen cell must leave both notes
-visible, keep the hands uncrossed and stay under the reach proxy. Among those, the
-repair prefers the fewest hidden pairs left, the shortest move, the hand's own side,
-cells off the line of sight, and the cell where the previous cut left the saber. It
-removes the note on the weaker metric position only when no cell works. Arc anchors
-move with their note. Audio repair skips hidden cells when it adds notes.
+The placer never puts a note in a cell whose front note is inside that window, and
+it keeps a later pinned note in the cell visible too. For a pinned pair, `project
+check` suggests the free cells that clear it.
 
 Model 1.5 adds the review warning `one_hand_burst`: three or more consecutive
 same-hand swings (`BURST_SWINGS`), each less than 0.2 s (`BURST_SECONDS`) after
@@ -67,29 +62,41 @@ the previous one, while the other hand has no swing between the first and the
 last. One hand then streams a figure that alternating hands would carry. It
 followed a report on End of You at 0:02.5: three right-hand eighths at 190 BPM
 over a spoken line while the left hand held an arc, only one of them on a
-syllable. The finding is a warning; `project repair-audio` removes the burst
-notes that sit on none of the bar's lead attacks, then hands the weakest inner
-note to the idle hand (or removes it), reverting any split that adds a blocking
-diagnostic. Notes added by repair-audio never create a burst.
-
-`sabermapper.swing_repair.repair_fast_breaks` and `project repair-swings` fix
-findings deterministically. They drop a 16th pickup under 0.2 s that sits on a
-weaker metric position. Otherwise they re-angle whichever cut of the pair leaves
-the fewest breaks nearby, preferring the smallest turn from the authored
-direction. Arc heads and tails are re-angled together with their note. A pattern
-instance involved in a break is inlined as literal notes first; the compiled
-output stays the same. Chain anchors and locked sections are never changed.
+syllable. The placer never creates a burst. When the other hand is held, such a
+rhythm cannot be placed: the infeasibility error names the notes and the times
+to drop.
 
 An arc or chain occupies its saber from head to tail. The validator blocks a
 same-color note strictly inside it (`arc_note_conflict`, `chain_note_conflict`;
 a warning when locked). This followed a 2026-09-23 player report at End of You
-0:42. Because a blocking error suppresses the movement model,
-`repair_held_conflicts` runs first in `repair-swings`. It moves the note to the
-other hand if that hand is free, as audio repair's flow-safe insert does.
-Otherwise it splits the arc at the note (head to note, note to tail), so the
-held sound stays held around the cut. Pieces shorter than a beat are dropped,
-and the notes stay. A note inside a chain is removed. A
-strategy is applied only if it adds no blocking finding or `reach_proxy` warning.
+0:42. The placer gives every unpinned note inside a hold to the free hand, and the
+hold's head and tail notes take the arc's hand, cut and cell.
+
+## Placement (SM-036)
+
+Maps are built correct by construction. A note needs only `id` and `beat`.
+`color`, `direction`, `x` and `y` are optional pins, and the placer
+(`sabermapper.placement`) fills the rest when the map compiles or saves. A beam
+search over the timeline chooses each swing's hand and cut under the flow rules,
+the held sabers, `one_hand_burst` and the reach limit (`REACH_SPEED`, the one
+constant `reach_proxy` also reads). Two same-hand swings closer than
+1/`REACH_SPEED` s are impossible, because the second one needs its own cell. A
+greedy pass then chooses each note's cut and cell together, among the cuts that
+keep the flow from the hand's actual previous swing and into its next pinned one.
+It prefers short hand travel and placements the recent notes have not used, the
+SM-034 repetition metrics: distinct placements and strict cycles. The result is
+checked with `analyze_movement` itself. A broken rule that involves a
+placer-chosen field raises a `placement_infeasible` error. The error names the
+beat, the notes, the rule and the alternatives verified to clear it: unpin a
+field, or remove a note. A conflict between fully pinned notes is left to
+validation.
+
+The fields the placer chose are listed in the note's `placed` array. They are
+kept while valid and re-chosen only when a rhythm edit makes them break a rule,
+so an edit in one bar leaves the rest of the map alone. Editing a placed value
+pins it. Deleting a field asks for a fresh choice. Locked sections are fixed
+context. Placement is deterministic, and a fully specified arrangement with no
+`placed` record compiles byte for byte as written.
 
 The following primary repositories were inspected on 2026-09-22:
 

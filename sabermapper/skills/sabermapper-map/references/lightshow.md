@@ -35,7 +35,7 @@ python -m sabermapper project lights-inspect ID --workspace workspace --start 64
 ```
 
 This prints section moods, primary color, leads and density, your cues in range, and a timeline of every event
-moment with the sounds under it (`layer:method:strength`). `project critique` / `project get` report
+moment with the sounds under it (`layer:method:strength`). `project check` / `project get` report
 the lighting checks below.
 
 ## How to change the lights
@@ -91,7 +91,7 @@ Prefer the most general lever: a section override for a whole passage, a cue for
 Blocking (`validate`/`save`): `light_strobe`, meaning more than 8 full-field pulses (4+ groups) in any
 1 s, or more than 3 white pulses on 3+ groups. Also `invalid_lightshow`/`unsupported_field` for schema errors.
 
-Warnings (`project get`, `project save`, `project critique`):
+Warnings (`project get`, `project save`, `project check`):
 - `lightshow_missing`: no lights while evidence exists. Run `project lights`.
 - `lightshow_stale`: `auto: false` and the inputs changed.
 - `light_unmapped`: 4 s+ of active, articulated audio with no light change.

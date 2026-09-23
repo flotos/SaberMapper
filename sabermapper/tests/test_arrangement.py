@@ -99,42 +99,29 @@ class ArrangementTests(unittest.TestCase):
         self.assertEqual(finding["severity"], "warning")
         self.assertIn("locked", finding["message"])
 
-    def test_swing_repair_drops_pickup_and_reangles_on_beat_pair(self):
-        from sabermapper.swing_repair import repair_fast_breaks
-        source = arrangement()
-        notes = source["sections"][0]["notes"]
-        notes += [{"id": "pickup", "beat": "7/4", "x": 2, "y": 0, "color": 1, "direction": 0},
-                  {"id": "entry", "beat": "2", "x": 2, "y": 1, "color": 1, "direction": 2},
-                  {"id": "cut-a", "beat": "3", "x": 1, "y": 1, "color": 0, "direction": 3},
-                  {"id": "cut-b", "beat": "13/4", "x": 1, "y": 0, "color": 0, "direction": 1}]
-        result = repair_fast_breaks(source)
-        self.assertEqual([(c["action"], c["object_id"]) for c in result["changes"]],
-                         [("removed", "verse/note/pickup"), ("reangled", "verse/note/cut-b")])
-        self.assertEqual(result["changes"][1]["to_direction"], 6)
-        self.assertFalse([d for d in validate_arrangement(result["arrangement"]) if d["severity"] == "error"])
-        self.assertEqual(len(source["sections"][0]["notes"]), 5)
+    def check_clears(self, source, code):
+        """Every blocking ``code`` finding in project check carries suggestions, and each one clears it."""
+        from sabermapper.check import apply_suggestion, check_arrangement
+        found = [f for f in check_arrangement(source)["findings"] if f["code"] == code and f["blocking"]]
+        self.assertTrue(found)
+        for finding in found:
+            self.assertTrue(finding["suggestions"], finding)
+            for suggestion in finding["suggestions"]:
+                after = validate_arrangement(apply_suggestion(source, suggestion))
+                self.assertFalse([d for d in after if d["code"] == code and d["object_ids"] == finding["object_ids"]],
+                                 suggestion)
+        return found
 
-    def test_swing_repair_keeps_arc_anchors_and_locked_sections(self):
-        from sabermapper.swing_repair import repair_fast_breaks
+    def test_check_suggests_cuts_that_clear_a_pickup_break(self):
         source = arrangement()
-        notes = source["sections"][0]["notes"]
-        notes += [{"id": "pickup", "beat": "7/4", "x": 2, "y": 0, "color": 1, "direction": 0},
-                  {"id": "entry", "beat": "2", "x": 2, "y": 1, "color": 1, "direction": 2}]
-        source["sections"][0]["arcs"] = [{"id": "hold", "beat": "7/4", "x": 2, "y": 0, "color": 1, "direction": 0,
-                                          "tail_beat": "2", "tail_x": 2, "tail_y": 1, "tail_direction": 2,
-                                          "mid_anchor": 0}]
-        result = repair_fast_breaks(source)
-        self.assertEqual([(c["action"], c["object_id"]) for c in result["changes"]],
-                         [("reangled", "verse/note/entry")])
-        entry = next(n for n in result["arrangement"]["sections"][0]["notes"] if n["id"] == "entry")
-        self.assertEqual(result["arrangement"]["sections"][0]["arcs"][0]["tail_direction"], entry["direction"])
-        source["sections"][0]["locked"] = True
-        result = repair_fast_breaks(source)
-        self.assertEqual((result["changes"], result["unresolved"]), ([], []))
+        source["sections"][0]["notes"] += [{"id": "pickup", "beat": "7/4", "x": 2, "y": 0, "color": 1, "direction": 0},
+                                           {"id": "entry", "beat": "2", "x": 2, "y": 1, "color": 1, "direction": 2},
+                                           {"id": "cut-a", "beat": "3", "x": 1, "y": 1, "color": 0, "direction": 3},
+                                           {"id": "cut-b", "beat": "13/4", "x": 1, "y": 0, "color": 0, "direction": 1}]
+        self.check_clears(source, "fast_direction_break")
 
-    def test_swing_repair_reangles_arc_tail_in_sync(self):
+    def test_check_edits_the_note_after_an_arc_tail_not_the_anchor(self):
         # The Revival 1:03: arc tail cuts right into the corner, then down from the same cell a half beat later.
-        from sabermapper.swing_repair import repair_fast_breaks
         source = arrangement()
         section = source["sections"][0]
         section["patterns"] = []
@@ -143,23 +130,19 @@ class ArrangementTests(unittest.TestCase):
                             {"id": "down", "beat": "5/2", "x": 3, "y": 2, "color": 1, "direction": 1}]
         section["arcs"] = [{"id": "hold", "beat": "1/2", "x": 2, "y": 2, "color": 1, "direction": 2,
                             "tail_beat": "2", "tail_x": 3, "tail_y": 2, "tail_direction": 3}]
-        result = repair_fast_breaks(source)
-        self.assertEqual(len(result["changes"]), 1)
-        fixed = result["arrangement"]["sections"][0]
-        self.assertFalse([d for d in validate_arrangement(result["arrangement"]) if d["severity"] == "error"])
-        tail = next(n for n in fixed["notes"] if n["id"] == "tail")
-        self.assertEqual(fixed["arcs"][0]["tail_direction"], tail["direction"])
+        [finding] = self.check_clears(source, "fast_direction_break")
+        self.assertTrue(all(s["object_id"] == "verse/note/down" for s in finding["suggestions"]))
 
-    def test_swing_repair_inlines_pattern_to_fix_motif_note(self):
-        from sabermapper.swing_repair import repair_fast_breaks
+    def test_a_rhythm_only_note_after_an_arc_tail_is_placed_to_flow(self):
+        from sabermapper.placement import place_arrangement
         source = arrangement()
-        source["sections"][0]["notes"].append(
-            {"id": "next", "beat": "1/4", "x": 0, "y": 1, "color": 0, "direction": 2})
-        source["sections"][0]["notes"][0]["id"] = "right"
-        result = repair_fast_breaks(source)
-        self.assertEqual(result["unresolved"], [])
-        self.assertFalse([d for d in validate_arrangement(result["arrangement"]) if d["severity"] == "error"])
-        self.assertEqual(len(compile_arrangement(result["arrangement"])["colorNotes"]), 3)
+        section = source["sections"][0]
+        section["patterns"] = []
+        section["notes"] = [{"id": "head", "beat": "1/2"}, {"id": "tail", "beat": "2"}, {"id": "down", "beat": "5/2"}]
+        section["arcs"] = [{"id": "hold", "beat": "1/2", "x": 2, "y": 2, "color": 1, "direction": 2,
+                            "tail_beat": "2", "tail_x": 3, "tail_y": 2, "tail_direction": 3}]
+        placed = place_arrangement(source)["arrangement"]
+        self.assertFalse([d for d in validate_arrangement(placed) if d["severity"] == "error"])
 
     def test_malformed_nested_json_returns_diagnostics(self):
         cases = []
@@ -282,63 +265,23 @@ class HeldSaberConflictTests(unittest.TestCase):
         [finding] = self.diagnostics(source, "arc_note_conflict")
         self.assertEqual(finding["severity"], "warning")
 
-    def repair(self, source):
-        from sabermapper.swing_repair import repair_fast_breaks
-        result = repair_fast_breaks(source)
-        self.assertEqual(result["unresolved"], [])
-        self.assertEqual([d for d in validate_arrangement(result["arrangement"]) if d["severity"] == "error"], [])
-        return result
-
-    def test_repair_moves_the_note_to_a_free_other_hand(self):
-        result = self.repair(held_saber())
-        self.assertEqual([c["action"] for c in result["changes"]], ["moved_to_other_hand"])
-        section = result["arrangement"]["sections"][0]
-        inner = next(n for n in section["notes"] if n["id"] == "inner")
-        self.assertEqual((inner["beat"], inner["color"]), ("7/2", 0))
-        self.assertEqual(section["arcs"][0]["tail_beat"], 7)
-
-    def spans(self, result):
-        return [(a["beat"], a["x"], a["y"], a["direction"], a["tail_beat"], a["tail_x"], a["tail_y"],
-                 a["tail_direction"]) for a in result["arrangement"]["sections"][0]["arcs"]]
-
-    def test_repair_splits_the_arc_at_the_cut_when_the_other_hand_is_busy(self):
-        # The hold resumes after the cut, so the held sound stays held on both sides of it.
-        source = held_saber(red=((1, 1, 1, 1), ("13/4", 0, 1, 0), ("15/4", 0, 0, 1), (6, 0, 1, 0)))
-        result = self.repair(source)
-        self.assertEqual([c["action"] for c in result["changes"]], ["split_arc"])
-        self.assertEqual(result["changes"][0]["to_spans"], [[2.0, 3.5], [3.5, 7.0]])
-        self.assertEqual(self.spans(result), [(2, 3, 2, 1, "7/2", 2, 1, 0), ("7/2", 2, 1, 0, 7, 2, 0, 0)])
-        self.assertEqual(len(result["arrangement"]["sections"][0]["notes"]), 7)
-
-    def test_repair_drops_a_piece_shorter_than_a_beat(self):
-        source = held_saber(inner_beat="5/2", red=((1, 1, 1, 1), ("9/4", 0, 1, 0), ("11/4", 0, 0, 1), (6, 0, 1, 0)))
-        result = self.repair(source)
-        self.assertEqual([c["action"] for c in result["changes"]], ["shortened_arc"])
-        self.assertEqual(self.spans(result), [("5/2", 2, 1, 0, 7, 2, 0, 0)])
-
-    def test_repair_drops_an_arc_with_no_hold_left(self):
-        source = held_saber(inner_beat="5/2", red=((1, 1, 1, 1), ("9/4", 0, 1, 0), ("11/4", 0, 0, 1), (6, 0, 1, 0)),
-                            tail=(3, 1))
-        result = self.repair(source)
-        self.assertEqual([c["action"] for c in result["changes"]], ["removed_arc"])
-        section = result["arrangement"]["sections"][0]
-        self.assertEqual((section["arcs"], len(section["notes"])), ([], 7))
-
-    def test_repair_removes_a_note_inside_a_chain(self):
-        source = held_saber(inner_beat="5/2", red=((1, 1, 1, 1), ("9/4", 0, 1, 0), ("11/4", 0, 0, 1), (6, 0, 1, 0)))
-        section = source["sections"][0]
-        section["arcs"] = []
-        section["chains"] = [{"id": "burst", "beat": 2, "x": 3, "y": 2, "color": 1, "direction": 1,
-                              "tail_beat": 3, "tail_x": 3, "tail_y": 0, "slice_count": 4}]
-        result = self.repair(source)
-        self.assertEqual([(c["action"], c["object_id"]) for c in result["changes"]], [("removed", "s/note/inner")])
-
-    def test_locked_conflict_is_left_alone(self):
-        from sabermapper.swing_repair import repair_held_conflicts
+    def test_check_hands_the_inner_note_to_the_free_saber(self):
+        from sabermapper.check import apply_suggestion, check_arrangement
         source = held_saber()
-        source["sections"][0]["locked"] = True
-        result = repair_held_conflicts(source)
-        self.assertEqual((result["changes"], result["arrangement"]), ([], source))
+        [finding] = [f for f in check_arrangement(source)["findings"] if f["code"] == "arc_note_conflict"]
+        self.assertEqual(finding["suggestions"][0]["to"]["color"], 0)
+        fixed = apply_suggestion(source, finding["suggestions"][0])
+        self.assertEqual(self.diagnostics(fixed, "arc_note_conflict"), [])
+
+    def test_placement_keeps_an_unpinned_note_off_the_held_saber(self):
+        from sabermapper.placement import place_arrangement
+        source = held_saber()
+        inner = next(n for n in source["sections"][0]["notes"] if n["id"] == "inner")
+        for field in ("x", "y", "color", "direction"):
+            del inner[field]
+        placed = place_arrangement(source)["arrangement"]
+        self.assertEqual(self.diagnostics(placed, "arc_note_conflict"), [])
+        self.assertEqual(next(n for n in placed["sections"][0]["notes"] if n["id"] == "inner")["color"], 0)
 
 
 class HeldObjectConnectionTests(unittest.TestCase):

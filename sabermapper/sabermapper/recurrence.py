@@ -466,8 +466,10 @@ def recurrence_findings(arrangement: dict, report: dict | None, listen_sections:
             warn("theme_unechoed",
                  f'theme {link["theme"]}: beats {entry["echo"][0]:g}-{entry["echo"][1]:g} should echo '
                  f'{entry["statement"][0]:g}-{entry["statement"][1]:g}, but only {score["placement"] * 100:.0f}% of '
-                 f'{score["matched"]} matched notes repeat its placement; pinned or stored hands, cuts or cells '
-                 "override the theme there. Unpin them (drop x, y, color, direction and placed) to let it echo.",
+                 f'{score["matched"]} matched notes repeat its placement: pinned or stored hands, cuts or cells, or '
+                 "the movement rules around it, override the theme there. Unpin the echo's notes (drop x, y, color, "
+                 "direction and placed) to let it echo; if it still does not, the flow into it differs from the "
+                 "statement's and the echo varies there on purpose.",
                  value=score["placement"], threshold=ECHO_PLACEMENT_THRESHOLD, beats=entry["echo"])
 
     def covered(repeat):

@@ -29,7 +29,7 @@ alternatives verified to clear it. A conflict between fully pinned notes is left
 
 A recurring part of the song is played as a recurring pattern. The arrangement's ``themes`` pair a statement
 span with echo spans (:mod:`recurrence`); after a first placement, an open echo note whose time matches a
-statement note (a single on a single, a double on a double) prefers that note's hand, cut and cell (mirrored
+statement note (a single on a single, a double on a double, a stack on a stack) prefers that note's hand, cut and cell (mirrored
 when the echo is), and the statement keeps its own. The preference (``ECHO``) outweighs comfort and novelty
 but yields to every movement rule and to stored values, so an echo deviates only where the flow into or out
 of it, or its own audio, differs.
@@ -66,6 +66,8 @@ DOUBLE_PARITY_COST = 3.0
 # An echo note leaving its statement note's hand, cut or cell (half per coordinate): above every comfort cost,
 # far below the rules.
 ECHO = 4.0
+ECHO_RETRIES = 4  # echoed placements tried, each releasing the echoes around the rules the last one broke
+ECHO_RELEASE_SECONDS = 2.0  # a hand's flow resets after a 2 s rest, so a broken rule reaches no further
 # Rules the placer satisfies; each maps to the note fields that can resolve it.
 RULE_FIELDS = {"fast_direction_break": ("direction", "color"), "flow_parity_break": ("direction", "color"),
                "one_hand_burst": ("color",), "arc_note_conflict": ("color",), "chain_note_conflict": ("color",),
@@ -719,6 +721,22 @@ def _combine(open_slots, options, group):
 # Rule check, attribution and alternatives
 # ---------------------------------------------------------------------------------------------------------
 
+def _movement_warnings(arrangement, notes):
+    seconds = _clock(arrangement)
+    difficulty = arrangement["difficulty"]
+    return analyze_movement([{"id": n["id"], "beat": float(n["beat"]), "x": n["x"], "y": n["y"],
+                              "color": n["color"], "direction": n["direction"], "seconds": seconds(n["beat"])}
+                             for n in notes], bpm=float(arrangement["song"]["bpm"]), njs=difficulty["njs"],
+                            spawn_offset_beats=difficulty["spawn_offset_beats"])["warnings"]
+
+
+def _stack_breaks(arrangement):
+    """Stacks that do not read as one longer note (``stack_shape``), which the placer lines up but does not block."""
+    from .arrangement import expanded_notes
+    notes = expanded_notes(arrangement)
+    return sum(1 for w in _movement_warnings(arrangement, notes) if w["code"] == "stack_shape") if notes else 0
+
+
 def rule_violations(arrangement: dict) -> list[dict]:
     """The placer's rules broken by a complete arrangement, from the movement model and the held sabers.
 
@@ -728,14 +746,8 @@ def rule_violations(arrangement: dict) -> list[dict]:
     notes = expanded_notes(arrangement)
     if not notes:
         return []
-    seconds = _clock(arrangement)
-    difficulty = arrangement["difficulty"]
-    movement = analyze_movement([{"id": n["id"], "beat": float(n["beat"]), "x": n["x"], "y": n["y"],
-                                  "color": n["color"], "direction": n["direction"], "seconds": seconds(n["beat"])}
-                                 for n in notes], bpm=float(arrangement["song"]["bpm"]), njs=difficulty["njs"],
-                                spawn_offset_beats=difficulty["spawn_offset_beats"])
     found = [{"code": w["code"], "object_ids": list(w["note_ids"]), "beat": w["beat"], "reason": w["reason"]}
-             for w in movement["warnings"] if w["code"] in RULE_FIELDS]
+             for w in _movement_warnings(arrangement, notes) if w["code"] in RULE_FIELDS]
     _, held = _holds(arrangement)
     for color, spans in held.items():
         for head, tail, oid, kind in spans:
@@ -794,10 +806,21 @@ def _place(arrangement, *, unpin=False, beams=BEAMS):
     links = _echo_links(result, slots)
     if links:
         # Place again with every echo preferring its statement's first placement; a theme never costs a rule.
+        # Where the echoed placement breaks one, the notes around it give up their echo and the rest keep it.
         _set_echoes(links, outcome[1])
-        echoed = _search(result, slots, groups, held, bpm, beams, by_id, motifs, prefer=_echo_agreement)
-        if echoed[0] <= outcome[0]:
-            outcome = echoed
+        for _ in range(ECHO_RETRIES):
+            echoed = _search(result, slots, groups, held, bpm, beams, by_id, motifs, prefer=_echo_agreement)
+            if echoed[0] <= outcome[0]:
+                outcome = echoed
+                break
+            broken = [by_id[oid].seconds for v in echoed[2] if _attributable(v, by_id)
+                      for oid in v["object_ids"] if oid in by_id]
+            near = [s for s in slots if s.echo is not None and any(abs(s.seconds - t) <= ECHO_RELEASE_SECONDS
+                                                                  for t in broken)]
+            if not near:
+                break
+            for slot in near:
+                slot.echo = None
         outcome[3]["themes"] = _theme_report(outcome[1])
     return outcome[1], outcome[3], outcome[2], by_id
 
@@ -805,9 +828,9 @@ def _place(arrangement, *, unpin=False, beams=BEAMS):
 def _search(result, slots, groups, held, bpm, beams, by_id, motifs, prefer=None):
     """(attributable failures, placed copy, violations, report) of the best pass over ``beams``.
 
-    With ``prefer`` (a score of the placed copy) both cut passes of a beam are compared and the higher score
-    wins among equal failures: pass 2 re-chooses cuts greedily, which can flip the parity a hand enters an
-    echo with, while the beam planned the whole timeline.
+    With ``prefer`` (a score of the placed copy) both cut passes of a beam are compared: among equal failures
+    the one with fewer broken stack lines, then the higher score, wins. Pass 2 re-chooses cuts greedily, which
+    can flip the parity a hand enters an echo with, while the beam planned the whole timeline.
     """
     outcome = None
     for width, per_timing in beams:
@@ -828,13 +851,14 @@ def _search(result, slots, groups, held, bpm, beams, by_id, motifs, prefer=None)
             _write(trial, _collect_for(trial, slots))
             violations = rule_violations(trial)
             failures = sum(1 for v in violations if _attributable(v, by_id))
-            score = prefer(trial) if prefer else 0.0
-            if outcome is None or (failures, -score) < (outcome[0], -outcome[4]):
+            # A preferred placement never buys its score with a broken stack line.
+            score = (-_stack_breaks(trial), prefer(trial)) if prefer else (0, 0.0)
+            if outcome is None or failures < outcome[0] or failures == outcome[0] and score > outcome[4]:
                 outcome = (failures, trial, violations, _report(slots, motifs), score)
             if not failures and not prefer:
                 return outcome
-        if not outcome[0]:
-            return outcome
+        if not outcome[0] and not outcome[4][0]:
+            return outcome  # no rule broken and every stack in line (the wider beam may still line one up)
     return outcome
 
 
@@ -866,6 +890,8 @@ def _set_echoes(links, placed):
         placed_order = lambda s: (values[s.oid]["color"], values[s.oid]["x"], values[s.oid]["y"], s.oid)
         for source, target in pair_by_time(sources, echo, offset, beat=lambda s: s.beat, same_size=True,
                                            order=lambda s: placed_order(s) if s in sources else (0, 0, 0, s.oid)):
+            if source.stack != target.stack:
+                continue  # a stack (one hand, one line) and a double or single are different figures
             chosen = values[source.oid]
             target.echo = mirrored(chosen) if mirror else chosen
 

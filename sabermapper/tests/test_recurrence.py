@@ -87,6 +87,41 @@ class ThemedPlacementTests(unittest.TestCase):
         pair = [n for n in expanded_notes(placed) if n["beat"] == 37]
         self.assertEqual(sorted(n["color"] for n in pair), [0, 1])
 
+    def test_a_stack_echoes_only_a_stack(self):
+        draft = with_theme()
+        draft["sections"][0]["notes"].append({"id": "a-double", "beat": 6})  # a double at 6
+        draft["sections"][2]["notes"] += [{"id": "c-stack-0", "beat": 6, "stack": True},  # a stack at 38
+                                          {"id": "c-stack-1", "beat": 6, "stack": True}]
+        # c09 is the echo's single at 6; the stack takes its place.
+        draft["sections"][2]["notes"] = [n for n in draft["sections"][2]["notes"] if n["id"] != "c09"]
+        placed = place_arrangement(draft)["arrangement"]
+        stack = [n for n in expanded_notes(placed) if n["beat"] == 38]
+        self.assertEqual(len({n["color"] for n in stack}), 1)
+        self.assertNotIn("stack_shape", {d["code"] for d in validate_arrangement(placed)})
+
+    def test_echoes_around_a_broken_rule_give_way_and_the_rest_keep_theirs(self):
+        import sabermapper.placement as placement
+        original, calls = placement._search, []
+
+        def search(*args, prefer=None, **options):
+            outcome = original(*args, prefer=prefer, **options)
+            calls.append(prefer is not None)
+            if prefer is not None and calls.count(True) == 1:
+                # The first echoed placement breaks a rule at beat 44: the echoes within 2 s give way.
+                failing = next(s.oid for s in args[1] if s.beat == 44)
+                violation = {"code": "flow_parity_break", "object_ids": [failing], "beat": 44.0, "reason": "test"}
+                return (1, outcome[1], [violation], outcome[3], outcome[4])
+            return outcome
+        placement._search = search
+        try:
+            result = place_arrangement(with_theme())
+        finally:
+            placement._search = original
+        self.assertEqual(calls.count(True), 2)
+        self.assertEqual(result["errors"], [])
+        agreement = score(result["arrangement"])["placement"]
+        self.assertGreaterEqual(agreement, 0.5)  # the echo holds away from beat 44
+
     def test_stored_placements_outrank_the_echo(self):
         stored = place_arrangement(arrangement())["arrangement"]
         themed = copy.deepcopy(stored)

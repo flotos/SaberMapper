@@ -80,13 +80,16 @@ def main(argv=None):
                  "repair-visibility", "repair-audio", "set-album", "add-difficulty", "remove-difficulty"):
         leaf = project_commands.add_parser(name, help={
             "set-album": "Set the album that groups this project in the studio's artist/album tree",
-            "repair-swings": "Fix blocking fast_direction_break/flow_parity_break findings: drop 16th pickups or "
-                             "re-angle one cut (arc directions follow)",
+            "repair-swings": "Fix same-color notes inside a held arc or chain (move to the other hand, end or "
+                             "drop the arc), then blocking fast_direction_break/flow_parity_break findings: "
+                             "drop 16th pickups or re-angle one cut (arc directions follow)",
             "repair-visibility": "Fix blocking hidden_note findings: move a note hidden behind the note in front "
                                  "of it in the same cell to a free neighbouring cell (arcs follow)",
             "repair-audio": "Fix audio findings: move notes with no sound under them onto the nearest onset "
                             "(or remove them), thin quiet passages mapped as densely as the full band, then "
-                            "add flow-safe notes on unmapped vocal, drum, accent and density-collapse onsets",
+                            "add flow-safe notes on unmapped vocal, drum, accent and density-collapse onsets; "
+                            "raise heavy bars that play easier than soft ones and ease soft bars that play as "
+                            "hard as the heavy passages",
             "add-difficulty": "Add a difficulty as an unlocked copy of another one (then rewrite it at its level)",
             "remove-difficulty": "Delete a non-primary difficulty; its content stays in history",
             "export": "Export every difficulty of the project into one map ZIP"}.get(name))

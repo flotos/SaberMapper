@@ -226,6 +226,42 @@ bass and synth figures that were plainly present in the stems.
   Carry hand state across section seams and check the first notes of the next
   section.
 
+## Heavier plays harder
+
+Standing user rule (2026-09-23, `intensity_difficulty` in `player-profile.json`),
+from Living a Lie feedback: "the intro is kinda hard but not that much, and it
+gets easier once the music starts and the sound gets heavier. Heavier, louder,
+more compressed sound should use harder parts overall." The soft intro ended in
+sixteenth alternations with two-row jumps (beats 28-31 and 52-55). Then the heavy
+guitar gallop entered at beat 56 and the map followed only the drums, on quarters.
+
+- Difficulty follows loudness, not section order. Map soft passages clearly
+  easier than the heavy ones, and give the loudest, most compressed passages the
+  hardest parts: the densest attacks, the widest swings and the bursts.
+- Difficulty is more than note count. Fast same-hand alternations and long hand
+  travel (two-row jumps, top-to-bottom) make a sparse soft bar hard. Keep soft
+  passages compact: strongest onsets, short travel, no sixteenth trills.
+- In a heavy riff passage where the voice rests, check `music rhythm`. If the
+  guitar or bass plays many more strong attacks than the drums, declare that
+  riff as the `musical_focus` lead. The default "drums lead while the voice
+  rests" maps a gallop riff as sparse quarters.
+- `critique` checks this with `metrics.intensity`. Each 4-beat bar has a
+  `relative` loudness (mix `energy_ratio` over the 75th percentile of the mapped
+  bars) and a `demand`: swings per second, each weighted by 1 plus the grid
+  distance from the same hand's previous swing within a beat.
+  `difficulty_exceeds_intensity`: a bar below 0.8 loudness asks more than the
+  loud bars' median demand times (0.5 + 0.5 x loudness).
+  `intensity_underplayed`: loud bars (0.9 or more) average less demand than the
+  soft bars' 90th percentile.
+- `project repair-audio` raises flagged heavy runs first, toward the demand the
+  soft passages reach, so soft notes are removed only where the heavy passages
+  cannot be raised. It adds flow-safe notes on the lead's attacks, then on other
+  stems' attacks, and restores a bar where those notes would dilute the lead. Otherwise it moves vertical and diagonal
+  cuts to the far row (down cuts high, up cuts low), keeping the rhythm. It then
+  removes the weakest note times from flagged soft bars. Notes on salient vocal
+  and drum onsets go last, and a removal is kept only when no salience finding
+  appears. An unresolved heavy bar usually needs its riff declared as the lead.
+
 ## Follow the lead instrument's rhythm
 
 Standing user rule (2026-09-23, `lead_rhythm` in `player-profile.json`), from

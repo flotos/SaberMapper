@@ -69,6 +69,16 @@ direction. Arc heads and tails are re-angled together with their note. A pattern
 instance involved in a break is inlined as literal notes first; the compiled
 output stays the same. Chain anchors and locked sections are never changed.
 
+An arc or chain occupies its saber from head to tail. The validator blocks a
+same-color note strictly inside it (`arc_note_conflict`, `chain_note_conflict`;
+a warning when locked). This followed a 2026-09-23 player report at End of You
+0:42. Because a blocking error suppresses the movement model,
+`repair_held_conflicts` runs first in `repair-swings`. It moves the note to the
+other hand if that hand is free, as audio repair's flow-safe insert does.
+Otherwise it ends the arc on the note when at least one beat of hold remains,
+or drops the arc and keeps its notes. A note inside a chain is removed. A
+strategy is applied only if it adds no blocking finding or `reach_proxy` warning.
+
 The following primary repositories were inspected on 2026-09-22:
 
 | Implementation | Pinned HEAD | License and capabilities | Reuse decision |

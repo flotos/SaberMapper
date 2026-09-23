@@ -91,8 +91,9 @@ class HiddenNoteRepairTests(unittest.TestCase):
 
     def test_arc_anchor_moves_with_its_note(self):
         source = end_of_you()
+        # Consecutive blue cuts: a blue note inside the hold would be an arc_note_conflict.
         source["sections"][0]["arcs"] = [{"id": "arc", "color": 1, "beat": "9/2", "x": 2, "y": 1, "direction": 2,
-                                          "tail_beat": 6, "tail_x": 2, "tail_y": 0, "tail_direction": 1}]
+                                          "tail_beat": 5, "tail_x": 2, "tail_y": 1, "tail_direction": 3}]
         self.assertEqual([d["code"] for d in errors(source)], ["hidden_note", "hidden_note"])
         fixed = repair_hidden_notes(source)["arrangement"]
         self.assertEqual(errors(fixed), [])

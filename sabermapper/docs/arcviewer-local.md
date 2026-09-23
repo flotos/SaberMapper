@@ -1,6 +1,6 @@
 # Local ArcViewer integration
 
-Select **3D preview** on an open project. SaberMapper exports the saved revision and opens the local ArcViewer in a new tab at the audio playhead, with the project's Standard difficulty selected. Playback stays paused until you start it in ArcViewer. After saving edits, select the button again to preview a fresh export. The studio also provides reopen and ZIP download links if a popup is blocked.
+Select **3D preview** on an open project. SaberMapper opens the local ArcViewer in a new tab at the audio playhead, with the project's Standard difficulty selected, and exports the saved revision while ArcViewer boots; ArcViewer's map request waits for that export. The studio imports the export pipeline when it starts, and the browser revalidates ArcViewer's engine files instead of downloading and compiling them again. Playback stays paused until you start it in ArcViewer. After saving edits, select the button again to preview a fresh export. The studio also provides reopen and ZIP download links if a popup is blocked.
 
 Run `scripts/install_arcviewer.ps1` once on a fresh checkout (Git and network access required). The viewer subsequently runs locally without downloading a map or audio to an external service. Keep the studio server running. For a wheel installation, set `SABERMAPPER_ARCVIEWER` to the absolute deployment checkout directory before starting the server.
 

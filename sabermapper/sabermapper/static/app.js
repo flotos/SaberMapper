@@ -168,22 +168,32 @@ $('playtest-form').onsubmit=e=>{e.preventDefault();run('Saving…',async()=>{sta
 window.addEventListener('resize',drawWaveform);document.addEventListener('keydown',e=>{if(e.code==='Space'&&!['INPUT','TEXTAREA','SELECT','BUTTON'].includes(e.target.tagName)&&state.project&&state.view==='studio'){e.preventDefault();$('play').click();}});
 (async()=>{try{const info=await api('/api/status');state.token=info.token;state.workspace=info.workspace;state.code=info.code?.version;setInterval(checkCode,30000);const list=await refreshProjects();if(list.length)await loadProject(list[0].id);}catch(e){toast(e.message,true);}})();
 
+// The viewer tab boots ArcViewer while the server writes the map ZIP; ArcViewer's map request waits for it.
 $('preview-map').onclick=()=>{
   if(state.busy){toast('Still working…');return;}
+  if(state.previewing){toast('The 3D preview is still exporting…');return;}
   const projectId=currentId(), revision=state.project.revision, difficulty=state.project.difficulty, seconds=$('audio').currentTime;
   const viewer=window.open('about:blank','_blank');
   if(viewer){viewer.opener=null;viewer.document.title='ArcViewer';viewer.document.body.textContent='Loading…';}
   $('audio').pause();
   run('Preparing preview…',async()=>{
+    let result;
     try{
-      const result=await api(`/api/projects/${projectId}/preview`,{revision,seconds,difficulty});
-      $('arcviewer-open').href=result.viewer_url;
-      $('arcviewer-download').href=result.url;
-      $('arcviewer-download').download=result.filename;
-      $('arcviewer-handoff').hidden=false;
+      result=await api(`/api/projects/${projectId}/preview`,{revision,seconds,difficulty});
       if(viewer && !viewer.closed)viewer.location.replace(result.viewer_url);
-      else toast('Preview ready. Click Open ArcViewer.');
     }catch(error){if(viewer && !viewer.closed)viewer.close();throw error;}
+    state.previewing=true;
+    (async()=>{
+      try{
+        await api(result.status_url);
+        $('arcviewer-open').href=result.viewer_url;
+        $('arcviewer-download').href=result.url;
+        $('arcviewer-download').download=result.filename;
+        $('arcviewer-handoff').hidden=false;
+        if(!viewer || viewer.closed)toast('Preview ready. Click Open ArcViewer.');
+      }catch(error){if(viewer && !viewer.closed)viewer.close();toast(error.message,true);}
+      finally{state.previewing=false;}
+    })();
   });
 };
 

@@ -36,10 +36,19 @@ Iterate until `project verify` is `ready_for_human`, then hand over. Never hand 
 3. Score each candidate 1-5 on the rubric (grounded in this song, one strong idea, develops, readable while playing, buildable) with a one-line justification, select one, and `concept save ID --file F --revision none|CURRENT`.
 4. Tell the user the selected treatment in a few sentences before building assets, so they can steer it in text. Record steering in the concept's `steering` field and save a new revision.
 
-### 3. Forge assets
+### 3. Design the look, then forge assets
 
-1. `assets library` lists tier-1 shaders (post-process, skyboxes, emissive surfaces, particles) with typed properties, safe ranges and a description of how each looks. Prefer composing the library.
-2. `assets init ID`, edit `<project>/assets/assets.json`, then `assets lint ID`. Tier 2: write a per-map shader or mesh/particle generator only when the concept needs something the library cannot express; every shader must pass the single-pass-instanced stereo lint. Tier 3 (generated textures/meshes) returns `generator_unavailable` until a local model is set up.
+The shaders carry the spectacle. EXSII maps ship 8 to 76 custom shaders each on mostly primitive meshes, and their screen effects are tiny: the effect comes from timing and a few semantic properties the events animate. Read [shader craft](references/shader-craft.md) before writing or restyling a shader or designing a section's look. It covers why things look good in the headset, the platform rules, the technique catalogue with its music handles, and VR cost. [What the EXSII shaders do](references/exsii-shaders.md) calibrates ambition with measured numbers. The [cookbook](references/shader-cookbook.md) holds the functions, and `templates/` holds five complete shaders that compile in the forge and render in the game: a raymarched set-piece, a procedural sky, a world-anchored full-screen effect, a custom note, and a stage surface for scene meshes.
+
+Rules that hold for every shader:
+- Stereo macros in every pass. Anchor patterns to world or view directions, never to screen UV.
+- Alpha is bloom: 0 on skies, floors, walls and other large surfaces; glow only on small parts; blits pass `src.a` through.
+- One to three semantic 0..1 handles per effect (`_Progress`, `_Pulse`, `_Warp`, `_Phase`, a seed). The show animates them from audio evidence, never from `_Time`.
+- Keep the lane calm (dark, low contrast, low motion behind the notes). Large surfaces move on hits rather than brighten.
+- A skybox needs `setup.camera_properties` `{"clearFlags": "Skybox"}` or it stays black (`skybox_not_cleared`).
+
+1. `assets library` lists tier-1 shaders (post-process, skyboxes, emissive surfaces, particles) with typed properties, safe ranges and a description of how each looks. Compose the library for supporting layers.
+2. `assets init ID`, edit `<project>/assets/assets.json`, then `assets lint ID`. Tier 2: write per-map shaders for the concept's central image, starting from the nearest template, plus mesh or particle generators as needed. Every shader must pass the single-pass-instanced stereo lint. Tier 3 (generated textures/meshes) returns `generator_unavailable` until a local model is set up.
 3. `assets build ID` runs Unity batchmode and writes `<project>/assets/bundleinfo.json` and `bundleWindows2021.vivify`. If it returns `unity_missing`, tell the user the one-time install in its `fix`; you can still write and validate the show, but export and capture need the bundle.
 4. When a per-map asset is worth keeping, `assets promote ID ASSET` and fill its library entry.
 
@@ -54,6 +63,11 @@ Iterate until `project verify` is `ready_for_human`, then hand over. Never hand 
    - **Distant geometry dissolves instead of fading to black.** Opaque plants faded to black still hide what is behind them, such as a sun at the end of the path. Use a dithered `clip` on distance.
    - **Colour the notes with the concept.** Use `presentation.note_colors` (Info.dat colour scheme plus Chroma colours). If the arrow needs its own colour, add a note skin (`skin` primitive with `colorNotes.asset`/`anyDirectionAsset` prefabs). Vivify passes the note colour per instance in `_Color` (and `_Cutout`), so one shader can tell the two hands apart.
    - **Scale and position given at instantiation work**, but a sun quad only fills the part its shader draws. Judge size from captures, not from arithmetic on the quad.
+   Lessons from the shader-template captures (2026-09-23):
+   - **Large surfaces write alpha 0.** A floor with a rim alpha of about 0.2 turned near-white for four frames every time an additive object pulsed. With alpha 0 it held steady.
+   - **Fresnel rim stays off floors and walls.** At grazing angles a flat plane is all rim and lights up across its whole surface.
+   - **Set-pieces face the player.** A horizontal ring above the track reads as a flat ellipse.
+   - **Give stars a brightness spread.** Equal-brightness stars read as snow.
 5. `show validate ID`, fix every error, then `show save ID --show F --revision none|CURRENT`. Save the arrangement with `project save` as usual.
 
 ### 5. Compile, export, capture
@@ -62,7 +76,7 @@ Iterate until `project verify` is `ready_for_human`, then hand over. Never hand 
 2. `game capture ID [--difficulty D]` is the only way you open the game. It takes the machine-wide game lease, launches Beat Saber in FPFC, installs the current revision into `CustomWIPLevels/SaberMapper-ID`, plays it (from 0 for Vivify maps so all earlier events apply), captures frames at every section boundary, key moment and every 16 beats plus a 3 s dense probe for the flash check (notes are hidden for the whole probe window and come back once afterwards, since uncut notes fly through the capture camera and read as flashes a player never sees), then closes the game and releases the lease. Add `--probe START-END@30` over the brightest or fastest-pulsing passage; `--no-hud` for clean frames.
    - `game_busy`: another agent or the user holds the game. Retry later or pass `--wait SECONDS`; never close a game you did not launch.
    - `game_preempted`: the user took the game. Retry later; it is never a map defect.
-3. `frames sheet CAPTURE_DIR` writes one labelled contact sheet per section. **Read every sheet** with your file-reading tool and compare it with the concept: is the idea visible, does each section look different where the concept says it should, are notes readable against the scene, is the held moment actually held back?
+3. `frames sheet CAPTURE_DIR` writes one labelled contact sheet per section. **Read every sheet** with your file-reading tool and compare it with the concept: is the idea visible, does each section look different where the concept says it should, are notes readable against the scene, is the held moment actually held back? Open full-resolution frames for detail. When a large area might pulse, measure its mean brightness across the probe frames. A jump between neighbouring frames is a flash even when no event targets that surface.
 4. `game logs --level PATH` (also stored in `capture.json`) lists Vivify/Heck/Chroma errors such as bundle checksum mismatches, missing materials or custom-data parse errors.
 
 ### 6. Verify, then hand over

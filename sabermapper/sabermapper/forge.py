@@ -1426,8 +1426,10 @@ def render_library_md(library: dict) -> str:
              "Entries are written for an agent that composes without seeing the render. Safe ranges are the values to",
              "use without extra frame review; the shader's own `Range()` is the hard limit that `assets lint` enforces.",
              "Beat Saber's bloom reads the alpha channel, so `_Glow` sets how much a surface blooms. `post_process`",
-             "materials are applied with Vivify `Blit`, skyboxes with `SetRenderingSettings` (`renderSettings.skybox`),",
-             "surface and particle materials inside prefabs.", "", "## Shaders", ""]
+             "materials are applied with Vivify `Blit`, skyboxes with `SetRenderingSettings` (`renderSettings.skybox`)",
+             "together with the main camera clearing to the skybox (setup `camera_properties` `clearFlags: \"Skybox\"`;",
+             "the game clears to black otherwise), surface and particle materials inside prefabs. Large surfaces keep",
+             "`_Glow` at 0: a big area that writes alpha flashes whenever the bloom changes.", "", "## Shaders", ""]
     for sid, entry in library["shaders"].items():
         lines += [f"### `{sid}`: {entry['shader_name']}", "",
                   f"- **Kinds:** {', '.join(entry['kinds'])}", f"- **Intent:** {entry['intent']}",

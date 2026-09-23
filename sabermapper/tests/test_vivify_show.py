@@ -333,6 +333,20 @@ class ValidationRuleTests(BundleCase):
         _, result = self.compile([self.primitive("grey")])
         self.assertIn("possession_unused", codes(result["diagnostics"]))
 
+    def test_skybox_needs_the_main_camera_to_clear_to_it(self):
+        sky = {"renderSettings": {"skybox": "assets/sm/post/glow.mat"}}
+        found = self.compile([{"kind": "setup", "rendering": sky}])[1]["diagnostics"]
+        self.assertTrue(errors(found, "skybox_not_cleared"))
+        cleared = {"kind": "setup", "rendering": sky, "camera_properties": {"clearFlags": "Skybox"}}
+        self.assertFalse(errors(self.compile([cleared])[1]["diagnostics"], "skybox_not_cleared"))
+        late = [{"kind": "setup", "rendering": sky},
+                {"kind": "raw", "event": {"b": 4, "t": "SetCameraProperty", "d": {"properties": {"clearFlags": "Skybox"}}}}]
+        self.assertTrue(errors(self.compile(late)[1]["diagnostics"], "skybox_not_cleared"))
+        other_camera = [{"kind": "setup", "rendering": sky},
+                        {"kind": "raw", "event": {"b": 0, "t": "SetCameraProperty",
+                                                  "d": {"id": "depthcam", "properties": {"clearFlags": "Skybox"}}}}]
+        self.assertTrue(errors(self.compile(other_camera)[1]["diagnostics"], "skybox_not_cleared"))
+
     def test_flash_rate_ceiling(self):
         def blits(count, spacing):
             return [{"kind": "raw", "event": {"b": i * spacing, "t": "Blit",

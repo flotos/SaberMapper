@@ -177,7 +177,8 @@ resolution, and `executeMethod … could not be found` (the scripts did not comp
 - `kind`:
   - `material`: a surface for renderers.
   - `post_process`: a Blit material. Its shader must sample `_MainTex` through the screen-space macros.
-  - `skybox`: for `SetRenderingSettings` `renderSettings.skybox`.
+  - `skybox`: for `SetRenderingSettings` `renderSettings.skybox`. The main camera must also clear to the
+    skybox (setup `camera_properties` `{"clearFlags": "Skybox"}`), or the sky stays black (`skybox_not_cleared`).
   - `prefab`: `children`, each with exactly one of `mesh` or `particles`, plus a `material` id of kind
     `material`, and `position`/`rotation`/`scale`.
   - `particles`: a prefab whose root is a particle system (`particles` and `material`).

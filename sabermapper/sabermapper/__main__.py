@@ -140,10 +140,14 @@ def main(argv=None):
     register_musical(commands)
     from .research_cli import register_subcommands, dispatch
     register_subcommands(commands)
+    from .forge_cli import register_forge, dispatch_forge
+    register_forge(commands)
     args = parser.parse_args(argv)
     try:
         if dispatch_musical(args, emit):
             return 0
+        if (code := dispatch_forge(args, emit)) is not None:
+            return code
         if dispatch(args):
             return 0
         if args.command == "serve":

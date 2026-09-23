@@ -28,7 +28,7 @@ Treat every defect found in one song's map, whether from user feedback, review, 
    - a build-time rule or safer default: a placement constraint in `placement.py` (so notes the placer chooses can never break it), a rule the rhythm draft (`music rhythm --propose`) follows, or a default in analysis, compile or export. Never a command that rewrites saved maps after the fact;
    - guidance in the canonical skills under `sabermapper/skills/` (then run `scripts/install_skills.py --update`) only when the issue requires judgment that cannot be checked mechanically.
    Add a regression test in `sabermapper/tests/` for any code change.
-3. **Apply it to every mapped song.** Run `project check` across all projects from `project list`, not only the song that prompted it. Correct every affected arrangement through revision-aware `project save` (unpinned fields are re-placed under the new rule) and re-export. Do not edit locked sections; report where a lock blocks the fix.
+3. **Apply it to every mapped song.** Run `project check` across all projects from `project list`, not only the song that prompted it. Correct every affected arrangement through revision-aware `project save` (unpinned fields are re-placed under the new rule) and re-export. Do not edit locked sections; report where a lock blocks the fix. From a worktree, do this in its workspace clone, then run `workspace publish` once the code is merged.
 4. **Report** the root cause, where the fix now lives (check, placement or draft rule, or skill), the test, and which projects were checked and changed.
 
 If a request is a purely musical choice for one song, such as emphasizing a specific instrument at a specific timestamp, apply it locally. If it expresses a reusable preference, also record it in the player profile so future maps apply it. Do not weaken or silence a check to make one song pass.
@@ -51,6 +51,7 @@ The application is in `sabermapper/`; run commands from there. On this Windows w
 - Handover gate (structure, audio, show, capture, frames, game log): `.venv/Scripts/python -m sabermapper project verify ID --workspace workspace --record`
 - Timestamped user notes from the studio: `.venv/Scripts/python -m sabermapper project feedback list ID --workspace workspace`
 - Verify code changes: `.venv/Scripts/python -m unittest discover -s tests -q`
+- In a git worktree, map against a local copy of the real workspace: `.venv/Scripts/python -m sabermapper workspace clone` (audio and content-addressed files hardlinked, the rest copied, exports left out); after the code merge, `workspace status` then `workspace publish` copy only the changed files back into the main checkout's workspace. A project the real workspace also changed since the clone is held back (exit 2) with the `project save` that reapplies the change.
 
 Use `--help` for audio import and other commands. The studio's **3D preview** button exports the saved revision and opens local ArcViewer at the playhead. It is for the user; agents do not use it unless asked.
 

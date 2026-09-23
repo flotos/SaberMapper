@@ -1,4 +1,4 @@
-# Movement model 1.4 and implementation survey
+# Movement model 1.5 and implementation survey
 
 The shared `analyze_movement(notes, bpm, njs=..., spawn_offset_beats=...)` result contains versioned swings,
 aggregate proxies, review warnings, and an explicit unsupported-motion list.
@@ -60,6 +60,17 @@ repair prefers the fewest hidden pairs left, the shortest move, the hand's own s
 cells off the line of sight, and the cell where the previous cut left the saber. It
 removes the note on the weaker metric position only when no cell works. Arc anchors
 move with their note. Audio repair skips hidden cells when it adds notes.
+
+Model 1.5 adds the review warning `one_hand_burst`: three or more consecutive
+same-hand swings (`BURST_SWINGS`), each less than 0.2 s (`BURST_SECONDS`) after
+the previous one, while the other hand has no swing between the first and the
+last. One hand then streams a figure that alternating hands would carry. It
+followed a report on End of You at 0:02.5: three right-hand eighths at 190 BPM
+over a spoken line while the left hand held an arc, only one of them on a
+syllable. The finding is a warning; `project repair-audio` removes the burst
+notes that sit on none of the bar's lead attacks, then hands the weakest inner
+note to the idle hand (or removes it), reverting any split that adds a blocking
+diagnostic. Notes added by repair-audio never create a burst.
 
 `sabermapper.swing_repair.repair_fast_breaks` and `project repair-swings` fix
 findings deterministically. They drop a 16th pickup under 0.2 s that sits on a

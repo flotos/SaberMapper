@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from math import atan2, cos, degrees, hypot, isfinite, radians, sin
 
-MODEL_VERSION = "1.4"
+MODEL_VERSION = "1.5"
 # A same-hand swing arriving sooner than this must nearly reverse the previous
 # cut; a sideways (90-degree) or repeated cut this fast forces a wrist reset.
 FAST_BREAK_SECONDS = 0.3
@@ -12,6 +12,10 @@ REVERSAL_DEGREES = 135
 # Without a reset (a full beat), consecutive same-hand swings must alternate
 # forehand/backhand and turn at least this much.
 MIN_TURN_DEGREES = 90
+# Three or more same-hand swings each less than this after the previous, while the other hand has
+# nothing to cut, stream on one hand: alternating hands or fewer notes carry the same sound.
+BURST_SECONDS = 0.2
+BURST_SWINGS = 3
 # A note arriving in the same cell as the note just before it (either hand) is
 # hidden behind that note for most of its approach, and its arrow reads only
 # once the front note is cut. The four centre cells of the middle and top rows
@@ -79,6 +83,29 @@ def flow_break(previous, direction, hand, gap_seconds, reset, previous_angle=0.0
                 f"alternate parity and turn at least {MIN_TURN_DEGREES} degrees "
                 "(see project repair-swings)")
     return None
+
+
+def one_hand_bursts(swings: list) -> list:
+    """Review warnings for runs of fast same-hand swings while the other hand idles."""
+    found = []
+    for hand in (0, 1):
+        own = [s for s in swings if s["hand"] == hand]
+        other = [s["seconds"] for s in swings if s["hand"] != hand]
+        run = own[:1]
+        for swing in own[1:] + [None]:
+            if swing is not None and swing["seconds"] - run[-1]["seconds"] < BURST_SECONDS:
+                run.append(swing)
+                continue
+            if len(run) >= BURST_SWINGS and not any(run[0]["seconds"] < t < run[-1]["seconds"] for t in other):
+                span = run[-1]["seconds"] - run[0]["seconds"]
+                found.append({"code": "one_hand_burst", "note_ids": [i for s in run for i in s["note_ids"]],
+                              "beat": run[0]["beat"], "confidence": "medium",
+                              "reason": f"{'right' if hand else 'left'} hand swings {len(run)} times in {span:.3f}s, "
+                                        f"each under {BURST_SECONDS}s after the last, while the other hand has "
+                                        "nothing to cut; alternate hands or keep only the notes on the lead's "
+                                        "strongest sounds (see project repair-audio)"})
+            run = [swing] if swing is not None else []
+    return sorted(found, key=lambda w: w["beat"])
 
 
 def hidden_window(x, y):
@@ -203,6 +230,7 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
             effective = flow[note["color"]]
             flow[note["color"]] = ((_OPPOSITE[effective[0]], effective[1])
                                    if effective and not reset else None)
+    warnings.extend(one_hand_bursts(swings))
     span = swings[-1]["seconds"] - swings[0]["seconds"] if len(swings) > 1 else 0
     longest, run = (1, 1) if swings else (0, 0)
     for left, right in zip(swings, swings[1:]):

@@ -38,7 +38,14 @@ Passes, all judged against one musical evidence run:
    rhythm and every direction. Soft bars flagged ``difficulty_exceeds_intensity`` then lose their
    cheapest note times (weak support, crowded, off-beat; salient vocal and drum
    onsets last) until they fit the demand their loudness allows.
-5. **Settle density.** The quiet-passage thinning runs once more, so notes the
+5. **Split one-hand bursts.** A ``one_hand_burst`` (three or more same-hand
+   swings, each under 0.2 s after the last, while the other hand idles) loses
+   its notes that sit on none of the bar's declared lead attacks, keeping the
+   best-supported one when none does. A burst that remains has its weakest inner
+   note handed to the idle hand when it sits on a strong sound outside a thin,
+   soft passage, and removed otherwise. New notes from the other passes never
+   create a burst.
+6. **Settle density.** The quiet-passage thinning runs once more, so notes the
    lead rebuild or the fills added never leave a ``density_exceeds_audio``
    window behind.
 
@@ -56,6 +63,7 @@ Every change is re-validated; one that introduces a blocking diagnostic or a
 from __future__ import annotations
 
 import copy
+import math
 from bisect import bisect_left
 from fractions import Fraction
 
@@ -67,7 +75,7 @@ from .critique import (ACCENT_STRENGTH, DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT
                        QUIET_WINDOW_SECONDS, SALIENCE_BAR_BEATS, SALIENCE_MATCH_BEATS, VOCAL_ONSET_STRENGTH, _sections,
                        beat_to_seconds, critique_arrangement, focus_lead, intensity_bars, lead_onsets, on_onset,
                        quiet_bar, quiet_windows, salient_onsets, strongest_per_slot, underplayed_runs)
-from .movement import hidden_window, turn_degrees, _OPPOSITE
+from .movement import BURST_SECONDS, BURST_SWINGS, hidden_window, turn_degrees, _OPPOSITE
 from .swing_repair import _count_breaks, _hand_swings
 from .validation import _beat, validate_arrangement
 
@@ -459,8 +467,20 @@ def _cells(view, hand, direction, beat, anchor):
     return sorted(cells)
 
 
-def insert_note(arrangement: dict, beat: Fraction, note_id: str) -> dict | None:
-    """Add a flow-safe note at ``beat`` in place; return the change or None."""
+def _makes_burst(arrangement, hand, seconds):
+    """True when a ``hand`` swing at ``seconds`` would join a one_hand_burst (see movement.one_hand_bursts)."""
+    own = sorted([s["seconds"] for s in _hand_swings(arrangement, hand)] + [seconds])
+    other = [s["seconds"] for s in _hand_swings(arrangement, 1 - hand)]
+    lo = hi = own.index(seconds)
+    while lo and own[lo] - own[lo - 1] < BURST_SECONDS:
+        lo -= 1
+    while hi + 1 < len(own) and own[hi + 1] - own[hi] < BURST_SECONDS:
+        hi += 1
+    return hi - lo + 1 >= BURST_SWINGS and not any(own[lo] < t < own[hi] for t in other)
+
+
+def insert_note(arrangement: dict, beat: Fraction, note_id: str, hands=(0, 1)) -> dict | None:
+    """Add a flow-safe note at ``beat`` in place, on one of ``hands``; return the change or None."""
     view = _Map(arrangement)
     section, start = view.section_at(beat)
     if section is None or section["locked"]:
@@ -472,8 +492,8 @@ def insert_note(arrangement: dict, beat: Fraction, note_id: str) -> dict | None:
         return None
     seconds = beat_to_seconds(beat, arrangement)
     options = []
-    for hand in (0, 1):
-        if view.held(hand, beat):
+    for hand in hands:
+        if view.held(hand, beat) or _makes_burst(arrangement, hand, seconds):
             continue
         swings = _hand_swings(arrangement, hand)
         at = bisect_left([s["beat"] for s in swings], beat)
@@ -978,6 +998,106 @@ def reweight_focus(arrangement: dict, report: dict) -> dict:
     return {"arrangement": result, "changes": changes, "unresolved": []}
 
 
+def _remove(arrangement, object_ids):
+    """Remove the literal notes named by ``section/note/id`` object IDs, in place."""
+    for section in arrangement["sections"]:
+        section["notes"] = [n for n in section["notes"] if f'{section["id"]}/note/{n["id"]}' not in object_ids]
+
+
+def split_bursts(arrangement: dict, report: dict) -> dict:
+    """Pass 4: thin or hand over the notes of one_hand_burst runs (see the module docstring)."""
+    result = copy.deepcopy(arrangement)
+    view = _Map(result)
+    layers = report.get("layers") or {}
+    baseline = _errors(result)
+    spans = _sections(result)
+    singing = {bar["start_beat"] for bar in critique_arrangement(result, report)["metrics"]["salience"].get("bars", [])
+               if bar["salient"] == "vocals"}
+    tolerance = SUPPORT_BEATS * 60 / view.bpm
+    support = _strength_near(report, SUPPORT_STRENGTH)
+    support_seconds = [t for t, _ in support]
+    attacks = {}
+
+    def on_lead(beat):
+        """Strength of the declared lead's attack at ``beat``: 0.0 off its attacks, None when no lead is declared."""
+        bar = math.floor(beat / SALIENCE_BAR_BEATS) * SALIENCE_BAR_BEATS
+        lead = ("vocals" if bar in singing and isinstance(layers.get("vocals"), dict)
+                else focus_lead(spans, bar + SALIENCE_BAR_BEATS / 2, layers))
+        if lead is None:
+            return None
+        if lead not in attacks:
+            attacks[lead] = lead_onsets(layers, lead, result, LEAD_SUPPORT_STRENGTH)
+        return max((s for b, s in attacks[lead] if abs(b - float(beat)) <= SALIENCE_MATCH_BEATS), default=0.0)
+
+    def strength(beat):
+        seconds = beat_to_seconds(beat, result)
+        lo = bisect_left(support_seconds, seconds - tolerance)
+        hi = bisect_left(support_seconds, seconds + tolerance)
+        return max((s for _, s in support[lo:hi]), default=0.0)
+
+    def split(arrangement, swing, color):
+        """Hand ``swing`` to the idle hand when it carries a strong sound outside a quiet bar, else remove it."""
+        _remove(arrangement, swing["ids"])
+        bar = math.floor(swing["beat"] / SALIENCE_BAR_BEATS) * SALIENCE_BAR_BEATS
+        if swing["strength"] >= LEAD_ONSET_STRENGTH and not quiet_bar(report, arrangement, bar, bar + SALIENCE_BAR_BEATS):
+            moved = insert_note(arrangement, swing["beat"], f'hand-{len(changes) + 1:03d}', hands=(1 - color,))
+            if moved:
+                return [{**moved, "action": "moved_hand", "removed_ids": swing["ids"],
+                         "reason": "one hand streamed alone; the idle hand takes this sound"}]
+        return [{"beat": float(swing["beat"]), "action": "removed", "object_ids": swing["ids"],
+                 "reason": "one hand streamed alone; removed its weakest note that keeps the flow"}]
+
+    def drop(arrangement, swings):
+        _remove(arrangement, [i for swing in swings for i in swing["ids"]])
+        return [{"beat": float(swing["beat"]), "action": "removed", "object_ids": swing["ids"],
+                 "reason": "one hand streamed alone; this note sits on none of the lead's attacks"} for swing in swings]
+
+    changes, unresolved, skipped = [], [], set()
+    for _ in range(len(expanded_notes(result)) + 1):
+        bursts = [d for d in validate_arrangement(result)
+                  if d["code"] == "one_hand_burst" and tuple(d["object_ids"]) not in skipped]
+        if not bursts:
+            break
+        ids = tuple(bursts[0]["object_ids"])
+        literal = {f'{s["id"]}/note/{n["id"]}': (s, n, b) for s, n, b in view.entries()}
+        swings = {}
+        for note in expanded_notes(result):
+            if note["id"] not in ids:
+                continue
+            swing = swings.setdefault(note["beat"], {"beat": note["beat"], "ids": [], "free": True})
+            swing["ids"].append(note["id"])
+            entry = literal.get(note["id"])
+            section, start = view.section_at(note["beat"])
+            if (entry is None or section["locked"] or view.arcs_at(section, start, entry[1], entry[2])
+                    or view.chain_anchored(section, start, entry[1], entry[2])):
+                swing["free"] = False  # motif-expanded, locked, or anchoring an arc or chain
+        swings = [dict(s, lead=on_lead(s["beat"]), strength=strength(s["beat"])) for _, s in sorted(swings.items())]
+        color = next(n["color"] for n in expanded_notes(result) if n["id"] in ids)
+        off_lead = [s for s in swings if s["lead"] == 0.0]
+        if len(off_lead) == len(swings):
+            off_lead.remove(max(off_lead, key=lambda s: (s["strength"], -s["beat"])))
+        # Weakest sound first, off-beat before on-beat; inner notes before the run's ends.
+        weakest = lambda s: (s["lead"] or s["strength"], s["beat"].denominator == 1, s["beat"])
+        plans = [(drop, [s for s in off_lead if s["free"]])] if any(s["free"] for s in off_lead) else []
+        plans += [(split, s) for s in sorted(swings[1:-1], key=weakest) + sorted((swings[0], swings[-1]), key=weakest)
+                  if s["free"]]
+        for action, target in plans:
+            trial = copy.deepcopy(result)
+            made = action(trial, target) if action is drop else action(trial, target, color)
+            if not _errors(trial) - baseline:
+                result.clear()
+                result.update(trial)
+                changes.extend({"code": "one_hand_burst", "color": color, **change} for change in made)
+                break
+        else:
+            skipped.add(ids)
+            unresolved.append({"code": "one_hand_burst", "color": color, "beat": float(swings[0]["beat"]),
+                               "object_ids": list(ids),
+                               "reason": "burst notes are locked, arc or chain anchors or motif notes, or every "
+                                         "split adds a blocking diagnostic; re-author by hand"})
+    return {"arrangement": result, "changes": changes, "unresolved": unresolved}
+
+
 def repair_audio(arrangement: dict, report: dict | None) -> dict:
     """Return ``{"arrangement", "changes", "unresolved", "remaining"}`` without mutating the input."""
     if not report:
@@ -1000,12 +1120,15 @@ def repair_audio(arrangement: dict, report: dict | None) -> dict:
     filled = {"arrangement": eased["arrangement"],
               "changes": filled["changes"] + hardened["changes"] + eased["changes"],
               "unresolved": filled["unresolved"] + hardened["unresolved"] + eased["unresolved"]}
+    split = split_bursts(filled["arrangement"], report)
     # Notes added for the lead or for unmapped onsets can push a thin window (or the map's full-band
     # reference) past its allowance again; intensity keeps the last word on density.
-    settled = thin_quiet(filled["arrangement"], report)
+    settled = thin_quiet(split["arrangement"], report)
     remaining = [{k: w[k] for k in ("code", "message", "section_id")}
                  for w in critique_arrangement(settled["arrangement"], report)["warnings"]]
     return {"arrangement": settled["arrangement"],
-            "changes": grounded["changes"] + led["changes"] + filled["changes"] + settled["changes"],
-            "unresolved": grounded["unresolved"] + led["unresolved"] + filled["unresolved"] + settled["unresolved"],
+            "changes": grounded["changes"] + led["changes"] + filled["changes"] + split["changes"]
+                       + settled["changes"],
+            "unresolved": grounded["unresolved"] + led["unresolved"] + filled["unresolved"] + split["unresolved"]
+                          + settled["unresolved"],
             "remaining": remaining}

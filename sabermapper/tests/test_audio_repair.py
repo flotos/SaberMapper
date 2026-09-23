@@ -197,6 +197,15 @@ class QuietDensityTests(unittest.TestCase):
         self.assertLessEqual(max(y - x for x, y in zip(intro, intro[1:])), 4, "no phrase empties")
         self.assertLessEqual(len(intro), 1.5 * 0.2 * 4 * 16 + 1)
 
+    def test_notes_on_sung_onsets_do_not_count_as_excess(self):
+        # A soft verse where the voice articulates every half beat: the notes follow the singing, not the grid.
+        source, evidence = quiet_intro()
+        evidence["layers"]["vocals"]["events"] = [{"id": f"vocals:{i}", "seconds": i / 4, "method": "spectral_flux",
+                                                   "strength": 0.8} for i in range(64)]
+        self.assertNotIn("density_exceeds_audio",
+                         {w["code"] for w in critique_arrangement(source, evidence)["warnings"]})
+        self.assertEqual(thin_quiet(source, evidence)["changes"], [])
+
     def test_locked_sections_are_not_thinned(self):
         source, evidence = quiet_intro()
         source["sections"][0]["locked"] = True

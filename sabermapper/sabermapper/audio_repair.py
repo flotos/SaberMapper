@@ -20,7 +20,7 @@ Between the two, ``density_exceeds_audio`` windows (thin, quiet audio mapped as
 densely as the full band) are thinned: note times with the weakest audio under
 them and the least room around them go first, off-beat before on-beat, until the window fits the density its
 audio support allows. Notes on vocal or drum onsets that the salience checks
-count, arc anchors and doubles are kept.
+count are exempt from that density and kept, as are arc anchors and doubles.
 
 Locked sections, chain anchors and motif-expanded notes are never changed.
 Every change is re-validated; one that introduces a blocking diagnostic or a
@@ -37,7 +37,7 @@ from .arrangement import expanded_notes
 from .audio_grounding import SUPPORT_BEATS, SUPPORT_STRENGTH, ONSET_METHODS, ONSET_STRENGTH, _stem_onsets
 from .critique import (ACCENT_STRENGTH, DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT, QUIET_WINDOW_SECONDS,
                        SALIENCE_MATCH_BEATS, VOCAL_ONSET_STRENGTH, beat_to_seconds, critique_arrangement,
-                       quiet_windows)
+                       on_onset, quiet_windows, salient_onsets)
 from .movement import turn_degrees, _OPPOSITE
 from .swing_repair import _count_breaks, _hand_swings
 from .validation import _beat, validate_arrangement
@@ -247,14 +247,12 @@ def ground_notes(arrangement: dict, report: dict) -> dict:
     return {"arrangement": result, "changes": changes, "unresolved": unresolved}
 
 
-def _strength_near(report, arrangement, layers, threshold, methods=ONSET_METHODS):
-    """Sorted (seconds, strength) onsets of ``layers`` (None: all) at or above ``threshold``."""
+def _strength_near(report, threshold):
+    """Sorted (seconds, strength) onsets of every layer at or above ``threshold``."""
     found = []
-    for name, layer in (report.get("layers") or {}).items():
-        if layers is not None and name not in layers:
-            continue
+    for layer in (report.get("layers") or {}).values():
         found.extend((float(e["seconds"]), e["strength"]) for e in layer.get("events", [])
-                     if e.get("method") in methods and e.get("strength", 0) >= threshold)
+                     if e.get("method") in ONSET_METHODS and e.get("strength", 0) >= threshold)
     return sorted(found)
 
 
@@ -264,20 +262,17 @@ def thin_quiet(arrangement: dict, report: dict) -> dict:
     view = _Map(result)
     baseline = _errors(result)
     tolerance = SUPPORT_BEATS * 60 / view.bpm
-    support = _strength_near(report, result, None, SUPPORT_STRENGTH)
+    support = _strength_near(report, SUPPORT_STRENGTH)
     support_seconds = [t for t, _ in support]
     # Onsets the salience checks count: removing their notes would open a vocal or drum finding.
-    keep = sorted(t for t, _ in _strength_near(report, result, ("vocals",), VOCAL_ONSET_STRENGTH, ("spectral_flux",))
-                  + _strength_near(report, result, ("drums",), DRUM_ONSET_STRENGTH, ("spectral_flux",)))
-    match = SALIENCE_MATCH_BEATS * 60 / view.bpm
+    keep, match = salient_onsets(result, report)
 
     def strength(seconds):
         lo, hi = bisect_left(support_seconds, seconds - tolerance), bisect_left(support_seconds, seconds + tolerance)
         return max((s for _, s in support[lo:hi]), default=0.0)
 
     def kept(seconds):
-        index = bisect_left(keep, seconds - match)
-        return index < len(keep) and keep[index] <= seconds + match
+        return on_onset(keep, match, seconds)
 
     changes, unresolved, tried, blocked = [], [], set(), set()
     progress = True
@@ -314,10 +309,10 @@ def thin_quiet(arrangement: dict, report: dict) -> dict:
                 blocked.add(window["start_seconds"])
                 unresolved.append({"beat": round(window["start_beat"], 4), "code": "density_exceeds_audio",
                                    "object_ids": [],
-                                   "reason": f'{window["notes"]} notes in {window["start_seconds"]:g}-'
-                                             f'{window["end_seconds"]:g} s remain above {window["allowed_nps"]:.2f} '
-                                             "nps; the rest sit on vocal or drum onsets, arcs, doubles or locked "
-                                             "sections, or their removal would break flow"})
+                                   "reason": f'{window["free_notes"]} notes off the vocal and drum onsets in '
+                                             f'{window["start_seconds"]:g}-{window["end_seconds"]:g} s remain above '
+                                             f'{window["allowed_nps"]:.2f} nps; they are arc anchors, doubles or in '
+                                             "locked sections, or their removal would break flow"})
                 continue
             _, beat, (section, note) = min(candidates, key=lambda c: (c[0], c[1]))
             tried.add(beat)

@@ -83,7 +83,8 @@ DEFINITIONS = {
                              "(drum onset density and mix energy, from the evidence run) below 0.6 holds at least 6 "
                              "notes and more than 1.5 "
                              "times support_score x the reference density, the median notes per second of windows "
-                             "with support 0.9 or more: the map plays a thin, quiet passage as hard as the full band.",
+                             "with support 0.9 or more, counting only notes that are not on a vocal or drum onset the salience checks "
+                             "count: the map plays a thin, quiet passage as hard as the full band.",
     **AUDIO_DEFINITIONS,
 }
 
@@ -211,6 +212,21 @@ def _density(arrangement, notes, times, spans, warn):
             "overall_nps": _round(len(times) / span_seconds) if span_seconds > 0 else 0.0}
 
 
+def salient_onsets(arrangement, report):
+    """(sorted seconds, tolerance) of the vocal and drum onsets the salience checks count."""
+    layers = (report or {}).get("layers") or {}
+    found = sorted(float(e["seconds"]) for name, threshold in (("vocals", VOCAL_ONSET_STRENGTH),
+                                                               ("drums", DRUM_ONSET_STRENGTH))
+                   for e in (layers.get(name) or {}).get("events", [])
+                   if e.get("method") == "spectral_flux" and e.get("strength", 0) >= threshold)
+    return found, SALIENCE_MATCH_BEATS * 60 / float(arrangement["song"]["bpm"])
+
+
+def on_onset(onsets, tolerance, seconds):
+    index = bisect_left(onsets, seconds - tolerance)
+    return index < len(onsets) and onsets[index] <= seconds + tolerance
+
+
 def quiet_windows(arrangement, times, report):
     """8 s windows with their audio support, note count and allowed notes per second.
 
@@ -221,6 +237,8 @@ def quiet_windows(arrangement, times, report):
     if not passages or not times:
         return None, []
     from .musical import seconds_to_beat
+    salient, tolerance = salient_onsets(arrangement, report)
+    free = [t for t in times if not on_onset(salient, tolerance, t)]  # notes the voice or drums do not justify
     end, windows, start = max(p["end_seconds"] for p in passages), [], 0.0
     while start + QUIET_WINDOW_SECONDS <= end + 1e-9:
         stop = start + QUIET_WINDOW_SECONDS
@@ -232,7 +250,8 @@ def quiet_windows(arrangement, times, report):
                             "end_beat": seconds_to_beat(stop, arrangement),
                             "support": sum(p["support_score"] for p in inside) / len(inside),
                             "energy": sum(p["energy_ratio"] for p in inside) / len(inside), "notes": count,
-                            "nps": count / QUIET_WINDOW_SECONDS})
+                            "nps": count / QUIET_WINDOW_SECONDS,
+                            "free_notes": _count_between(free, start, stop)})
         start += QUIET_HOP_SECONDS
     full = [w["nps"] for w in windows if w["support"] >= FULL_SUPPORT and w["notes"]]
     if not full:
@@ -242,7 +261,7 @@ def quiet_windows(arrangement, times, report):
         window["allowed_nps"] = QUIET_DENSITY_TOLERANCE * window["support"] * reference
         window["excess"] = (window["support"] < QUIET_SUPPORT and window["energy"] < QUIET_ENERGY
                             and window["notes"] >= QUIET_MIN_NOTES
-                            and window["nps"] > window["allowed_nps"] + 1e-9)
+                            and window["free_notes"] > window["allowed_nps"] * QUIET_WINDOW_SECONDS + 1e-9)
     return reference, windows
 
 
@@ -261,17 +280,18 @@ def _quiet_density(arrangement, spans, notes, times, report, warn):
             runs.append([window])
     for run in runs:
         first, last = run[0], run[-1]
-        worst = max(run, key=lambda w: w["nps"] / w["allowed_nps"])
+        worst = max(run, key=lambda w: w["free_notes"] / w["allowed_nps"])
         section = next((s["id"] for s in spans if s["start_beat"] <= first["start_beat"] < s["end_beat"]), None)
         ids = [n["id"] for n in notes
                if first["start_seconds"] <= beat_to_seconds(n["beat"], arrangement) < last["end_seconds"]]
         warn("density_exceeds_audio",
              f'Beats {first["start_beat"]:.1f}-{last["end_beat"]:.1f} ({first["start_seconds"]:g}-'
              f'{last["end_seconds"]:g} s): the audio is thin here (support {worst["support"]:.2f}, mix energy '
-             f'{worst["energy"]:.2f}x the song median, few drum hits) but the map plays {worst["nps"]:.2f} nps, above the {worst["allowed_nps"]:.2f} nps '
-             f'this support allows against the {reference:.2f} nps full-band reference. Keep the strongest '
+             f'{worst["energy"]:.2f}x the song median, few drum hits) but the map plays {worst["nps"]:.2f} nps, '
+             f'{worst["free_notes"] / QUIET_WINDOW_SECONDS:.2f} of them off the vocal and drum onsets, above the '
+             f'{worst["allowed_nps"]:.2f} nps this support allows against the {reference:.2f} nps full-band reference. Keep the strongest '
              "onsets and drop the rest.",
-             section_id=section, value=round(worst["nps"] / (worst["allowed_nps"] / QUIET_DENSITY_TOLERANCE), 4),
+             section_id=section, value=round(worst["free_notes"] / QUIET_WINDOW_SECONDS / (worst["allowed_nps"] / QUIET_DENSITY_TOLERANCE), 4),
              threshold=QUIET_DENSITY_TOLERANCE, object_ids=ids,
              beats=[_round(first["start_beat"], 4), _round(last["end_beat"], 4)])
     return {"checked": True, "reference_nps": _round(reference, 4),

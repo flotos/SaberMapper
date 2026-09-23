@@ -25,12 +25,16 @@ UNITY_STUB = textwrap.dedent(r'''
         json.dump(args, f)
     spec = json.load(open(arg("-forgeSpec"), encoding="utf-8"))
     os.makedirs(out, exist_ok=True)
-    lines = ["Initialize engine version: 2021.3.16f1 (4016570cf34f)"]
+    lines = ["Initialize engine version: 2021.3.45f1 (0da89fac8e79)"]
     def report(ok, **extra):
         with open(os.path.join(out, "build-report.json"), "w") as f:
             json.dump({"format": "sabermapper-forge-report/1", "ok": ok, "errors": [], "warnings": [], **extra}, f)
     if mode == "license":
         lines.append("No valid Unity Editor license found. Please activate your license.")
+        open(log, "w").write("\n".join(lines)); sys.exit(1)
+    if mode == "headless_license":
+        lines += ["Entitlement-based licensing initiated", "[Licensing::Module] Error: Access token is unavailable",
+                  "BatchMode: Unity has not been activated with a valid License. Could be a new activation or renewal..."]
         open(log, "w").write("\n".join(lines)); sys.exit(1)
     if mode == "cs_error":
         lines += [f"Assets/SaberMapper/Staging/Editor/{spec['project']}_Ribbon.cs(12,9): error CS1002: ; expected",
@@ -44,7 +48,7 @@ UNITY_STUB = textwrap.dedent(r'''
     crc = 1234567890
     bundle = os.path.join(out, spec["bundle_file"])
     with open(bundle, "wb") as f:
-        f.write(b"UnityFS\x00\x00\x00\x00\x065.x.x\x002021.3.16f1\x00" + b"\x00" * 64)
+        f.write(b"UnityFS\x00\x00\x00\x00\x065.x.x\x002021.3.45f1\x00" + b"\x00" * 64)
     with open(bundle + ".manifest", "w") as f:
         f.write("ManifestFileVersion: 0\nCRC: %d\n" % (crc + 1 if mode == "crc_mismatch" else crc))
     mats = {a["unity_path"].lower().rsplit("/", 1)[-1][:-4]: {"path": a["unity_path"].lower(), "properties": {
@@ -281,8 +285,8 @@ class UnityLocationTests(ForgeTestCase):
             forge.locate_unity()
         error = caught.exception.as_dict()["error"]
         self.assertEqual("unity_missing", error["code"])
-        self.assertEqual("2021.3.16f1", error["required_version"])
-        self.assertIn("Install Unity 2021.3.16f1 with Unity Hub", error["fix"])
+        self.assertEqual("2021.3.45f1", error["required_version"])
+        self.assertIn("Install Unity 2021.3.45f1 with Unity Hub", error["fix"])
         self.assertIn("activate a Personal license once, then rerun", error["fix"])
 
     def test_hub_install_exact_and_same_stream_fallback(self):
@@ -290,11 +294,11 @@ class UnityLocationTests(ForgeTestCase):
         found = forge.locate_unity()
         self.assertEqual(str(patch_exe), found["path"])
         self.assertEqual("unity_version_mismatch", found["warnings"][0]["code"])
-        exact = self.fake_editor("2021.3.16f1")
-        self.assertEqual({"path": str(exact), "version": "2021.3.16f1", "source": "hub", "warnings": []}, forge.locate_unity())
+        exact = self.fake_editor("2021.3.45f1")
+        self.assertEqual({"path": str(exact), "version": "2021.3.45f1", "source": "hub", "warnings": []}, forge.locate_unity())
 
     def test_env_and_config_override(self):
-        exe = self.fake_editor("2021.3.16f1")
+        exe = self.fake_editor("2021.3.45f1")
         os.environ["SABERMAPPER_UNITY"] = str(self.root / "nope.exe")
         with self.assertRaises(forge.ForgeError):
             forge.locate_unity()
@@ -307,7 +311,7 @@ class UnityLocationTests(ForgeTestCase):
         code, payload = run_cli("assets", "build", "Demo-Song", "--workspace", str(self.workspace))
         self.assertEqual(1, code)
         self.assertEqual("unity_missing", payload["error"]["code"])
-        self.assertTrue(payload["error"]["fix"].startswith("Install Unity 2021.3.16f1 with Unity Hub"))
+        self.assertTrue(payload["error"]["fix"].startswith("Install Unity 2021.3.45f1 with Unity Hub"))
 
 
 class BuildDriverTests(ForgeTestCase):
@@ -352,7 +356,7 @@ class BuildDriverTests(ForgeTestCase):
         self.assertEqual("Assets/SaberMapper/demo-song/post/grade.mat", grade["unity_path"])
         self.assertTrue((self.root / "unity" / grade["shader_unity_path"]).is_file())
         self.assertTrue((self.root / "unity" / "Assets/SaberMapper/Editor/Forge.cs").is_file())
-        self.assertIn("2021.3.16f1", (self.root / "unity/ProjectSettings/ProjectVersion.txt").read_text())
+        self.assertIn("2021.3.45f1", (self.root / "unity/ProjectSettings/ProjectVersion.txt").read_text())
 
     def test_csharp_errors_map_back_to_the_agent_generator(self):
         spec = forge.starter_spec("demo-song")
@@ -384,6 +388,12 @@ class BuildDriverTests(ForgeTestCase):
         os.environ["FORGE_STUB_MODE"] = "license"
         code, result = self.build_cli()
         self.assertIn("unity_license_missing", {e["code"] for e in result["error"]["errors"]})
+        # 2021.3.16f1 with a valid Hub Personal seat: name the editor that works headless, not "add a license".
+        os.environ["FORGE_STUB_MODE"] = "headless_license"
+        code, result = self.build_cli()
+        codes = {e["code"] for e in result["error"]["errors"]}
+        self.assertEqual({"unity_headless_license_unsupported"}, codes)
+        self.assertIn("assets config --unity-version 2021.3.45f1", result["error"]["errors"][0]["fix"])
         os.environ["FORGE_STUB_MODE"] = "crc_mismatch"
         code, result = self.build_cli()
         self.assertEqual("crc_mismatch", result["error"]["code"])

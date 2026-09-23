@@ -26,6 +26,9 @@ Two passes, both judged against one musical evidence run:
    rebuilt bar that adds a blocking diagnostic, a ``reach_proxy`` warning,
    keeps fewer than min(4, old count) notes, or puts no more notes on the lead's
    attacks than before (for ``lead_rhythm_unmapped``) is restored.
+4. **Settle density.** The quiet-passage thinning runs once more, so notes the
+   lead rebuild or the fills added never leave a ``density_exceeds_audio``
+   window behind.
 
 Between the two, ``density_exceeds_audio`` windows (thin, quiet audio mapped as
 densely as the full band) are thinned: note times with the weakest audio under
@@ -694,7 +697,12 @@ def repair_audio(arrangement: dict, report: dict | None) -> dict:
                 "unresolved": grounded["unresolved"] + thinned["unresolved"]}
     led = follow_lead(grounded["arrangement"], report)
     filled = fill_findings(led["arrangement"], report)
+    # Notes added for the lead or for unmapped onsets can push a thin window (or the map's full-band
+    # reference) past its allowance again; intensity keeps the last word on density.
+    settled = thin_quiet(filled["arrangement"], report)
     remaining = [{k: w[k] for k in ("code", "message", "section_id")}
-                 for w in critique_arrangement(filled["arrangement"], report)["warnings"]]
-    return {"arrangement": filled["arrangement"], "changes": grounded["changes"] + led["changes"] + filled["changes"],
-            "unresolved": grounded["unresolved"] + led["unresolved"] + filled["unresolved"], "remaining": remaining}
+                 for w in critique_arrangement(settled["arrangement"], report)["warnings"]]
+    return {"arrangement": settled["arrangement"],
+            "changes": grounded["changes"] + led["changes"] + filled["changes"] + settled["changes"],
+            "unresolved": grounded["unresolved"] + led["unresolved"] + filled["unresolved"] + settled["unresolved"],
+            "remaining": remaining}

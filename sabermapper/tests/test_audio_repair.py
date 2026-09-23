@@ -211,6 +211,32 @@ class QuietDensityTests(unittest.TestCase):
         source["sections"][0]["locked"] = True
         self.assertEqual(thin_quiet(source, evidence)["changes"], [])
 
+    def test_density_is_settled_after_the_lead_rebuild(self):
+        # A soft intro sits within its allowance while the body is an eighth stream. Rebuilding the body on
+        # its offbeat guitar lead halves the full-band reference density, pushing the intro over it: the
+        # final thinning pass settles it (Living a Lie, 2026-09-23).
+        intro = list(range(0, 32, 2))
+        source = arrangement(intro + [b / 2 for b in range(64, 256)], length=128)
+        source["sections"][0]["musical_focus"] = [{"id": "riff", "start_beat": 32, "end_beat": 128, "lead": "guitar",
+                                                   "weights": {"guitar": 0.6, "drums": 0.4},
+                                                   "intent": "offbeat guitar riff"}]
+        evidence = report(range(32, 128))
+        evidence["source"]["duration_seconds"] = 64.0
+        evidence["layers"]["other"] = {"events": [{"id": f"o{b}", "seconds": b / 2, "method": "spectral_flux",
+                                                   "strength": 0.6} for b in intro]}
+        evidence["layers"]["guitar"] = {"events": [{"id": f"g{b}", "seconds": (b + 0.5) / 2,
+                                                    "method": "spectral_flux", "strength": 0.8} for b in range(32, 128)]}
+        evidence["passages"] = [{"start_seconds": t, "end_seconds": t + 2, "energy_ratio": 0.4 if t < 16 else 1.0,
+                                 "support_score": 0.2 if t < 16 else 1.0} for t in range(0, 64, 2)]
+        self.assertNotIn("density_exceeds_audio",
+                         {w["code"] for w in critique_arrangement(source, evidence)["warnings"]})
+        result = repair_audio(source, evidence)
+        actions = {(c["action"], c.get("code")) for c in result["changes"]}
+        self.assertIn(("rebuilt", "lead_rhythm_diluted"), actions)
+        self.assertIn(("removed", "density_exceeds_audio"), actions)
+        self.assertNotIn("density_exceeds_audio", {w["code"] for w in result["remaining"]})
+        self.assertEqual(errors(result["arrangement"]), [])
+
 
 class RepairAudioCommandTests(unittest.TestCase):
     def test_dry_run_reports_and_real_run_saves(self):

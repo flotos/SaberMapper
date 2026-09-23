@@ -146,6 +146,8 @@ def main(argv=None):
             leaf.add_argument("--minutes", type=float)
             leaf.add_argument("--decision", choices=("pending", "go", "revise", "stop"))
             leaf.add_argument("--variant", choices=("initial", "revised", "baseline"))
+    from .feedback_cli import register_feedback, dispatch_feedback
+    register_feedback(project_commands)
     from .musical_cli import register_musical, dispatch_musical
     register_musical(commands)
     from .frames_cli import register_frames, dispatch_frames
@@ -158,7 +160,7 @@ def main(argv=None):
     try:
         if (code := dispatch_game(args, emit)) is not None:
             return code
-        if dispatch_musical(args, emit) or dispatch_frames(args, emit):
+        if dispatch_musical(args, emit) or dispatch_frames(args, emit) or dispatch_feedback(args, emit):
             return 0
         if dispatch(args):
             return 0

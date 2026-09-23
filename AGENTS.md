@@ -52,7 +52,7 @@ The application is in `sabermapper/`; run commands from there. On this Windows w
 - Model in Blender through the `blender` MCP server in `.mcp.json` (per-user Blender 5.2 and the official Blender Lab MCP; `sabermapper/docs/blender-mcp.md`): `.venv/Scripts/python -m sabermapper blender start` opens a headless Blender with the bridge (`--gui` for window screenshots), `blender status` reports it, and `blender stop` closes the Blender it opened. Read your work back through the MCP render tools.
 - Capture a revision in the game (leased, FPFC, closes the game afterwards): `.venv/Scripts/python -m sabermapper game capture ID --workspace workspace`
 - Handover gate (structure, audio, show, capture, frames, game log): `.venv/Scripts/python -m sabermapper project verify ID --workspace workspace --record`
-- Timestamped user notes from the studio: `.venv/Scripts/python -m sabermapper project feedback list ID --workspace workspace`
+- Timestamped user notes from the studio: `.venv/Scripts/python -m sabermapper project feedback list ID --workspace workspace`; once a saved revision answers one, `project feedback resolve ID FEEDBACK_ID --workspace workspace --note HOW` marks it addressed
 - Verify code changes: `.venv/Scripts/python -m unittest discover -s tests -q`
 - In a git worktree, map against a local copy of the real workspace: `.venv/Scripts/python -m sabermapper workspace clone` (audio and content-addressed files hardlinked, the rest copied, exports left out); after the code merge, `workspace status` then `workspace publish` copy only the changed files back into the main checkout's workspace. A project the real workspace also changed since the clone is held back (exit 2) with the `project save` that reapplies the change.
 

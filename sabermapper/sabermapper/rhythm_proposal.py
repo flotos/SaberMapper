@@ -34,8 +34,11 @@ functions the critique judges a map with, and the musical rules SM-036 records:
 The draft is then placed and critiqued, and adjusted until none of the critique's rhythm findings remain:
 unsupported notes and one-hand bursts lose a time, a quiet passage or a soft bar sheds its weakest times, a
 bar that buries its lead loses its stray times, and a lead left unmapped or a heavy run played easier than the
-soft passages gains attacks. What cannot be resolved is reported, never hidden. The draft is a starting
-point: the agent edits it, and ``project save`` places it like any other rhythm.
+soft passages gains attacks; a stack the placer cannot lay out beside its neighbours is cut as one note. What
+cannot be resolved is reported in ``remaining``, never hidden: the rhythm findings above, and every salience,
+ensemble, stack and timing finding ``project check`` raises on the draft (``FOLLOW_CODES``), each with the
+suggestions check gives it. The draft is a starting point: the agent edits it, and ``project save`` places it
+like any other rhythm.
 """
 
 from __future__ import annotations
@@ -63,6 +66,11 @@ from .validation import _beat
 
 TARGET_CODES = ("note_without_audio", "density_exceeds_audio", "lead_rhythm_diluted", "lead_rhythm_unmapped",
                 "intensity_underplayed", "difficulty_exceeds_intensity", "one_hand_burst")
+# Findings the draft reports in ``remaining`` with ``project check``'s suggestions. It does not apply them: they can
+# contradict its musical rules (an ensemble accent on the kick between two chugs, which the riff rule leaves open).
+FOLLOW_CODES = ("audio_unmapped", "vocal_line_unmapped", "drum_rhythm_unmapped", "drum_entry_unmapped",
+                "melody_unmapped", "ensemble_unmapped", "boundary_accent_unmapped", "density_collapse",
+                "unison_hit_unstacked", "stack_too_tall", "note_off_sound")
 GRIDS = (1, 2, 4, 3, 8, 6, 16, 12)
 SNAP_TOLERANCE = 0.07  # beats: a snapped time stays within the audio support window of its sound
 SNAP_SECONDS = 0.035  # and within this of its sound, under note_off_sound's OFF_SOUND_SECONDS
@@ -711,6 +719,7 @@ def propose_rhythm(arrangement: dict, report: dict, *, start: float | None = Non
     _mark_doubles(chosen, doubles, fixed, holds, seconds)
     removed, history = set(), []
     best = None
+    crowded = lambda beat, others: _too_close(beat, others, holds, seconds, gaps.get(_bar_of(beat), MIN_GAP_BEATS))
     for rounds in range(1, MAX_ROUNDS + 1):
         live = [(h, t, e) for h, t, e in arcs if h in chosen and t in chosen]
         draft, placed = _place_draft(base, chosen, live)
@@ -720,16 +729,16 @@ def propose_rhythm(arrangement: dict, report: dict, *, start: float | None = Non
         issues += [w for w in critique["warnings"] if w["code"] in TARGET_CODES and _overlaps(w, placed, first, last)]
         score = len(issues)
         if best is None or score < best[0]:
-            best = (score, {b: dict(i) for b, i in chosen.items()}, draft, placed, issues, rounds, live)
+            best = (score, {b: dict(i) for b, i in chosen.items()}, draft, placed, issues, rounds, live, critique)
         if not issues:
             break
         changed = _adjust(chosen, issues, placed["arrangement"], evidence, reserve, fixed, removed, critique,
-                          lambda beat, others: _too_close(beat, others, holds, seconds,
-                                                          gaps.get(_bar_of(beat), MIN_GAP_BEATS)), needs, arcs)
+                          crowded, needs, arcs)
         history.append({"round": rounds, "findings": _count(issues), "changes": changed})
         if not changed:
             break
-    score, chosen, draft, placed, issues, rounds, live = best
+    score, chosen, draft, placed, issues, rounds, live, critique = best
+    issues = issues + _follow_findings(placed, report, critique, first, last)
     by_bar = {}
     for beat, item in sorted(chosen.items()):
         by_bar.setdefault(_bar_of(beat), []).append(
@@ -745,7 +754,8 @@ def propose_rhythm(arrangement: dict, report: dict, *, start: float | None = Non
             "bars": bars, "arcs": [{"head": _relative(h), "tail": _relative(t), "evidence": e} for h, t, e in live],
             "themes": themes,
             "draft": draft, "placement": placed["report"], "rounds": rounds, "history": history,
-            "remaining": [{k: w.get(k) for k in ("code", "beats", "message")} for w in issues]}
+            "remaining": [{k: w.get(k) for k in ("code", "beats", "message", "suggestions") if k in w}
+                          for w in issues]}
 
 
 def _count(issues):
@@ -763,6 +773,21 @@ def _overlaps(warning, placed, first, last):
     from .arrangement import expanded_notes
     return any(float(first) <= float(n["beat"]) < float(last) for n in expanded_notes(placed["arrangement"])
                if n["id"] in ids) if ids else True
+
+
+def _follow_findings(placed, report, critique, first, last):
+    """``project check``'s FOLLOW_CODES findings on the placed draft inside [first, last), with its suggestions."""
+    from .arrangement import expanded_notes
+    from .audio_grounding import audio_findings
+    from .check import _finding
+    arrangement = placed["arrangement"]
+    beats = {n["id"]: float(n["beat"]) for n in expanded_notes(arrangement)}
+    raw = [w for w in critique["warnings"] if w["code"] in FOLLOW_CODES]
+    raw += [f for f in audio_findings(arrangement, report)[1] if f["code"] in FOLLOW_CODES]
+    found = [_finding(f, "draft", beats) for f in raw if _overlaps(f, placed, first, last)]
+    if found:
+        audio_suggestions(arrangement, report, found)
+    return found
 
 
 def _note_beats(arrangement, ids):
@@ -870,8 +895,16 @@ def _adjust(chosen, issues, placed, evidence, reserve, fixed, removed, critique,
             for beat in _note_beats(placed, issue.get("object_ids") or []):
                 if beat in chosen and (code == "note_without_audio" or not protected(beat)):
                     drop(beat)
+        elif code in ("stack_shape", "stack_touch", "cut_path_blocked") and any(
+                chosen.get(b, {}).get("stack") for b in _note_beats(placed, issue.get("object_ids") or [])):
+            # A stack the placer cannot lay out beside its neighbours is cut as one note.
+            for beat in _note_beats(placed, issue.get("object_ids") or []):
+                if chosen.get(beat, {}).get("stack"):
+                    chosen[beat] = {k: v for k, v in chosen[beat].items() if k != "stack"}
+                    changes += 1
         elif code in ("one_hand_burst", "fast_direction_break", "flow_parity_break", "wrist_roll", "hidden_note",
-                      "arc_note_conflict", "chain_note_conflict", "reach_proxy"):
+                      "arc_note_conflict", "chain_note_conflict", "reach_proxy", "stack_shape", "stack_touch",
+                      "cut_path_blocked"):
             targets = sorted({b for b in _note_beats(placed, issue.get("object_ids") or []) if b in chosen})
             # Dropping any swing of a run exactly BURST_SWINGS long ends it, so the weakest sound goes; a longer
             # run splits in the middle.
@@ -981,6 +1014,9 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
     singing = {b["start_beat"] for b in context["metrics"]["salience"].get("bars", []) if b["salient"] == "vocals"}
     soft = {b["start_beat"] for b in intensity_bars(arrangement, report, notes)[1] if b.get("relative", 1.0) < SOFT_RATIO}
     tier = arrangement["difficulty"].get("target_tier") or "band"
+    # An arc or chain end is a note of its own: removing it leaves the arc without the note it needs.
+    anchored = {(beat, values["color"]) for beat, values, _ in _anchors_and_holds(arrangement)[0]}
+    removable = lambda note: (note["beat"], note["color"]) not in anchored
 
     def open_times(candidates):
         """Candidates on a sound that crowd no note and no other candidate, strongest first."""
@@ -1015,7 +1051,7 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
 
     def weakest(ids, count, why):
         """Remove the ``count`` note times under the weakest sounds (off-beat first), editable notes only."""
-        editable = [by_id[i] for i in ids if i in by_id and "/note/" in i]
+        editable = [by_id[i] for i in ids if i in by_id and "/note/" in i and removable(by_id[i])]
         ordered = sorted(editable, key=lambda n: (evidence.strength_at(n["beat"]), n["beat"].denominator == 1,
                                                   n["beat"]))
         victims = [n["id"] for n in ordered[:max(0, count)]]
@@ -1049,12 +1085,11 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
                     finding["suggestions"].append({"op": "retime", "object_id": oid,
                                                    "to_beat": _relative(min(options)[2]),
                                                    "reason": "move onto the nearest supporting onset"})
-                else:
+                elif removable(note):
                     finding["suggestions"].append({"op": "remove", "object_id": oid,
                                                    "reason": f"no onset within {RETIME_REACH} beat"})
         elif code == "note_off_sound":
             # A retime carries the arc or chain end on the note with it; an end cannot be removed.
-            anchored = {(beat, values["color"]) for beat, values, _ in _anchors_and_holds(arrangement)[0]}
             for oid in finding["object_ids"]:
                 note = by_id.get(oid)
                 if note is None or "/note/" not in oid:
@@ -1070,7 +1105,7 @@ def audio_suggestions(arrangement: dict, report: dict | None, findings: list[dic
                     finding["suggestions"].append({"op": "remove", "object_id": oid,
                                                    "reason": "its sound sits within a sixteenth of the next note"})
         elif code == "lead_rhythm_diluted":
-            stray = [i for i in finding["object_ids"] if "/note/" in i]
+            stray = [i for i in finding["object_ids"] if "/note/" in i and i in by_id and removable(by_id[i])]
             if stray:
                 finding["suggestions"].append({"op": "remove", "object_ids": stray,
                                                "reason": "these times sit between the lead's attacks"})

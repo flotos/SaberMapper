@@ -82,6 +82,8 @@ DOUBLE_PARITY_COST = 3.0
 # An echo note leaving its statement note's hand, cut or cell (half per coordinate): above every comfort cost,
 # far below the rules.
 ECHO = 4.0
+# One hand taking a double (unmarked notes at one instant): above every comfort and echo cost, below a stored value.
+DOUBLE_SPLIT = 100.0
 ECHO_RETRIES = 4  # echoed placements tried, each releasing the echoes around the rules the last one broke
 ECHO_RELEASE_SECONDS = 2.0  # a hand's flow resets after a 2 s rest, so a broken rule reaches no further
 # Rules the placer satisfies; each maps to the note fields that can resolve it.
@@ -90,6 +92,7 @@ RULE_FIELDS = {"fast_direction_break": ("direction", "color"), "flow_parity_brea
                "one_hand_burst": ("color",), "arc_note_conflict": ("color",), "chain_note_conflict": ("color",),
                "hidden_note": ("x", "y"), "reach_proxy": ("x", "y"),
                "stack_shape": ("x", "y", "direction"), "stack_touch": ("x", "y"),
+               "simultaneous_direction_conflict": ("direction", "color"),
                "cut_path_blocked": ("x", "y", "direction")}
 MAX_ALTERNATIVE_ERRORS = 5
 STACK_OPTIONS = 36  # cell and cut choices kept per stack note, so a full line along the cut stays reachable
@@ -471,8 +474,10 @@ def _assignments(group, busy):
         if (len(group) > 1 and len(set(colors)) == 1 and any("color" not in s.fixed for s in group)
                 and not all(s.stack for s in group)):
             # A same-hand chord where a double would do; inside an echo the neighbours' echoed hands never
-            # outweigh this occurrence's own two-hand accent.
-            cost += 2.0 + (ECHO if any(s.themed for s in group) else 0.0)
+            # outweigh this occurrence's own two-hand accent. Unmarked notes at one instant are a double the
+            # draft chose for both hands: one hand takes them only when the other cannot (a stack is marked).
+            instant = len({s.beat for s in group}) == 1
+            cost += DOUBLE_SPLIT if instant else 2.0 + (ECHO if any(s.themed for s in group) else 0.0)
         result.append((colors, cost, violations))
     return result
 
@@ -767,6 +772,7 @@ def _combine(open_slots, options, group):
         options = [o[:2] for o in options]
     fixed = [s for s in group if _cell_fixed(s) and s not in open_slots]
     tall = Counter(s.value["color"] for s in group if s.stack)  # notes in each hand's stack
+    at_once = Counter((s.value["color"], s.beat) for s in group)  # each hand's notes at one instant
     best = [None, None]
 
     def pair_cost(a_slot, a, b_slot, b):
@@ -784,12 +790,16 @@ def _combine(open_slots, options, group):
             crossed = 0.0 if red < blue else 50.0  # hands crossed on a double
             return crossed + (DOUBLE_PARITY_COST if _parity(ad, ca, 0) != _parity(bd, cb, 0) else 0.0)
         stack = a_slot.stack and b_slot.stack
+        # Same-hand notes at one instant are cut as one stack whether or not the draft marked them: they keep
+        # the movement model's stack rules (one cut, one unbroken line), even when a stored cell or cut moves.
+        together = a_slot.beat == b_slot.beat
         if ad != bd:
-            return BLOCK if stack else 50.0  # one saber cuts a chord in one direction
+            return BLOCK if stack else HARD if together else 50.0  # one saber cuts a chord in one direction
         # A chord lies along its cut, its notes next to each other; a stack must, even if a stored cell or cut
         # moves for it (the third note of a stack of three fills the gap two cells apart).
-        off = HARD if stack else 5.0
-        gap = 1.0 if not stack or tall[ca] >= 3 else off  # two cells apart: only a third note fills the gap
+        off = HARD if stack or together else 5.0
+        size = tall[ca] if stack else at_once[(ca, a_slot.beat)] if together else 3
+        gap = 1.0 if size >= 3 else off  # two cells apart: only a third note fills the gap
         dx, dy = bx - ax, by - ay
         if ad == 8:
             return 0.0 if max(abs(dx), abs(dy)) == 1 else (gap if max(abs(dx), abs(dy)) == 2

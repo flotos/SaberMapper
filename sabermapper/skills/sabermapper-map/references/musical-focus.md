@@ -334,7 +334,9 @@ feel the whole song weight in addition of tracked thing."
   handoff too; check `entering` in `music rhythm` and the green lines in the spectrogram.
 - Following the lead is never following it alone. Under the lead, add a few of
   the other stems' heaviest hits: a crash, a kick-and-bass accent, a stab on a
-  downbeat. About one per bar, never a second stream. `ensemble_unmapped`
+  downbeat. About one per bar, never a second stream. An accent counts only
+  when the mix has an attack there too: a bass swelling back after every
+  sidechain-ducked kick (Lullaby) peaks in its stem but is not a hit. `ensemble_unmapped`
   flags 16 beats where fewer than 20% of those accents carry a note, and names
   the heaviest to add. Declare this in `musical_focus` weights by giving the
   supporting stems part of the weight (for example `{"vocals": 0.7, "drums": 0.2, "bass": 0.1}`).

@@ -466,8 +466,22 @@ def listen_project(store, project_id, run_id=None, *, force=False, mood_backend=
         document = compute_listen(directory, run_id, report, arrangement, mood_backend=mood_backend,
                                   mood_options=mood_options)
         write_json(path, document)
+    write_json(directory / "musical" / run_id / "moments.json", moments_file(document))
     return {"project": project_id, "run_id": run_id, "path": str(path), "reused": reused,
             **summary(document)}
+
+
+def moments_file(document):
+    """``moments.json`` in the show compiler's driver shape: items with seconds, end_seconds, kind, strength."""
+    items = []
+    for moment in document.get("moments", []):
+        item = {"id": moment["id"], "kind": moment["kind"], "seconds": moment["time"], "beat": moment.get("beat"),
+                "strength": moment["strength"], "section_id": moment.get("section_id")}
+        if moment.get("duration"):
+            item["end_seconds"] = round(moment["time"] + moment["duration"], 3)
+        items.append(item)
+    return {"schema_version": LISTEN_VERSION, "run_id": document.get("run_id"),
+            "source_sha256": document.get("source_sha256"), "derived_from": "listen.json", "moments": items}
 
 
 def summary(document):

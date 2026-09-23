@@ -22,7 +22,7 @@ Never fix a map problem for only one song. Trace each problem found through feed
 
 ## Code changes in worktrees
 
-Make every code change (application code, tests, scripts, skills, docs) in a dedicated git worktree branched from `main`, never directly in the main checkout. Run the test suite inside the worktree, commit there, then merge the branch into `main` and remove the worktree. Map data operations (`project save`, export) still target the real workspace in the main checkout, because `sabermapper/workspace/` is user data.
+Make every code change (application code, tests, scripts, skills, docs) in a dedicated git worktree branched from `main`, never directly in the main checkout. Create worktrees under `C:\Users\floto\SaberMapperWorktrees\` (for example `git worktree add -b BRANCH C:/Users/floto/SaberMapperWorktrees/BRANCH main`), never in the Documents folder or next to the main checkout. Run the test suite inside the worktree, commit there, then merge the branch into `main` and remove the worktree. Map data operations (`project save`, export) still target the real workspace in the main checkout, because `sabermapper/workspace/` is user data.
 
 When a turn made code changes and they were committed and merged into `main`, end the final message with this exact line:
 

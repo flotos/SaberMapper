@@ -349,10 +349,29 @@ def save_concept(store, project_id, document, expected_revision):
                    f"{uuid.uuid4().hex[:8]}.json", {"previous": current, "revision": revision, "at": saved_at,
                                                     "selected": result["selected"], "totals": computed["totals"]})
         write_json(path, {"schema_version": CONCEPT_VERSION, "project": project_id, "revision": revision,
-                          "saved_at": saved_at, "concept": document, "computed": computed})
+                          "saved_at": saved_at, **selected_mirror(document, evidence), "concept": document,
+                          "computed": computed})
     return {"project": project_id, "previous_revision": current, "revision": revision, "selected": result["selected"],
             "totals": computed["totals"], "valid": computed["valid"], "ranking": result["ranking"],
             "warnings": computed["warnings"], "draft_errors": computed["errors"]}
+
+
+def selected_mirror(document, evidence):
+    """Top-level copies of the selected treatment for readers that do not parse candidates (frame metrics
+    look for ``palette`` and ``moments``); empty while nothing is selected."""
+    chosen = next((c for c in document.get("candidates", []) if isinstance(c, dict)
+                   and c.get("id") == document.get("selected")), None)
+    if chosen is None:
+        return {}
+    moments = []
+    for item in chosen.get("key_moments", []):
+        moment = evidence["moments"].get(item.get("moment_id"))
+        if moment:
+            moments.append({"id": moment["id"], "kind": moment["kind"], "seconds": moment["time"],
+                            "beat": moment.get("beat"), "held_for_end": bool(item.get("held_for_end")),
+                            "treatment": item.get("treatment")})
+    return {"selected": chosen["id"], "title": chosen.get("title"), "palette": chosen.get("palette"),
+            "possession": chosen.get("possession"), "moments": moments}
 
 
 def concept_template(store, project_id):

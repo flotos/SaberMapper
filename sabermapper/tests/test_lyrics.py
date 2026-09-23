@@ -94,6 +94,14 @@ class TranscribeTests(unittest.TestCase):
         self.assertEqual(stored["input"], "vocals")
         self.assertEqual(stored["source_sha256"], self.report["source"]["sha256"])
         self.assertEqual(latest_listen(self.directory)["lyrics"]["segments"][0]["text"], "Light the way")
+        # The show compiler reads flattened words: {id, start, end, word, confidence}.
+        self.assertEqual([(w["id"], w["word"], w["start"]) for w in stored["words"]],
+                         [("lyr-001/0", "Light", 22.0), ("lyr-001/1", "the", 22.4), ("lyr-001/2", "way", 22.6)])
+        self.assertEqual(stored["words"][0]["confidence"], .91)
+        from sabermapper.show import evidence_context, resolve_driver
+        items = resolve_driver({"source": "lyrics", "words": ["light"]},
+                               evidence_context(self.directory, self.run_id, self.report, None))
+        self.assertEqual([(i["id"], i["seconds"], i["label"]) for i in items], [("lyr-001/0", 22.0, "Light")])
 
     def test_runner_failure_points_to_the_log(self):
         with patch("sabermapper.lyrics.whisper_backend", return_value="whisper"):

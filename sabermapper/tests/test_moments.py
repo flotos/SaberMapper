@@ -229,6 +229,30 @@ class ListenProjectTests(unittest.TestCase):
         self.assertEqual([m["id"] for m in loaded["moments"]], [m["id"] for m in stored["moments"]])
         self.assertIn("sections", loaded["mood"])
 
+    def test_moments_json_drives_a_show_pulse(self):
+        from sabermapper import vivify
+        from sabermapper.show_validation import compile_difficulty
+        from tests import vivify_fixtures as fx
+        listen_project(self.store, self.project)
+        stored = read_json(self.directory / "musical" / self.run_id / "moments.json")
+        drops = [m for m in stored["moments"] if m["kind"] == "drop"]
+        self.assertTrue(drops and all(isinstance(m["seconds"], float) for m in stored["moments"]))
+        self.assertTrue(all(m["end_seconds"] > m["seconds"] for m in stored["moments"] if "end_seconds" in m))
+        arrangement = fx.arrangement()
+        arrangement["sections"][1]["length_beats"] = 120  # the drop section spans the synthetic song's drop
+        arrangement["sections"] = arrangement["sections"][:2]
+        bundle = vivify.read_bundle(fx.write_bundle(Path(self.temp.name) / "assets"))
+        show = {"schema_version": "0.1", "primitives": [
+            {"kind": "pulse", "section": "drop", "material": "assets/sm/scene/ring.mat", "property": "_Glow",
+             "driver": {"source": "moments", "kinds": ["drop"]}}]}
+        report = read_json(self.directory / "musical" / self.run_id / "report.json")
+        beatmap, result = compile_difficulty(show, arrangement, bundle=bundle, evidence={
+            "project_dir": self.directory, "run_id": self.run_id, "report": report})
+        self.assertFalse([d for d in result["diagnostics"] if d["code"] == "driver_source_unavailable"])
+        rows = [row["evidence"] for row in result["provenance"] if row["evidence"].get("source") == "moments"]
+        self.assertEqual({row["id"] for row in rows}, {m["id"] for m in drops})
+        self.assertTrue(all(row["label"] == "drop" for row in rows))
+
     def test_beats_follow_a_changed_grid(self):
         listen_project(self.store, self.project)
         arrangement = read_json(self.directory / "arrangement.json")

@@ -15,15 +15,104 @@ import tempfile
 from urllib.parse import parse_qs, unquote, urlparse, urlencode
 
 from .projects import ConflictError, ProjectStore
+from .revisions import arrangement_revision
 from .storage import read_json, write_json
+from .studio_supervisor import TOKEN_ENV, WorkerControl
 
 STATIC = Path(__file__).parent / "static"
 MAX_BODY = 96 * 1024 * 1024
+GAME_STATUS = {"game_busy": 409, "game_preempted": 409, "lease_not_held": 409, "game_not_running": 409,
+               "stale_revision": 409, "bridge_missing": 503, "bridge_unreachable": 503}
 
 
-def make_server(workspace: str | Path, port: int = 8765) -> ThreadingHTTPServer:
+class GameError(Exception):
+    """A structured game-console error with the same `.code` / `.to_dict()` shape as the game API's errors."""
+    def __init__(self, code: str, message: str, details=None, fix: str | None = None):
+        super().__init__(message)
+        self.code, self.message, self.details, self.fix = code, message, details, fix
+
+    def to_dict(self) -> dict:
+        return {"error": {"code": self.code, "message": self.message, "details": self.details, "fix": self.fix}}
+
+
+def _coded(exc) -> bool:
+    return isinstance(getattr(exc, "code", None), str) and callable(getattr(exc, "to_dict", None))
+
+
+def live_agent_lease(lease_info) -> dict | None:
+    """The lease an agent holds right now, from lease_status() or status()["lease"], else None."""
+    lease = lease_info.get("lease", lease_info) if isinstance(lease_info, dict) else None
+    if not isinstance(lease, dict) or not lease.get("holder") or lease.get("holder_kind") != "agent":
+        return None
+    return None if lease.get("stale") or lease.get("live") is False else lease
+
+
+def game_action(game, store: ProjectStore, action: str, data: dict):
+    """Run one studio game-console action against the injected game API."""
+    def seconds(key, required=False):
+        value = data.get(key)
+        if value is None and not required:
+            return None
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+            raise ValueError(f"{key} must be a nonnegative number of seconds")
+        return float(value)
+    if action == "play":
+        project_id = data.get("project")
+        with store.lock:
+            path = store.directory(project_id)
+            current = read_json(store.arrangement_file(path, data.get("difficulty") or None))
+            duration = float(read_json(path / "project.json").get("duration_seconds") or 0)
+        name, current_revision = current["difficulty"]["name"], arrangement_revision(current)
+        mode = data.get("mode", "play")
+        if mode not in {"play", "watch"}:
+            raise ValueError("mode must be play or watch")
+        start = seconds("seconds") or 0.0
+        if start > duration:
+            raise ValueError("Start time is after the end of the song")
+        revision = data.get("revision") or current_revision
+        if revision != current_revision and store.revision_arrangement(path, revision, name) is None:
+            raise GameError("stale_revision", f"Revision {str(revision)[:12]} is not a saved {name} revision of "
+                            "this project", {"current_revision": current_revision},
+                            "Reload the project and pick a revision from the list")
+        if not data.get("confirm_preempt"):
+            lease = live_agent_lease(game.lease_status() if hasattr(game, "lease_status") else game.status())
+            if lease:
+                raise GameError("game_busy", f"An agent ({lease.get('holder')}, "
+                                f"{lease.get('purpose') or 'no purpose given'}) is using the game. Continue? "
+                                "The agent's capture will stop and retry later.",
+                                {"lease": lease, "preemptable": True},
+                                "Send the same request with confirm_preempt: true to take over the game")
+        return game.play(store, project_id, seconds=start, difficulty=name, revision=revision,
+                         mode=mode, human=True)
+    if action in {"pause", "resume", "stop"}:
+        return getattr(game, action)()
+    if action == "restart":
+        return game.restart(seconds("seconds"))
+    if action == "seek":
+        return game.seek(seconds("seconds", required=True))
+    raise ValueError("Unknown game operation; use play, pause, resume, restart, seek or stop")
+
+
+def make_server(workspace: str | Path, port: int = 8765, game=None, token: str | None = None,
+                control: WorkerControl | None = None) -> ThreadingHTTPServer:
+    """Build the studio server. `game` is the game API (sabermapper.game.api); None imports it on first use.
+
+    `token` and `control` come from the studio supervisor, which keeps one token across code reloads.
+    """
     store = ProjectStore(workspace)
-    token = secrets.token_urlsafe(32)
+    control = control or WorkerControl()
+    games = [game]
+
+    def game_api():
+        if games[0] is None:
+            try:
+                import importlib
+                games[0] = importlib.import_module("sabermapper.game.api")
+            except ImportError as exc:
+                raise GameError("bridge_missing", f"The game integration is not installed ({exc})", None,
+                                "Install the SaberMapper game bridge (sabermapper.game) and restart the studio") from exc
+        return games[0]
+    token = token or secrets.token_urlsafe(32)
     arc_root = Path(os.environ.get("SABERMAPPER_ARCVIEWER", str(Path(__file__).resolve().parents[1] / "vendor" / "arcviewer"))).resolve()
 
     class Handler(BaseHTTPRequestHandler):
@@ -90,6 +179,14 @@ def make_server(workspace: str | Path, port: int = 8765) -> ThreadingHTTPServer:
             return host in {f"127.0.0.1:{self.server.server_port}", f"localhost:{self.server.server_port}"}
 
         def do_GET(self):
+            with control.request():
+                self._get()
+
+        def do_POST(self):
+            with control.request():
+                self._post()
+
+        def _get(self):
             try:
                 if not self._host():
                     self._json({"error": "Use the local studio URL"}, 403)
@@ -103,9 +200,23 @@ def make_server(workspace: str | Path, port: int = 8765) -> ThreadingHTTPServer:
                     self._file(target, viewer=True)
                 elif path == "/api/status":
                     self._json({"version": "0.2.0", "token": token, "workspace": str(store.root),
-                                "offline": True, "assistant_calls": False})
+                                "offline": True, "assistant_calls": False, "code": control.status()})
                 elif path == "/api/projects":
                     self._json(store.list())
+                elif path == "/api/game/status":
+                    try:
+                        self._json({"available": True, **game_api().status()})
+                    except Exception as exc:
+                        if not _coded(exc):
+                            raise
+                        # Polling never fails: it reports why the game cannot be reached.
+                        self._json({"available": exc.code != "bridge_missing", "running": False, "lease": None,
+                                    "bridge": None, **exc.to_dict()})
+                elif re.fullmatch(r"/api/projects/[\w-]+/feedback", path):
+                    query = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+                    self._json(store.list_feedback(path.split("/")[3], difficulty=query.get("difficulty") or None,
+                                                   revision=query.get("revision") or None,
+                                                   kind=query.get("kind") or None, since=query.get("since") or None))
                 elif path == "/api/corpus":
                     from .corpus import CorpusStore, corpus_report
                     corpus = CorpusStore(store.root / "corpus")
@@ -145,11 +256,14 @@ def make_server(workspace: str | Path, port: int = 8765) -> ThreadingHTTPServer:
                 self._error(exc)
 
         def _error(self, exc):
+            if _coded(exc):
+                self._json(exc.to_dict(), GAME_STATUS.get(exc.code, 400))
+                return
             status = 409 if isinstance(exc, ConflictError) else 404 if isinstance(exc, FileNotFoundError) else 400 if isinstance(exc, (ValueError, KeyError, TypeError)) else 500
             self._json({"error": str(exc) if status != 500 else "Operation failed. Check local files and dependencies.",
                         "type": type(exc).__name__}, status)
 
-        def do_POST(self):
+        def _post(self):
             try:
                 if not self._host() or self.headers.get("X-SaberMapper-Token") != token:
                     self._json({"error": "Reload the local studio before making changes"}, 403)
@@ -167,6 +281,8 @@ def make_server(workspace: str | Path, port: int = 8765) -> ThreadingHTTPServer:
                 path = unquote(urlparse(self.path).path)
                 if path == "/api/demo":
                     self._json(store.create(demo=True))
+                elif re.fullmatch(r"/api/game/[a-z]+", path):
+                    self._json(game_action(game_api(), store, path.rsplit("/", 1)[-1], data))
                 elif re.fullmatch(r"/api/projects/[\w-]+/music", path):
                     from .musical import analyze_project
                     # Browser runs only bundled DSP. Optional model processes are agent CLI work.
@@ -208,6 +324,10 @@ def make_server(workspace: str | Path, port: int = 8765) -> ThreadingHTTPServer:
                         result = store.restore(project_id, data["restore_revision"], data["revision"], difficulty)
                     elif action == "feedback":
                         result = store.add_feedback(project_id, data)
+                    elif action == "note":
+                        result = store.add_note(project_id, song_time=data.get("song_time"), text=data.get("text"),
+                                                revision=data.get("revision") or None, difficulty=difficulty,
+                                                source="studio")
                     elif action == "review":
                         result = store.review(project_id, data)
                     elif action == "export":
@@ -223,7 +343,8 @@ def make_server(workspace: str | Path, port: int = 8765) -> ThreadingHTTPServer:
                             if data.get("revision") != current["revision"]:
                                 raise ConflictError("Project changed. Reload it before previewing.")
                             result = store.export(project_id)
-                        local_url = f"http://{self.headers['Host']}{result['url']}"
+                        # ArcViewer cannot render Vivify: a vivified export previews its vanilla twin.
+                        local_url = f"http://{self.headers['Host']}{result.get('vanilla_twin_url', result['url'])}"
                         result["viewer_url"] = "/arcviewer/?" + urlencode({
                             "url": local_url, "noProxy": "true", "t": min(start, current["project"]["duration_seconds"]),
                             "mode": "Standard", "difficulty": current["difficulty"]})
@@ -316,8 +437,12 @@ def corpus_action(root: Path, action: str, data: dict):
         corpus.close()
 
 
-def serve(workspace: str | Path, port=8765):
-    server = make_server(workspace, port)
+def serve(workspace: str | Path, port=8765, game=None, worker=False):
+    """Serve in this process. `worker` means a studio supervisor started it and controls it through stdin."""
+    control = WorkerControl()
+    server = make_server(workspace, port, game, token=os.environ.get(TOKEN_ENV) if worker else None, control=control)
+    if worker:
+        control.listen(server)
     print(f"SaberMapper Studio: http://127.0.0.1:{server.server_port}", flush=True)
     print(f"Workspace: {Path(workspace).resolve()}", flush=True)
     try:

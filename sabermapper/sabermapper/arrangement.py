@@ -84,9 +84,11 @@ def compile_arrangement(arrangement: dict) -> dict:
         "s": item.get("squish", 0.5)})
     tempo = [{"b": float(beat_fraction(item["beat"])), "m": item["bpm"]}
              for item in arrangement.get("tempo_events", [])]
+    from .lighting import beatmap_events
+    lights, boosts = beatmap_events(arrangement)
     return {"version": "3.3.0", "bpmEvents": tempo, "rotationEvents": [],
             "colorNotes": color_notes, "bombNotes": bombs, "obstacles": obstacles,
             "sliders": arcs, "burstSliders": chains, "waypoints": [],
-            "basicBeatmapEvents": [], "colorBoostBeatmapEvents": [],
+            "basicBeatmapEvents": lights, "colorBoostBeatmapEvents": boosts,
             "lightColorEventBoxGroups": [], "lightRotationEventBoxGroups": [],
             "lightTranslationEventBoxGroups": [], "vfxEventBoxGroups": []}

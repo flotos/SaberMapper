@@ -72,7 +72,16 @@ def rebeat_lyrics(lyrics, arrangement):
         segment["start_beat"], segment["end_beat"] = _beat(segment["start"], arrangement), _beat(segment["end"], arrangement)
         for word in segment.get("words", []):
             word["beat"] = _beat(word["start"], arrangement)
+    lyrics["words"] = flat_words(lyrics.get("segments", []))
     return lyrics
+
+
+def flat_words(segments):
+    """Every word as one driver item (the show compiler reads ``words``): id, start, end, word, confidence."""
+    return [{"id": f"{segment['id']}/{index}", "segment_id": segment["id"], "word": word["word"],
+             "start": word["start"], "end": word["end"], "beat": word.get("beat"),
+             "confidence": 1.0 if word.get("probability") is None else word["probability"]}
+            for segment in segments for index, word in enumerate(segment.get("words", []))]
 
 
 def normalize_segments(raw_segments, arrangement=None):
@@ -233,7 +242,7 @@ def lyrics_document(raw, report, run_id, arrangement=None, *, input_layer="vocal
             "language": raw.get("language"), "language_probability": raw.get("language_probability"),
             "device": raw.get("device"), "compute_type": raw.get("compute_type"), "input": input_layer,
             "precision": "whisper", "precision_note": PRECISION["whisper"], "segments": segments,
-            "word_count": sum(len(s["words"]) for s in segments),
+            "words": flat_words(segments), "word_count": sum(len(s["words"]) for s in segments),
             "provenance": {"tool": raw.get("backend"), "tool_version": raw.get("version"), "command": command,
                            "word_timestamps": True, "run_id": run_id}}
 
@@ -427,7 +436,7 @@ def import_lyric_sheet(text, report, run_id, arrangement=None, *, filename=None)
             "source_sha256": report["source"]["sha256"], "backend": "lrc" if kind == "lrc" else "text_alignment",
             "model": None, "language": None, "input": phrase_source if kind == "text" else "file",
             "precision": precision, "precision_note": PRECISION[precision], "segments": segments,
-            "word_count": sum(len(s["words"]) for s in segments),
+            "words": flat_words(segments), "word_count": sum(len(s["words"]) for s in segments),
             "unaligned_lines": len(lines) - len(segments),
             "provenance": {"tool": "sabermapper lyric-sheet import", "file": filename, "lines": len(lines),
                            "vocal_phrases": len(phrases), "run_id": run_id}}

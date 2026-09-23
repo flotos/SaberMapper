@@ -42,9 +42,12 @@ def main(argv=None):
     sub.add_argument("--tier-reference", type=Path,
                      help="corpus tier-reference.json enabling the difficulty.target_tier comparison")
     sub.add_argument("--output", type=Path)
-    sub = commands.add_parser("serve", help="Start the browser studio on localhost")
+    sub = commands.add_parser("serve", help="Start the browser studio on localhost; it follows code updates")
     sub.add_argument("--workspace", type=Path, default=Path("workspace"))
     sub.add_argument("--port", type=int, default=8765)
+    sub.add_argument("--no-reload", action="store_true",
+                     help="Serve in one process and keep the code loaded at start (no automatic update)")
+    sub.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     sub = commands.add_parser("demo", help="Create the original musical demo with an editable arrangement")
     sub.add_argument("--workspace", type=Path, default=Path("workspace"))
     sub = commands.add_parser("import-audio", help="Create a saved project from a local track")
@@ -77,8 +80,13 @@ def main(argv=None):
     sub = commands.add_parser("project", help="Read, revise, restore and export persistent projects")
     project_commands = sub.add_subparsers(dest="project_action", required=True)
     for name in ("list", "get", "save", "export", "restore", "review", "critique", "repair-swings",
-                 "repair-visibility", "repair-audio", "set-album", "add-difficulty", "remove-difficulty"):
+                 "repair-visibility", "repair-audio", "set-album", "add-difficulty", "remove-difficulty",
+                 "lights", "lights-inspect"):
         leaf = project_commands.add_parser(name, help={
+            "lights": "Regenerate the lightshow from the newest musical evidence run (keeps environment, style, "
+                      "section overrides, cues and locked sections' lights) and save it",
+            "lights-inspect": "Show the lighting timeline of a beat range: events per moment with the sounds under "
+                              "them, section moods and cues",
             "set-album": "Set the album that groups this project in the studio's artist/album tree",
             "repair-swings": "Fix same-color notes inside a held arc or chain (move to the other hand, or split "
                              "the arc at the cut), then blocking fast_direction_break/flow_parity_break findings: "
@@ -98,7 +106,7 @@ def main(argv=None):
         if name != "list":
             leaf.add_argument("project")
         if name in ("get", "save", "restore", "review", "critique", "repair-swings", "repair-visibility",
-                    "repair-audio"):
+                    "repair-audio", "lights", "lights-inspect"):
             leaf.add_argument("--difficulty", choices=DIFFICULTIES,
                               help="Which difficulty to act on; default: the primary one (arrangement.json)")
         if name == "add-difficulty":
@@ -113,12 +121,17 @@ def main(argv=None):
             leaf.add_argument("--run", help="Musical evidence run ID for the audio checks; "
                                              "defaults to the newest run of the current audio")
             leaf.add_argument("--output", type=Path)
-        if name in ("repair-swings", "repair-visibility", "repair-audio"):
+        if name == "lights-inspect":
+            leaf.add_argument("--start", type=float, required=True, help="First beat")
+            leaf.add_argument("--end", type=float, required=True, help="End beat (exclusive)")
+        if name in ("lights", "lights-inspect"):
+            leaf.add_argument("--output", type=Path, help="Write the report here instead of stdout")
+        if name in ("repair-swings", "repair-visibility", "repair-audio", "lights"):
             leaf.add_argument("--dry-run", action="store_true", help="Report planned changes without saving")
         if name == "repair-audio":
             leaf.add_argument("--output", type=Path, help="Write the full report here instead of stdout")
         if name in ("save", "restore", "review", "repair-swings", "repair-visibility", "repair-audio",
-                    "remove-difficulty"):
+                    "remove-difficulty", "lights"):
             leaf.add_argument("--revision", required=True)
         if name == "save":
             leaf.add_argument("--arrangement", type=Path, required=True)
@@ -136,21 +149,37 @@ def main(argv=None):
             leaf.add_argument("--minutes", type=float)
             leaf.add_argument("--decision", choices=("pending", "go", "revise", "stop"))
             leaf.add_argument("--variant", choices=("initial", "revised", "baseline"))
+    from .feedback_cli import register_feedback, dispatch_feedback
+    register_feedback(project_commands)
     from .musical_cli import register_musical, dispatch_musical
     register_musical(commands)
+    from .frames_cli import register_frames, dispatch_frames
+    register_frames(commands)
     from .research_cli import register_subcommands, dispatch
     register_subcommands(commands)
+    from .game.cli import register_game, dispatch_game
+    register_game(commands)
+    from .show_cli import register_show, dispatch_show
+    register_show(commands)
     from .concept_cli import register_concept, dispatch_concept
     register_concept(commands)
     args = parser.parse_args(argv)
     try:
-        if dispatch_musical(args, emit) or dispatch_concept(args, emit):
+        if (code := dispatch_game(args, emit)) is not None:
+            return code
+        if dispatch_musical(args, emit) or dispatch_frames(args, emit) or dispatch_feedback(args, emit):
+            return 0
+        if dispatch_show(args, emit) or dispatch_concept(args, emit):
             return 0
         if dispatch(args):
             return 0
         if args.command == "serve":
-            from .server import serve
-            serve(args.workspace, args.port)
+            if args.no_reload or args.worker:
+                from .server import serve
+                serve(args.workspace, args.port, worker=args.worker)
+            else:
+                from .studio_supervisor import Supervisor
+                return Supervisor(args.workspace, args.port).run()
         elif args.command in ("validate", "compile", "export"):
             from .arrangement import compile_arrangement
             from .validation import validate_arrangement
@@ -276,6 +305,35 @@ def main(argv=None):
                                   for action in ("moved", "removed", "added")},
                       "changes": repair["changes"], "unresolved": repair["unresolved"],
                       "remaining_warnings": repair["remaining"]}, args.output)
+            elif args.project_action in ("lights", "lights-inspect"):
+                from .lighting import inspect_lights, lighting_findings, refresh_lightshow
+                from .musical import latest_run
+                record = store.get(args.project, args.difficulty)
+                run_id, report = latest_run(store.directory(args.project))
+                if args.project_action == "lights-inspect":
+                    if args.end <= args.start:
+                        raise ValueError("--end must follow --start")
+                    emit({"project": args.project, "difficulty": record["difficulty"], "revision": record["revision"],
+                          "run_id": run_id, **inspect_lights(record["arrangement"], report, args.start, args.end)}, args.output)
+                    return 0
+                if record["revision"] != args.revision:
+                    raise ValueError(f"Project is at revision {record['revision']}; reread it before regenerating lights")
+                if report is None:
+                    raise ValueError("No musical evidence run matches this project's audio; run "
+                                     f"`music analyze {args.project} --workspace WORKSPACE` first")
+                arrangement, info = refresh_lightshow(record["arrangement"], record["arrangement"], run_id, report,
+                                                      force=True)
+                revision = record["revision"]
+                if arrangement != record["arrangement"] and not args.dry_run:
+                    revision = store.save(args.project, arrangement, args.revision,
+                                          difficulty=args.difficulty)["revision"]
+                metrics, findings = lighting_findings(arrangement, report)
+                show = arrangement["lightshow"]
+                emit({"project": args.project, "difficulty": record["difficulty"], "run_id": run_id,
+                      "previous_revision": record["revision"], "revision": revision,
+                      "saved": revision != record["revision"], "environment": show["environment"], "auto": show.get("auto", True),
+                      "sections": show["generated"]["sections"], "metrics": metrics, "warnings": findings},
+                     args.output)
             elif args.project_action == "review":
                 record = {"revision": args.revision, "difficulty": args.difficulty}
                 for name, key in (("timing_reviewed", "timing_reviewed"), ("playtested", "playtested"),
@@ -290,6 +348,9 @@ def main(argv=None):
         print("Interrupted; saved artifacts are preserved.", file=sys.stderr)
         return 130
     except (OSError, ValueError, KeyError, TypeError, ImportError) as exc:
+        if isinstance(getattr(exc, "code", None), str):  # typed errors carry a stable code for agents
+            print(json.dumps({"error": {"code": exc.code, "message": str(exc)}}, ensure_ascii=False), file=sys.stderr)
+            return 1
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

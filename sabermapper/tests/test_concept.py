@@ -145,6 +145,14 @@ class ConceptTests(unittest.TestCase):
         self.assertTrue(stored["current_validation"]["valid"])
         self.assertEqual([h["revision"] for h in stored["history"]], [second["revision"], first["revision"]])
         self.assertTrue((self.directory / "concept-history" / f"{first['revision']}.json").exists())
+        # The selected treatment is mirrored at the top level for frame metrics (palette, key moments).
+        from sabermapper.frame_metrics import concept_moments, concept_palette
+        raw = read_json(self.directory / "concept.json")
+        self.assertEqual(raw["palette"], ["#101020", "#f0c040"])
+        self.assertEqual(concept_palette(raw)[0], ["#101020", "#f0c040"])
+        times = {m["id"]: m["time"] for m in self.listen["moments"]}
+        self.assertEqual(concept_moments(raw, None), [times[self.moments[0]], times[self.moments[-1]]])
+        self.assertTrue(raw["moments"][-1]["held_for_end"])
 
     def test_template_prefills_evidence_and_is_not_valid_until_filled(self):
         template = concept_template(self.store, self.project)

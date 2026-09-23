@@ -42,17 +42,19 @@ function duration() {
   return Math.max(o.song.duration_seconds || 0, ...o.sections.map(s => s.end_seconds), 1);
 }
 
+// Every section, top to bottom: a folded row (name, start time, theme dots) that jumps there when clicked; the
+// current section unfolds to its summary, themes and a progress bar.
 function renderRail() {
-  const o = view.outline, total = duration(), track = $('rail-track');
-  const pct = seconds => `${(100 * seconds / total).toFixed(3)}%`;
+  const o = view.outline, track = $('rail-track');
   const colors = new Map(o.themes.map((t, i) => [t.id, THEME_COLORS[i % THEME_COLORS.length]]));
-  const blocks = o.sections.map(s => `<button class="block" type="button" data-id="${esc(s.id)}" data-at="${s.start_seconds}"
-    style="top:${pct(s.start_seconds)};height:${pct(s.end_seconds - s.start_seconds)}" title="${esc(s.summary)}">
-    <strong>${esc(s.id)}</strong><span>${clock(s.start_seconds)} · ${esc(s.summary)}</span></button>`).join('');
-  const bars = o.themes.flatMap(t => t.spans.map(span => `<div class="theme-bar ${span.role}" title="${esc(t.id)} (${span.role}): ${esc(t.intent || '')}"
-    style="top:${pct(span.start_seconds)};height:${pct(span.end_seconds - span.start_seconds)};background:${colors.get(t.id)}"></div>`)).join('');
-  track.innerHTML = blocks + bars + '<div id="rail-playhead" class="playhead"></div>';
-  track.querySelectorAll('.block').forEach(b => b.onclick = () => jump(Number(b.dataset.at)));
+  track.innerHTML = o.sections.map(s => `<button class="rail-item" type="button" data-id="${esc(s.id)}" data-at="${s.start_seconds}"
+      aria-expanded="false" title="Jump to ${esc(s.id)} (${clock(s.start_seconds)})">
+    <span class="rail-head"><strong>${esc(s.id)}</strong><span class="dots">${s.themes.map(t => `<i style="background:${colors.get(t)}" title="${esc(t)}"></i>`).join('')}</span><span class="rail-time">${clock(s.start_seconds)}</span></span>
+    <span class="rail-body"><span class="rail-summary">${esc(s.summary)}</span>
+      <span class="rail-themes">${s.themes.map(t => `<span class="chip" style="color:${colors.get(t)}">${esc(t)}</span>`).join('')}</span>
+      <span class="rail-progress"><span></span></span><span class="rail-range">${clock(s.start_seconds)} – ${clock(s.end_seconds)}</span></span>
+  </button>`).join('');
+  track.querySelectorAll('.rail-item').forEach(b => b.onclick = () => jump(Number(b.dataset.at)));
 }
 
 function renderStory() {
@@ -69,10 +71,12 @@ function renderStory() {
 
 function render() {
   const o = view.outline; if (!o) return;
-  const section = sectionAt(view.time), total = duration();
+  const section = sectionAt(view.time);
   $('now-time').textContent = clock(view.time);
   $('now-state').textContent = view.playing ? '▶ playing' : view.heard ? 'Ⅱ paused' : '';
-  const playhead = $('rail-playhead'); if (playhead) playhead.style.top = `${(100 * view.time / total).toFixed(3)}%`;
+  const bar = document.querySelector('.rail-item.active .rail-progress > span');
+  if (bar && section) bar.style.width = `${Math.min(100, Math.max(0, 100 * (view.time - section.start_seconds)
+                                                                    / Math.max(0.001, section.end_seconds - section.start_seconds)))}%`;
   if (!section || section === view.current) return;
   view.current = section;
   $('now-name').textContent = section.id;
@@ -82,7 +86,11 @@ function render() {
   $('now-themes').innerHTML = section.themes.map(t => `<span class="chip" style="color:${colors.get(t)}">${esc(t)}</span>`).join('');
   $('now-evidence-text').textContent = section.evidence || '';
   $('now-evidence').hidden = !section.evidence || section.evidence === section.summary;
-  document.querySelectorAll('.block').forEach(b => b.classList.toggle('active', b.dataset.id === section.id));
+  document.querySelectorAll('.rail-item').forEach(b => {
+    const current = b.dataset.id === section.id;
+    b.classList.toggle('active', current); b.setAttribute('aria-expanded', String(current));
+    if (current) b.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+  });
   const index = o.sections.indexOf(section), next = o.sections[index + 1];
   $('next-button').hidden = !next;
   if (next) { $('next-name').textContent = `${next.id} · ${clock(next.start_seconds)}`; $('next-summary').textContent = next.summary; $('next-button').onclick = () => jump(next.start_seconds); }

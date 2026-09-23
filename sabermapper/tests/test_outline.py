@@ -143,6 +143,12 @@ class OutlineTests(unittest.TestCase):
         viewer = (STATIC / "viewer.js").read_text(encoding="utf-8")
         for name in ("soundStartTime", "lastPlayed", "playbackSpeed", "SongCtx", "/outline"):
             self.assertIn(name, viewer)
+        # Every section is a row that jumps there; only the current one unfolds.
+        self.assertIn("track.querySelectorAll('.rail-item').forEach(b => b.onclick = () => jump(", viewer)
+        self.assertIn("b.setAttribute('aria-expanded', String(current))", viewer)
+        css = (STATIC / "viewer.css").read_text(encoding="utf-8")
+        self.assertIn(".rail-body{display:none}", css)
+        self.assertIn(".rail-item.active .rail-body{display:flex", css)
         studio = (STATIC / "app.js").read_text(encoding="utf-8")
         self.assertIn("openPreview(Number(c.dataset.at))", studio)
         self.assertIn("function sectionSummary", studio)

@@ -54,6 +54,15 @@ class GridTests(unittest.TestCase):
         self.assertEqual(_grid_beat(3.26), Fraction(13, 4))
 
 
+class MelodyBeatTests(unittest.TestCase):
+    def test_melody_notes_take_whole_half_or_quarter_beats(self):
+        from sabermapper.audio_repair import _melody_beat
+        self.assertEqual(_melody_beat(9.04), 9)
+        self.assertEqual(_melody_beat(8.55), Fraction(17, 2))
+        self.assertEqual(_melody_beat(9.2), Fraction(37, 4))
+        self.assertEqual(_melody_beat(7.66), Fraction(31, 4), "no triplet grid in a melodic bar")
+
+
 class GroundNotesTests(unittest.TestCase):
     def test_off_sound_notes_move_onto_the_nearest_onset(self):
         # Drums on every beat; four notes were placed a quarter beat late.
@@ -143,6 +152,24 @@ class RepairAudioTests(unittest.TestCase):
         added = [c["beat"] for c in result["changes"] if c["action"] == "added"]
         self.assertTrue({16.5, 17.5, 18.5, 19.5} & set(added))
         self.assertNotIn("vocal_line_unmapped", {w["code"] for w in result["remaining"]})
+        self.assertEqual(errors(result["arrangement"]), [])
+
+    def test_an_unmapped_melody_gains_notes_on_its_pitch_changes(self):
+        # A drumless, voiceless intro: the pad's line changes pitch six times in two bars, but the map
+        # plays only beats 0 and 7, then the band enters with drums from beat 8.
+        beats = [0, 7] + list(range(8, 40))
+        evidence = report(range(8, 64))
+        evidence["layers"]["mix"]["events"] = [
+            {"id": f"mix:melody_change:{b}", "seconds": b / 2, "method": "melody_change", "strength": 0.6}
+            for b in (1, 2.15, 3, 4.5, 5.5, 6.5)]
+        before = critique_arrangement(arrangement(beats), evidence)
+        flagged = [w for w in before["warnings"] if w["code"] == "melody_unmapped"]
+        self.assertEqual(flagged[0]["beats"], [0, 8])
+        result = repair_audio(arrangement(beats), evidence)
+        added = {c["beat"] for c in result["changes"] if c["action"] == "added" and c["code"] == "melody_unmapped"}
+        # The late legato change at 2.15 takes the quarter beat nearest it, never a triplet or sixteenth.
+        self.assertTrue(added <= {1, 2.25, 3, 4.5, 5.5, 6.5} and len(added) >= 4, result["changes"])
+        self.assertNotIn("melody_unmapped", {w["code"] for w in result["remaining"]})
         self.assertEqual(errors(result["arrangement"]), [])
 
     def test_missing_evidence_is_an_actionable_error(self):

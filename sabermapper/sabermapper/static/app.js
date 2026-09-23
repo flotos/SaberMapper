@@ -35,10 +35,30 @@ function beatSeconds(beat) {
   return seconds+(beat-current)*60/tempo;
 }
 function secondsBeat(seconds) { let lo=0,hi=Math.max(totalBeats()+8, seconds*20); for(let i=0;i<35;i++){const m=(lo+hi)/2;if(beatSeconds(m)>seconds)hi=m;else lo=m;}return (lo+hi)/2; }
+const byName = (a,b) => a.localeCompare(b,undefined,{sensitivity:'base',numeric:true});
+const shortDate = iso => { const d=new Date(iso); if (!iso || isNaN(d)) return ''; const p=n=>String(n).padStart(2,'0'); return `${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+const collapsedGroups = (() => { try { return new Set(JSON.parse(localStorage.getItem('sabermapper.collapsed') || '[]')); } catch { return new Set(); } })();
+function projectTree(projects) {
+  const artists=new Map();
+  for (const p of projects) {
+    const artist=(p.artist||'').trim()||'Unknown artist', album=(p.album||'').trim();
+    if (!artists.has(artist)) artists.set(artist,new Map());
+    const albums=artists.get(artist); if (!albums.has(album)) albums.set(album,[]); albums.get(album).push(p);
+  }
+  const song=p=>`<button class="project-link ${state.project?.project.id===p.id?'active':''}" data-project="${esc(p.id)}" title="${esc(p.title)} · updated ${esc(shortDate(p.updated_at))}"><span>${esc(p.title)}</span><small>${esc(shortDate(p.updated_at))}</small></button>`;
+  const songs=list=>list.slice().sort((a,b)=>byName(a.title||'',b.title||'')).map(song).join('');
+  const group=(key,cls,label,body)=>`<details class="${cls}" data-group="${esc(key)}" ${collapsedGroups.has(key)?'':'open'}><summary title="${esc(label)}">${esc(label)}</summary>${body}</details>`;
+  return [...artists.keys()].sort(byName).map(artist=>{
+    const albums=artists.get(artist), named=[...albums.keys()].filter(Boolean).sort(byName);
+    return group(`artist:${artist}`,'tree-artist',artist,
+      named.map(album=>group(`album:${artist}\n${album}`,'tree-album',album,songs(albums.get(album)))).join('')+songs(albums.get('')||[]));
+  }).join('');
+}
 async function refreshProjects() {
   const projects=await api('/api/projects');
-  $('project-list').innerHTML=projects.length?projects.map(p=>`<button class="project-link ${state.project?.project.id===p.id?'active':''}" data-project="${esc(p.id)}" title="${esc(p.title)}">${esc(p.title)}</button>`).join(''):'<p class="hint">No projects yet.</p>';
+  $('project-list').innerHTML=projects.length?projectTree(projects):'<p class="hint">No projects yet.</p>';
   $('project-list').querySelectorAll('[data-project]').forEach(b=>b.onclick=()=>run('Opening…',()=>loadProject(b.dataset.project)));
+  $('project-list').querySelectorAll('[data-group]').forEach(d=>d.ontoggle=()=>{d.open?collapsedGroups.delete(d.dataset.group):collapsedGroups.add(d.dataset.group);try{localStorage.setItem('sabermapper.collapsed',JSON.stringify([...collapsedGroups]));}catch{}});
   return projects;
 }
 async function loadProject(id, difficulty) { $('arcviewer-handoff').hidden=true; state.project=await api(projectUrl(id, difficulty)); state.selection=[0,Math.min(8,totalBeats())]; showView('studio'); renderProject(true);await refreshProjects(); }
@@ -108,7 +128,7 @@ document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>showView(b.dat
 $('new-project').onclick=$('welcome-import').onclick=()=>$('import-dialog').showModal();$('close-import').onclick=()=>$('import-dialog').close();$('close-section').onclick=()=>$('section-dialog').close();
 $('create-demo').onclick=()=>run('Creating demo…',async()=>{state.project=await api('/api/demo',{});renderProject(true);await refreshProjects();toast('Demo ready.');});
 $('audio-file').onchange=()=>{if(!$('import-title').value)$('import-title').value=$('audio-file').files[0]?.name.replace(/\.[^.]+$/,'')||'';};
-$('import-form').onsubmit=e=>{e.preventDefault();run('Importing…',async()=>{const file=$('audio-file').files[0];if(!file)throw new Error('Choose an audio file');if(file.size>64*1048576)throw new Error('File is over 64 MB');const data={filename:file.name,audio:await fileBase64(file),title:$('import-title').value,artist:$('import-artist').value,bpm:$('import-bpm').value||null};state.project=await api('/api/projects/import',data);$('import-dialog').close();showView('studio');renderProject(true);await refreshProjects();toast('Imported. Check the timing.');});};
+$('import-form').onsubmit=e=>{e.preventDefault();run('Importing…',async()=>{const file=$('audio-file').files[0];if(!file)throw new Error('Choose an audio file');if(file.size>64*1048576)throw new Error('File is over 64 MB');const data={filename:file.name,audio:await fileBase64(file),title:$('import-title').value,artist:$('import-artist').value,album:$('import-album').value,bpm:$('import-bpm').value||null};state.project=await api('/api/projects/import',data);$('import-dialog').close();showView('studio');renderProject(true);await refreshProjects();toast('Imported. Check the timing.');});};
 $('play').onclick=async()=>{const audio=$('audio');try{if(audio.paused)await audio.play();else audio.pause();}catch(e){toast(`Playback failed: ${e.message}`,true);}};
 $('audio').onplay=()=>{$('play').textContent='Ⅱ';$('play').setAttribute('aria-label','Pause');};$('audio').onpause=()=>{$('play').textContent='▶';$('play').setAttribute('aria-label','Play');};$('audio').ontimeupdate=()=>{updatePlayhead();drawWaveform();};$('audio').onloadedmetadata=updatePlayhead;$('speed').onchange=()=>$('audio').playbackRate=Number($('speed').value);$('zoom').oninput=drawTimeline;
 $('waveform').onclick=e=>{if(!state.project)return;const r=e.currentTarget.getBoundingClientRect();$('audio').currentTime=(e.clientX-r.left)/r.width*state.project.project.duration_seconds;};

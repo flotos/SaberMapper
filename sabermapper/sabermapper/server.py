@@ -189,6 +189,7 @@ def make_server(workspace: str | Path, port: int = 8765) -> ThreadingHTTPServer:
                     try:
                         self._json(store.create(temporary, title=str(data.get("title") or Path(data["filename"]).stem),
                                                 artist=str(data.get("artist") or "Unknown artist"),
+                                                album=str(data.get("album") or "") or None,
                                                 bpm=float(data["bpm"]) if data.get("bpm") else None))
                     finally:
                         temporary.unlink(missing_ok=True)

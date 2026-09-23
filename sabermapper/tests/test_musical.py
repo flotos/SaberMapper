@@ -301,6 +301,28 @@ class PitchAndPassageTests(unittest.TestCase):
         self.assertEqual(len(layer["sustains"]), 1, layer["sustains"])
         self.assertEqual(layer["sustains"][0]["pitch_shape"], "flat")
 
+    def test_melody_steps_over_a_held_chord_are_melody_changes(self):
+        # A pad holds A3 and E4 while the top voice steps A4 -> C5 -> B4 legato: the monophonic
+        # tracker cannot follow one line through the chord, the predominant-pitch tracker can.
+        def voice(hertz, seconds):
+            return sum(a * self.tone(hertz * h, seconds, .3) for h, a in ((1, 1), (2, .5), (3, .3)))
+        pad = self.tone(220, 2.4, .2) + self.tone(329.63, 2.4, .2)
+        line = np.concatenate([voice(440, .8), voice(523.25, .8), voice(493.88, .8)])
+        changes = [e for e in self.mix("pad", pad + line)["events"] if e["method"] == "melody_change"]
+        self.assertEqual([(e["from_midi"], e["to_midi"]) for e in changes], [(69, 72), (72, 71)], changes)
+        for event, expected in zip(changes, (.8, 1.6)):
+            self.assertAlmostEqual(event["seconds"], expected, delta=.06)
+            self.assertTrue(event["id"].startswith("mix:melody_change:"))
+            self.assertGreater(event["strength"], .3)
+        held = [e for e in self.mix("chord", pad + voice(440, 2.4))["events"] if e["method"] == "melody_change"]
+        self.assertEqual(held, [], "a held chord has no melody change")
+        # A soft line before a loud one: strength follows the surrounding level, not the song's loudest part.
+        phrase = np.tile(pad + line, 3)
+        soft = np.concatenate([.35 * phrase, phrase])
+        found = [e for e in self.mix("soft", soft)["events"] if e["method"] == "melody_change" and e["seconds"] < 2.3]
+        self.assertEqual(len(found), 2, found)
+        self.assertTrue(all(e["strength"] > .5 for e in found), found)
+
     def test_passages_mark_a_quiet_sustained_window_and_an_onset_dense_one(self):
         seconds = np.arange(int(self.rate*2))/self.rate
         pad = .05 * np.minimum(1, np.minimum(seconds, 2-seconds)/.5) * np.sin(2*np.pi*196*seconds)

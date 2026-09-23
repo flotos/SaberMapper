@@ -253,6 +253,50 @@ class SalienceTests(unittest.TestCase):
         self.assertFalse(result["metrics"]["salience"]["checked"])
 
 
+class MelodyTests(unittest.TestCase):
+    """Without a voice, drum pattern or declared lead, notes follow the pitch changes of the pitched line."""
+
+    def report(self, changes=(1, 2, 3, 5, 6, 7), vocals=()):
+        # 120 BPM, offset 0: beat b sits at b / 2 seconds.
+        melody = [{"id": f"mix:melody_change:{b}", "seconds": b / 2, "method": "melody_change", "strength": 0.6}
+                  for b in changes]
+        sung = [{"id": f"vocals:{b}", "seconds": b / 2, "method": "spectral_flux", "strength": 0.8} for b in vocals]
+        return {"layers": {"mix": {"events": melody},
+                           "vocals": {"events": sung, "sustains": [{"start_seconds": 0.0, "end_seconds": 4.0}]},
+                           "drums": {"events": []}}}
+
+    def result(self, beats, evidence):
+        notes = [note(i, b, (i % 4, 0, i % 2, 1)) for i, b in enumerate(beats)]
+        return critique_arrangement(arrangement([section("s", 0, 8, notes)]), evidence)
+
+    def test_notes_on_the_beat_grid_that_ignore_the_pitch_changes_are_flagged(self):
+        result = self.result([0, 4], self.report())
+        flagged = [w for w in result["warnings"] if w["code"] == "melody_unmapped"]
+        self.assertEqual(len(flagged), 1, result["warnings"])
+        self.assertEqual(flagged[0]["beats"], [0, 8])
+        self.assertIn("melody_unmapped", result["definitions"])
+        self.assertEqual(result["metrics"]["melody"]["bars"][0]["unmapped_beats"], [1, 2, 3])
+
+    def test_following_the_pitch_changes_passes(self):
+        # A legato change heard just after the beat takes the quarter beat nearest it.
+        result = self.result([1, 2, 3.25, 5, 6.25, 7], self.report(changes=(1, 2, 3.2, 5, 6.15, 7)))
+        self.assertNotIn("melody_unmapped", codes(result))
+
+    def test_a_note_on_the_half_beat_grid_misses_a_late_legato_change(self):
+        result = self.result([1, 2, 3, 5, 6, 7], self.report(changes=(1.2, 2.2, 3.2, 5.2, 6.2, 7.2)))
+        self.assertIn("melody_unmapped", codes(result))
+
+    def test_sung_bars_and_sparse_changes_are_left_to_other_checks(self):
+        sung = self.result([0, 4], self.report(changes=(1, 2, 3, 5), vocals=(0, 1, 2, 3)))
+        self.assertNotIn("melody_unmapped", codes(sung))
+        self.assertEqual(sung["metrics"]["melody"]["bars"], [])
+
+    def test_notes_on_melody_changes_are_not_quiet_density_excess(self):
+        from sabermapper.critique import salient_onsets
+        onsets, _ = salient_onsets(arrangement([]), self.report())
+        self.assertEqual(onsets, [0.5, 1.0, 1.5, 2.5, 3.0, 3.5])
+
+
 class FocusStemTests(unittest.TestCase):
     """A focus weighted on a stem that is absent there follows separator bleed or a mislabeled instrument."""
 

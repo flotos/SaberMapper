@@ -71,11 +71,13 @@ def main(argv=None):
     sub = commands.add_parser("project", help="Read, revise, restore and export persistent projects")
     project_commands = sub.add_subparsers(dest="project_action", required=True)
     for name in ("list", "get", "save", "export", "restore", "review", "critique", "repair-swings",
-                 "repair-audio", "set-album"):
+                 "repair-visibility", "repair-audio", "set-album"):
         leaf = project_commands.add_parser(name, help={
             "set-album": "Set the album that groups this project in the studio's artist/album tree",
             "repair-swings": "Fix blocking fast_direction_break/flow_parity_break findings: drop 16th pickups or "
                              "re-angle one cut (arc directions follow)",
+            "repair-visibility": "Fix blocking hidden_note findings: move a note hidden behind the note in front "
+                                 "of it in the same cell to a free neighbouring cell (arcs follow)",
             "repair-audio": "Fix audio findings: move notes with no sound under them onto the nearest onset "
                             "(or remove them), thin quiet passages mapped as densely as the full band, then "
                             "add flow-safe notes on unmapped vocal, drum, accent and density-collapse onsets; "
@@ -88,11 +90,11 @@ def main(argv=None):
             leaf.add_argument("--run", help="Musical evidence run ID for the audio checks; "
                                              "defaults to the newest run of the current audio")
             leaf.add_argument("--output", type=Path)
-        if name in ("repair-swings", "repair-audio"):
+        if name in ("repair-swings", "repair-visibility", "repair-audio"):
             leaf.add_argument("--dry-run", action="store_true", help="Report planned changes without saving")
         if name == "repair-audio":
             leaf.add_argument("--output", type=Path, help="Write the full report here instead of stdout")
-        if name in ("save", "restore", "review", "repair-swings", "repair-audio"):
+        if name in ("save", "restore", "review", "repair-swings", "repair-visibility", "repair-audio"):
             leaf.add_argument("--revision", required=True)
         if name == "save":
             leaf.add_argument("--arrangement", type=Path, required=True)
@@ -196,12 +198,14 @@ def main(argv=None):
                         "message": "No musical evidence run matches this project's audio, so nothing was checked "
                                    f"against the song; run `music analyze {args.project}` before judging the map."})
                 emit({"revision": record["revision"], "run_id": run_id, **result}, args.output)
-            elif args.project_action == "repair-swings":
+            elif args.project_action in ("repair-swings", "repair-visibility"):
                 from .swing_repair import repair_fast_breaks
+                from .visibility_repair import repair_hidden_notes
                 record = store.get(args.project)
                 if record["revision"] != args.revision:
                     raise ValueError(f"Project is at revision {record['revision']}; reread it before repairing")
-                repair = repair_fast_breaks(record["arrangement"])
+                repair = (repair_fast_breaks if args.project_action == "repair-swings"
+                          else repair_hidden_notes)(record["arrangement"])
                 revision = record["revision"]
                 if repair["changes"] and not args.dry_run:
                     revision = store.save(args.project, repair["arrangement"], args.revision)["revision"]

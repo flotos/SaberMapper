@@ -92,6 +92,20 @@ class SplitBurstTests(unittest.TestCase):
         self.assertEqual([d for d in validate_arrangement(result["arrangement"]) if d["severity"] == "error"], [])
         self.assertNotIn("one_hand_burst", codes(result["arrangement"]))
 
+    def test_a_soft_bar_drops_the_note_instead_of_handing_it_over(self):
+        # Four loud bars set the demand; the burst sits in a bar at half their loudness (difficulty_exceeds_intensity).
+        loud = [note(f"x{b}", b, b % 2, 1 if (b // 2) % 2 == 0 else 0) for b in range(16)]
+        burst = [note("l1", 18, 0, 1), note("r1", 20, 1, 1, y=0), note("r2", "41/2", 1, 0), note("r3", 21, 1, 1, x=3),
+                 note("l2", 24, 0, 0)]
+        evidence = report({"drums": [(b / 2, 0.8) for b in range(64)]})
+        evidence["passages"] = [{"start_seconds": seconds(start), "end_seconds": seconds(start + 16),
+                                 "support_score": 0.9, "energy_ratio": energy} for start, energy in ((0, 1.0), (16, 0.5))]
+        source = arrangement(loud + burst, lead="drums")
+        self.assertIn("one_hand_burst", codes(source))
+        result = split_bursts(source, evidence)
+        self.assertEqual([(c["action"], c["beat"]) for c in result["changes"]], [("removed", 20.5)])
+        self.assertNotIn("one_hand_burst", codes(result["arrangement"]))
+
     def test_an_end_note_goes_when_dropping_the_middle_would_break_flow(self):
         # A soft triplet down-up-down on the voice: without the up-cut the two down-cuts come 0.21 s apart.
         notes = [note("l1", 4, 0, 1), note("r1", "23/3", 1, 1), note("r2", 8, 1, 0, y=0), note("r3", "25/3", 1, 1),

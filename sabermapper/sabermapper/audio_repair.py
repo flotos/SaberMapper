@@ -43,7 +43,7 @@ Passes, all judged against one musical evidence run:
    its notes that sit on none of the bar's declared lead attacks, keeping the
    best-supported one when none does. A burst that remains has its weakest inner
    note handed to the idle hand when it sits on a strong sound outside a thin,
-   soft passage, and removed otherwise. New notes from the other passes never
+   soft passage or a bar softer than the heavy passages, and removed otherwise. New notes from the other passes never
    create a burst.
 6. **Settle density.** The quiet-passage thinning runs once more, so notes the
    lead rebuild or the fills added never leave a ``density_exceeds_audio``
@@ -72,7 +72,8 @@ from .audio_grounding import (SUPPORT_BEATS, SUPPORT_STRENGTH, ONSET_METHODS, ON
                               audio_findings)
 from .critique import (ACCENT_STRENGTH, DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT, INTENSITY_BAR_BEATS,
                        LEAD_ONSET_STRENGTH, LEAD_SUPPORT_STRENGTH, MELODY_LAYER, MELODY_ONSET_STRENGTH,
-                       QUIET_WINDOW_SECONDS, SALIENCE_BAR_BEATS, SALIENCE_MATCH_BEATS, VOCAL_ONSET_STRENGTH, _sections,
+                       QUIET_WINDOW_SECONDS, SALIENCE_BAR_BEATS, SALIENCE_MATCH_BEATS, SOFT_RATIO, VOCAL_ONSET_STRENGTH,
+                       _sections,
                        beat_to_seconds, critique_arrangement, focus_lead, intensity_bars, lead_onsets, on_onset,
                        quiet_bar, quiet_windows, salient_onsets, strongest_per_slot, underplayed_runs)
 from .movement import BURST_SECONDS, BURST_SWINGS, hidden_window, turn_degrees, _OPPOSITE
@@ -1017,6 +1018,8 @@ def split_bursts(arrangement: dict, report: dict) -> dict:
     support = _strength_near(report, SUPPORT_STRENGTH)
     support_seconds = [t for t, _ in support]
     attacks = {}
+    # Softer audio plays easier (difficulty_exceeds_intensity): a soft bar sheds the note rather than adding travel.
+    soft = {bar["start_beat"] for bar in intensity_bars(result, report)[1] if bar.get("relative", 1.0) < SOFT_RATIO}
 
     def on_lead(beat):
         """Strength of the declared lead's attack at ``beat``: 0.0 off its attacks, None when no lead is declared."""
@@ -1039,7 +1042,8 @@ def split_bursts(arrangement: dict, report: dict) -> dict:
         """Hand ``swing`` to the idle hand when it carries a strong sound outside a quiet bar, else remove it."""
         _remove(arrangement, swing["ids"])
         bar = math.floor(swing["beat"] / SALIENCE_BAR_BEATS) * SALIENCE_BAR_BEATS
-        if swing["strength"] >= LEAD_ONSET_STRENGTH and not quiet_bar(report, arrangement, bar, bar + SALIENCE_BAR_BEATS):
+        if (swing["strength"] >= LEAD_ONSET_STRENGTH and bar not in soft
+                and not quiet_bar(report, arrangement, bar, bar + SALIENCE_BAR_BEATS)):
             moved = insert_note(arrangement, swing["beat"], f'hand-{len(changes) + 1:03d}', hands=(1 - color,))
             if moved:
                 return [{**moved, "action": "moved_hand", "removed_ids": swing["ids"],

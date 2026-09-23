@@ -40,6 +40,7 @@ The application is in `sabermapper/`; run commands from there. On this Windows w
 - List projects: `.venv/Scripts/python -m sabermapper project list --workspace workspace`
 - Inspect a project: `.venv/Scripts/python -m sabermapper project get ID --workspace workspace`
 - Check everything a map breaks or misses, with suggested edits (read-only; `--arrangement DRAFT.json` checks a draft as save would): `.venv/Scripts/python -m sabermapper project check ID --workspace workspace`
+- Brainstorm the song's map style before drafting (three candidates, one selected; `style save` prints the block to add to each arrangement): `.venv/Scripts/python -m sabermapper style template ID --workspace workspace`
 - Draft note times from the audio (notes need only id and beat; the placer chooses hand, cut and cell): `.venv/Scripts/python -m sabermapper music rhythm ID --workspace workspace --propose [--start A --end B] --draft DRAFT.json`
 - Save an authored arrangement: `.venv/Scripts/python -m sabermapper project save ID --workspace workspace --revision CURRENT_SHA --arrangement EDITED.json`
 - Rebuild or inspect lights: `.venv/Scripts/python -m sabermapper project lights ID --workspace workspace --revision CURRENT_SHA`, `project lights-inspect ID --workspace workspace --start BEAT --end BEAT`

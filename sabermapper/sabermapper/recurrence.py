@@ -366,8 +366,11 @@ def propose_themes(arrangement: dict, report: dict | None, listen_sections: list
     joins that theme as an echo of the overlapping part (``from_beat`` names where in the statement it starts),
     so a riff that returns several times becomes one theme. A transposed repeat, and every second echo, is
     mirrored so a recurring part stays recognisable without the map replaying one figure. Spans already in a
-    declared theme are left alone.
+    declared theme are left alone. The style's ``theme_variation`` changes the mirroring: ``repeat`` mirrors only
+    a transposed return, ``mirror`` every echo.
     """
+    from .style import settings_of
+    variation = settings_of(arrangement)["theme_variation"]
     taken = []
     for theme in arrangement.get("themes") or []:
         for span in (theme.get("spans") or []) if isinstance(theme, dict) else []:
@@ -426,7 +429,7 @@ def propose_themes(arrangement: dict, report: dict | None, listen_sections: list
         statement = host["statement"]
         spans = [{"start_beat": statement[0], "end_beat": statement[1]}]
         for number, (echo, source, repeat) in enumerate(sorted(host["echoes"], key=lambda e: e[0]), start=1):
-            mirror = bool(repeat["transposed_semitones"]) or number % 2 == 0
+            mirror = bool(repeat["transposed_semitones"]) or variation == "mirror" or                 variation == "alternate" and number % 2 == 0
             spans.append({"start_beat": echo[0], "end_beat": echo[1],
                           **({"from_beat": source} if source != statement[0] else {}),
                           **({"mirror": True} if mirror else {})})

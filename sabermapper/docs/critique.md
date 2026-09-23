@@ -125,6 +125,22 @@ suggestion declares the theme and reopens the echo's unlocked notes.
 **`theme_unechoed`**: a declared echo with at least 8 matched notes whose
 placement is below **0.35**.
 
+### Style (`metrics.style`)
+
+The map's declared style (`style` in the arrangement, `sabermapper/style.py`) beside its measured one:
+
+- `turn_degrees`: the mean angle between each cut and the clean reversal of the same hand's previous cut (same-hand
+  swings under 2 s apart, dots skipped). 0 is a pure pendulum.
+- `diagonal_share`: the share of directional notes cut diagonally.
+- `top_row_share`, `accent_share` (note times with two or more notes) and `arcs_per_minute`.
+
+**`style_missing`**: the arrangement declares no style.
+**`style_drift`**: a declared setting whose metric leaves its band. Round flow turns at most **14** degrees and angular
+at least **34**; few diagonals are at most **30%** and many at least **55%**; a low top row is at most **13%** and a
+high one at least **23%**. The bands come from four workspace songs placed from scratch under each value: the
+default placed turns of 21-24 degrees, diagonal shares of 45-50% and top-row shares of 18-21%. Round placed 1-10 degrees,
+angular 42-45, few diagonals 23-27%, many 58-84%, a low top row 8-11% and a high one 25-26%.
+
 ### Boundary accents (`metrics.boundary_accents`)
 
 Only checked when a musical evidence report is supplied. For every section

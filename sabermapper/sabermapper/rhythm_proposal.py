@@ -23,6 +23,8 @@ functions the critique judges a map with, and the musical rules SM-036 records:
   double on the same sound, and the sixteenth before it stays empty too.
 * The declared lead's strongest attack per half-beat (per beat in a thin or soft bar) carries a note, as the
   lead check requires; every time is snapped to the coarsest grid that stays on its sound.
+* **The map's style tunes the draft** (:mod:`style`): ``arcs`` sets how short a held sound still becomes an arc,
+  ``accents`` how many doubles a loud bar's heaviest hits get.
 * **A returning part returns as a theme.** Parts that repeat an earlier one (listen repetition groups, or the
   stems' rhythm grid; :mod:`recurrence`) become ``themes``, and the placer plays each echo's notes with its
   statement's hands, cuts and cells where the times match, mirrored on a transposed or alternate return.
@@ -54,6 +56,7 @@ from .critique import (ENSEMBLE_MIX_STRENGTH, LOUD_RATIO, MELODY_ONSET_STRENGTH,
                        unison_hits)
 from .placement import place_arrangement
 from .recurrence import propose_themes
+from .style import ARC_SCALE, DOUBLES_PER_BAR, settings_of
 from .validation import _beat
 
 TARGET_CODES = ("note_without_audio", "density_exceeds_audio", "lead_rhythm_diluted", "lead_rhythm_unmapped",
@@ -119,6 +122,7 @@ class _Evidence:
         self.arrangement, self.report = arrangement, report
         self.layers = report.get("layers") or {}
         self.to_beat = lambda seconds: seconds_to_beat(seconds, arrangement)
+        self.doubles = DOUBLES_PER_BAR[settings_of(arrangement)["accents"]]  # the style's accents
         support = sorted((float(e["seconds"]), e.get("strength", 0))
                          for layer in self.layers.values() for e in layer.get("events", [])
                          if e.get("method") in ONSET_METHODS and e.get("strength", 0) >= SUPPORT_STRENGTH)
@@ -334,8 +338,9 @@ def _stack_candidates(evidence, bar, stop, holds):
 
 
 def _double_candidates(evidence, bar, stop, role, lead, holds):
-    """Up to DOUBLES_PER_LOUD_BAR accents for both hands: kick or crash hits in a riff bar, the heaviest ensemble
-    accent and the snare backbeat in a sung bar. Never while an arc or chain holds a saber."""
+    """Up to ``evidence.doubles`` accents for both hands (the style's ``accents``: DOUBLES_PER_LOUD_BAR by
+    default): kick or crash hits in a riff bar, the heaviest ensemble accent and the snare backbeat in a sung bar.
+    Never while an arc or chain holds a saber."""
     arrangement = evidence.arrangement
     hits = [(b, s, m, t) for b, s, m, t in evidence.events("drums", ("spectral_flux",), DOUBLE_STRENGTH)
             if bar <= b < stop and _with_mix(evidence, b)]
@@ -358,15 +363,16 @@ def _double_candidates(evidence, bar, stop, role, lead, holds):
     for item in free:
         if all(abs(item["beat"] - other["beat"]) >= 1 for other in unique):
             unique.append(item)
-    return unique[:DOUBLES_PER_LOUD_BAR]
+    return unique[:evidence.doubles]
 
 
-def _arcs(evidence, first, last, base, held=()):
+def _arcs(evidence, first, last, base, held=(), scale=1.0):
     """Arcs for held and intense singing: [(head, tail, evidence)] inside one unlocked section each.
 
     A vocal sustain becomes an arc when it lasts ARC_SECONDS and ARC_BEATS (intense singing, strength
     INTENSE_STRENGTH or more: INTENSE_SECONDS and INTENSE_BEATS). A hold the user named (``held``, source
-    seconds) needs NAMED_BEATS, with its sustain starting within NAMED_REACH_BEATS of the named time.
+    seconds) needs NAMED_BEATS, with its sustain starting within NAMED_REACH_BEATS of the named time. ``scale``
+    (the style's ``arcs``) multiplies the held and intense lengths: below 1 shorter holds become arcs too.
     """
     arrangement = evidence.arrangement
     sections = [(s, _beat(s["start_beat"]), _beat(s["start_beat"]) + _beat(s["length_beats"]))
@@ -379,8 +385,9 @@ def _arcs(evidence, first, last, base, held=()):
         start, end = evidence.to_beat(sustain["start_seconds"]), evidence.to_beat(sustain["end_seconds"])
         beats = end - start
         strength = sustain.get("strength", 0)
-        qualifies = ((seconds >= ARC_SECONDS and beats >= ARC_BEATS)
-                     or (strength >= INTENSE_STRENGTH and seconds >= INTENSE_SECONDS and beats >= INTENSE_BEATS)
+        qualifies = ((seconds >= ARC_SECONDS * scale and beats >= ARC_BEATS * scale)
+                     or (strength >= INTENSE_STRENGTH and seconds >= INTENSE_SECONDS * scale
+                         and beats >= INTENSE_BEATS * scale)
                      or (beats >= NAMED_BEATS and any(abs(start - t) <= NAMED_REACH_BEATS for t in named)))
         if not qualifies:
             continue
@@ -652,7 +659,7 @@ def propose_rhythm(arrangement: dict, report: dict, *, start: float | None = Non
     singing = {b["start_beat"] for b in critique_arrangement(context, report)["metrics"]["salience"].get("bars", [])
                if b["salient"] == "vocals"}
     seconds = lambda beat: beat_to_seconds(beat, base)
-    arcs = _arcs(evidence, first, last, base, held)
+    arcs = _arcs(evidence, first, last, base, held, ARC_SCALE[settings_of(base)["arcs"]])
     holds = _holds(base) + [(head, tail) for head, tail, _ in arcs]
     bars, pool, reserve, doubles = [], [], [], []
     first_bar = int(first // SALIENCE_BAR_BEATS) * SALIENCE_BAR_BEATS

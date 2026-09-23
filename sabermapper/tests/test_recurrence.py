@@ -212,7 +212,7 @@ class RecurringAudioTests(unittest.TestCase):
         self.assertEqual([(r["statement"], r["echo"]) for r in found], [([0, 16], [32, 48]), ([16, 32], [48, 64])])
 
     def test_rhythm_repeats_follow_the_drums_and_the_busiest_instrument(self):
-        from test_rhythm_proposal import song, song_arrangement
+        from tests.test_rhythm_proposal import song, song_arrangement
         evidence = song()
         self.assertEqual(rhythm_stems(evidence), ["drums", "guitar"])
         found = [r for r in audio_repeats(song_arrangement(), evidence) if r["source"] == "rhythm"]
@@ -272,7 +272,7 @@ class RecurringAudioTests(unittest.TestCase):
         self.assertIsNone(_theme_for(declared, {"statement": [0, 16], "echo": [40, 56], "transposed_semitones": 0}))
 
     def test_the_draft_declares_themes_for_the_recurring_parts_it_drafts(self):
-        from test_rhythm_proposal import song, song_arrangement
+        from tests.test_rhythm_proposal import song, song_arrangement
         from sabermapper.rhythm_proposal import propose_rhythm
         result = propose_rhythm(song_arrangement(), song(), held=[36.0])
         self.assertTrue(result["themes"])

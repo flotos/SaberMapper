@@ -75,7 +75,9 @@ class CritiqueMetricTests(unittest.TestCase):
                                        (rng.randrange(4), rng.randrange(3), rng.randrange(2), rng.randrange(9))))
                 index += 1
             notes.append(section(f"part{part}", part * 64, 64, part_notes))
-        result = critique_arrangement(arrangement(notes))
+        varied = arrangement(notes)
+        varied["style"] = {"idea": "Random variety.", "grounding": ["the fixture"], "settings": {}}
+        result = critique_arrangement(varied)
         self.assert_warning_only(result)
         self.assertEqual(result["warnings"], [])
         repetition = result["metrics"]["repetition"]

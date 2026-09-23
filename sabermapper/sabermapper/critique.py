@@ -18,6 +18,7 @@ from .audio_grounding import DEFINITIONS as AUDIO_DEFINITIONS, audio_findings
 from .lighting import DEFINITIONS as LIGHT_DEFINITIONS, lighting_findings
 from .movement import analyze_movement
 from .recurrence import DEFINITIONS as RECURRENCE_DEFINITIONS, recurrence_findings
+from .style import DEFINITIONS as STYLE_DEFINITIONS, style_findings
 from .tier_fit import DEFINITIONS as TIER_DEFINITIONS, tier_fit
 
 MODEL_VERSION = "1.0"
@@ -197,6 +198,7 @@ DEFINITIONS = {
     **LIGHT_DEFINITIONS,
     **TIER_DEFINITIONS,
     **RECURRENCE_DEFINITIONS,
+    **STYLE_DEFINITIONS,
 }
 
 
@@ -1254,6 +1256,7 @@ def critique_arrangement(arrangement: dict, report: dict | None = None, tier_ref
                "repetition": _repetition(notes, warn) if notes else _empty_repetition(),
                "recurrence": recurrence_findings(arrangement, report, listen, warn) if notes else
                {"themes": [], "repeats": []},
+               "style": style_findings(arrangement, warn) if notes else {"declared": arrangement.get("style")},
                "movement_objects": _movement_objects(arrangement, spans, report),
                "boundary_accents": _boundary_accents(arrangement, spans, notes, report, warn),
                "salience": _salience(arrangement, spans, notes, report, warn),

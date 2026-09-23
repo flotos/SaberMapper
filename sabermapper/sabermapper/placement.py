@@ -33,6 +33,11 @@ statement note (a single on a single, a double on a double, a stack on a stack) 
 when the echo is), and the statement keeps its own. The preference (``ECHO``) outweighs comfort and novelty
 but yields to every movement rule and to stored values, so an echo deviates only where the flow into or out
 of it, or its own audio, differs.
+
+The map's ``style`` (:mod:`style`) tunes the comfort costs, never a rule: ``flow`` weighs how far a cut may turn
+from a clean reversal, how much a repeated angle costs and how much hand travel costs; ``diagonals`` makes diagonal
+cuts cheaper or dearer; ``top_row`` sets the top-row share the placer lifts the hands towards. Without a style
+(every setting at its middle value) the costs are the defaults.
 """
 
 from __future__ import annotations
@@ -41,6 +46,7 @@ import copy
 from collections import Counter
 from fractions import Fraction
 from math import hypot
+from typing import NamedTuple
 
 from .movement import (BURST_SECONDS, BURST_SWINGS, CHORD_BEATS, CHORD_SECONDS, FAST_BREAK_SECONDS, REACH_SPEED,
                        _OPPOSITE, _VECTORS, _parity, analyze_movement, flow_break, hidden_window, is_rest, next_effective,
@@ -75,6 +81,41 @@ RULE_FIELDS = {"fast_direction_break": ("direction", "color"), "flow_parity_brea
 MAX_ALTERNATIVE_ERRORS = 5
 STACK_OPTIONS = 36  # cell and cut choices kept per stack note, so a full line along the cut stays reachable
 STACK_DIAGONAL_PREFERENCE = 0.3  # stacks lie on a diagonal cut when the flow allows one
+
+
+class PlacementStyle(NamedTuple):
+    """The comfort costs a map's ``style`` tunes (see the module docstring)."""
+    turn_scale: float = 1.0  # weight of a cut's turn away from its preferred turn
+    turn_target: float = 0.0  # the preferred turn from a clean reversal, in degrees
+    repeat_angle: float = 0.2  # a hand repeating the cut of its swing before last
+    travel_scale: float = 1.0  # weight of hand travel between swings
+    diagonal_cost: float = 0.0  # added to each diagonal cut
+    top_row_share: float = TOP_ROW_SHARE  # below this recent top-row share, the top row is preferred
+    top_row_lift: float = -0.1  # a top-row cell while the recent share is below the target
+    top_row_rest: float = 0.08  # a top-row cell while the recent share has reached it
+
+
+DEFAULT_STYLE = PlacementStyle()
+FLOW_COSTS = {"round": {"turn_scale": 1.8, "repeat_angle": 0.1, "travel_scale": 1.4},
+              "balanced": {},
+              "angular": {"turn_target": 45.0, "repeat_angle": 0.4, "travel_scale": 0.7}}
+DIAGONAL_COSTS = {"few": 0.15, "some": 0.0, "many": -0.12}
+TOP_ROW_COSTS = {"low": {"top_row_share": 0.08, "top_row_rest": 0.3},
+                 "normal": {},
+                 "high": {"top_row_share": 0.25, "top_row_lift": -0.2}}
+
+
+def placement_style(arrangement: dict) -> PlacementStyle:
+    """The placement costs for ``arrangement["style"]["settings"]``; unknown or missing settings stay default."""
+    style = arrangement.get("style") if isinstance(arrangement, dict) else None
+    settings = style.get("settings") if isinstance(style, dict) else None
+    if not isinstance(settings, dict):
+        return DEFAULT_STYLE
+    values = dict(FLOW_COSTS.get(settings.get("flow"), {}))
+    if settings.get("diagonals") in DIAGONAL_COSTS:
+        values["diagonal_cost"] = DIAGONAL_COSTS[settings["diagonals"]]
+    values.update(TOP_ROW_COSTS.get(settings.get("top_row"), {}))
+    return PlacementStyle(**values)
 
 
 class PlacementError(ValueError):
@@ -281,24 +322,27 @@ def _held_colors(held, beat):
 _OPTIONS_CACHE: dict = {}
 
 
-def _free_cuts(effective, hand, fast, reset, first):
+def _free_cuts(effective, hand, fast, reset, first, style=None):
     """(direction, cost) candidates for an unpinned swing, most natural first."""
-    key = (effective, hand, fast, reset, first)
+    style = style or DEFAULT_STYLE
+    key = (effective, hand, fast, reset, first, style)
     if key in _OPTIONS_CACHE:
         return _OPTIONS_CACHE[key]
+    diagonal = lambda direction: style.diagonal_cost if direction in (4, 5, 6, 7) else 0.0
     if effective is None:
         order = FIRST_CUTS if first else (1, 0, 6, 7, 4, 5)
-        result = [(d, 0.12 * rank) for rank, d in enumerate(order[:4])]
+        result = sorted(((d, 0.12 * rank + diagonal(d)) for rank, d in enumerate(order[:4])), key=lambda c: c[1])
     else:
         reverse = _OPPOSITE[effective]
         gap = 0.1 if fast else 0.5
         # A fast swing reads best as a clean reversal; a slower one may angle off it.
-        weight = 0.3 if fast else (0.08 if reset else 0.15)
+        weight = (0.3 if fast else (0.08 if reset else 0.15)) * style.turn_scale
         found = []
         for direction in range(8):
             if not reset and flow_break(effective, direction, hand, gap, False):
                 continue
-            cost = weight * turn_degrees(reverse, direction) / 45 + (0.04 if direction in (2, 3) else 0)
+            turn = abs(turn_degrees(reverse, direction) - style.turn_target)
+            cost = weight * turn / 45 + (0.04 if direction in (2, 3) else 0) + diagonal(direction)
             found.append((cost, direction))
         found.sort()
         result = [(d, c) for c, d in found[:5]]
@@ -306,7 +350,7 @@ def _free_cuts(effective, hand, fast, reset, first):
     return result
 
 
-def _cut_options(state, notes, hand, beat, seconds, other_last, bpm):
+def _cut_options(state, notes, hand, beat, seconds, other_last, bpm, style=None):
     """(direction, cost, violations, new hand state) for ``hand`` cutting ``notes`` at ``beat``."""
     effective, last_s, last_b, last_dir, run_len, run_start, prev_dir = state
     fixed = sorted({s.fixed["direction"] for s in notes if "direction" in s.fixed})
@@ -321,7 +365,7 @@ def _cut_options(state, notes, hand, beat, seconds, other_last, bpm):
     else:
         candidates = [(d, c + (SOFT if soft and d != soft[0] else 0) + (ECHO if echo is not None and d != echo else 0))
                       for d, c in _free_cuts(effective, hand, gap is not None and gap < FAST_BREAK_SECONDS,
-                                             reset, last_s is None)]
+                                             reset, last_s is None, style)]
         if soft and all(d != soft[0] for d, _ in candidates):
             candidates.append((soft[0], 0.0))
         if not soft and echo is not None and all(d != echo for d, _ in candidates):
@@ -329,7 +373,7 @@ def _cut_options(state, notes, hand, beat, seconds, other_last, bpm):
     options = []
     for direction, cost in candidates:
         if not fixed and direction == prev_dir:
-            cost += 0.2  # the same cut as this hand's swing before last: vary the angle
+            cost += (style or DEFAULT_STYLE).repeat_angle  # the same cut as this hand's swing before last
         violations = ()
         if len(fixed) > 1 and any("color" not in s.pinned for s in notes):
             cost += HARD
@@ -394,7 +438,7 @@ def _assignments(group, busy):
     return result
 
 
-def _plan_cuts(groups, held, bpm, width=BEAMS[0][0], per_timing_limit=BEAMS[0][1]):
+def _plan_cuts(groups, held, bpm, width=BEAMS[0][0], per_timing_limit=BEAMS[0][1], style=None):
     """Beam search for every swing's hand and cut; returns ({slot index: (color, direction)}, violations)."""
     empty = (None, None, None, None, 0, None, None)
     beam = [(0.0, (empty, empty), None, None, None)]  # cost, hand states, last single hand, last beat, node
@@ -416,7 +460,8 @@ def _plan_cuts(groups, held, bpm, width=BEAMS[0][0], per_timing_limit=BEAMS[0][1
                 for hand in used:
                     other = hands[1 - hand][1]
                     per_hand.append([(hand, *option) for option in
-                                     _cut_options(hands[hand], by_hand[hand], hand, beat, seconds, other, bpm)])
+                                     _cut_options(hands[hand], by_hand[hand], hand, beat, seconds, other, bpm,
+                                                  style)])
                 combos = per_hand[0] if len(per_hand) == 1 else [
                     (a, b) for a in per_hand[0] for b in per_hand[1]]
                 for combo in combos:
@@ -474,7 +519,7 @@ def _cut_fixed(slot):
     return slot.fixed.get("direction", slot.held_cut)
 
 
-def _place_cells(groups, slots, bpm, joint=True):
+def _place_cells(groups, slots, bpm, joint=True, style=None):
     """Choose every open cell (and, when ``joint``, every open cut) in time order.
 
     Hands come from pass 1. With ``joint`` a free cut is re-chosen together with its cell among the cuts
@@ -505,6 +550,7 @@ def _place_cells(groups, slots, bpm, joint=True):
         open_slots = sorted((s for s in group if not _cell_fixed(s) or (joint and _cut_fixed(s) is None)),
                             key=lambda s: (s.value["color"], s.oid))
         context = {"recent": Counter(sequence[-VARIETY_WINDOW:]), "sequence": sequence, "used": used,
+                   "style": style or DEFAULT_STYLE,
                    "top_share": sum(1 for p in sequence[-VARIETY_WINDOW:] if p[1] == 2)
                    / max(1, min(len(sequence), VARIETY_WINDOW))}
         options = [_cell_options(slot, occupied, hands, front, fixed_cells, next_fixed[slot.index],
@@ -551,7 +597,7 @@ class _HandState:
         self.x, self.y, self.index = slot.value["x"], slot.value["y"], slot.index
 
 
-def _cut_choices(slot, state, ahead, beat, seconds, bpm, joint):
+def _cut_choices(slot, state, ahead, beat, seconds, bpm, joint, style=None):
     """(direction, cost) cuts pass 2 may give ``slot``."""
     hand = slot.value["color"]
     if _cut_fixed(slot) is not None or not joint:
@@ -559,7 +605,7 @@ def _cut_choices(slot, state, ahead, beat, seconds, bpm, joint):
     gap = None if state.seconds is None else seconds - state.seconds
     reset = state.reset(beat, seconds, bpm)
     choices = dict(_free_cuts(state.effective, hand, gap is not None and gap < FAST_BREAK_SECONDS, reset,
-                              state.seconds is None))
+                              state.seconds is None, style))
     choices.setdefault(slot.value["direction"], 0.3)  # pass 1's cut stays available
     soft = slot.soft.get("direction")
     if soft is not None:
@@ -574,7 +620,7 @@ def _cut_choices(slot, state, ahead, beat, seconds, bpm, joint):
         if echo is not None and direction != echo:
             cost += ECHO
         if direction == state.previous and not state.merges(beat, seconds, direction):
-            cost += 0.2  # the same cut as this hand's swing before last: vary the angle
+            cost += (style or DEFAULT_STYLE).repeat_angle  # the same cut as this hand's swing before last
         if state.effective is not None and gap and not reset and not state.merges(beat, seconds, direction):
             if flow_break(state.effective, direction, hand, gap, False):
                 cost += BLOCK
@@ -593,7 +639,8 @@ def _cell_options(slot, occupied, hands, front, fixed_cells, ahead_cell, ahead_s
     hand = slot.value["color"]
     state, other = hands[hand], hands[1 - hand]
     sequence, recent = context["sequence"], context["recent"]
-    cuts = _cut_choices(slot, state, ahead_swing, beat, seconds, bpm, joint)
+    style = context.get("style") or DEFAULT_STYLE
+    cuts = _cut_choices(slot, state, ahead_swing, beat, seconds, bpm, joint, style)
     cells = []
     for x in ([slot.fixed["x"]] if "x" in slot.fixed else range(4)):
         for y in ([slot.fixed["y"]] if "y" in slot.fixed else range(3)):
@@ -631,7 +678,7 @@ def _cell_options(slot, occupied, hands, front, fixed_cells, ahead_cell, ahead_s
                 base += 0.05 if y == 1 else 0.0  # the centre of the middle row sits on the line of sight
             if y == 2:
                 # Lift the hands now and then (SM-034 flags maps that almost never use the top row).
-                base += -0.1 if context["top_share"] < TOP_ROW_SHARE else 0.08
+                base += style.top_row_lift if context["top_share"] < style.top_row_share else style.top_row_rest
             if gap is not None and (x, y) == (state.x, state.y) and gap >= FAST_BREAK_SECONDS:
                 base += 0.2  # a hand parked on one cell: move it with the music
             for direction, cut_cost in cuts:
@@ -647,7 +694,7 @@ def _cell_options(slot, occupied, hands, front, fixed_cells, ahead_cell, ahead_s
                     # Moving a cell or two between swings is easy; longer or faster reaches cost more.
                     effort = (0.05 * min(travel, 1.0) + 0.3 * max(0.0, min(travel, 2.0) - 1.0)
                               + 0.9 * max(0.0, travel - 2.0))
-                    cost += effort * min(3.0, max(0.3, 0.35 / gap))
+                    cost += effort * min(3.0, max(0.3, 0.35 / gap)) * style.travel_scale
                 placement = (x, y, hand, direction)
                 repeats = sum(1 for k in CYCLE_LOOKBACK if len(sequence) >= k and sequence[-k] == placement)
                 cost += 0.3 * repeats + 0.05 * recent.get(placement, 0)
@@ -802,14 +849,16 @@ def _place(arrangement, *, unpin=False, beams=BEAMS):
         if not any(_attributable(v, by_id) for v in violations):
             return trial, _report(slots, motifs), violations, by_id
     groups = _groups(slots)
-    outcome = _search(result, slots, groups, held, bpm, beams, by_id, motifs)
+    style = placement_style(result)
+    outcome = _search(result, slots, groups, held, bpm, beams, by_id, motifs, style=style)
     links = _echo_links(result, slots)
     if links:
         # Place again with every echo preferring its statement's first placement; a theme never costs a rule.
         # Where the echoed placement breaks one, the notes around it give up their echo and the rest keep it.
         _set_echoes(links, outcome[1])
         for _ in range(ECHO_RETRIES):
-            echoed = _search(result, slots, groups, held, bpm, beams, by_id, motifs, prefer=_echo_agreement)
+            echoed = _search(result, slots, groups, held, bpm, beams, by_id, motifs, prefer=_echo_agreement,
+                             style=style)
             if echoed[0] <= outcome[0]:
                 outcome = echoed
                 break
@@ -825,7 +874,7 @@ def _place(arrangement, *, unpin=False, beams=BEAMS):
     return outcome[1], outcome[3], outcome[2], by_id
 
 
-def _search(result, slots, groups, held, bpm, beams, by_id, motifs, prefer=None):
+def _search(result, slots, groups, held, bpm, beams, by_id, motifs, prefer=None, style=None):
     """(attributable failures, placed copy, violations, report) of the best pass over ``beams``.
 
     With ``prefer`` (a score of the placed copy) both cut passes of a beam are compared: among equal failures
@@ -834,7 +883,7 @@ def _search(result, slots, groups, held, bpm, beams, by_id, motifs, prefer=None)
     """
     outcome = None
     for width, per_timing in beams:
-        plan = _plan_cuts(groups, held, bpm, width, per_timing)
+        plan = _plan_cuts(groups, held, bpm, width, per_timing, style)
         for joint in (True, False):
             # Cuts chosen with their cells follow the hand's path; pass 1's cuts are the verified fallback.
             for slot in slots:
@@ -846,7 +895,7 @@ def _search(result, slots, groups, held, bpm, beams, by_id, motifs, prefer=None)
                 if len({s.value["color"] for s in group}) == 2:
                     for slot in group:
                         slot.held_cut = slot.value["direction"]
-            _place_cells(groups, slots, bpm, joint)
+            _place_cells(groups, slots, bpm, joint, style)
             trial = copy.deepcopy(result)
             _write(trial, _collect_for(trial, slots))
             violations = rule_violations(trial)

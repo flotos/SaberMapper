@@ -159,6 +159,7 @@ into every difficulty and run every check. Errors block export. Warnings never b
 | `multiple_setup` | error | At most one setup primitive |
 | `possession_not_allowed` | error | `AssignPlayerToTrack` targets must match `presentation.possession`: player→Root, head→Head, hands→LeftHand+RightHand, right_hand→RightHand, none→nothing |
 | `possession_unused` | warning | Possession is declared, but no event assigns the player to a track |
+| `skybox_not_cleared` | error | `renderSettings.skybox` is set, but the main camera does not clear to the skybox at or before that beat (setup `camera_properties` `{"clearFlags": "Skybox"}`); the game clears to a solid colour, so the sky stays black |
 | `flash_rate_exceeded` | error | More than 3 full-screen flashes per second (WCAG 2.3.1) |
 | `flash_rate_high` | warning | More than 2 full-screen flashes per second |
 | `attention_over_budget` | warning | The section runs at least 4 notes/s and declares scene attention of at least 0.5 |

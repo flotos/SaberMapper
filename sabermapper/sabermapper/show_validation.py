@@ -158,6 +158,20 @@ def check_compiled(show: dict, arrangement: dict, beatmap: dict, result: dict, b
         add("warning", "possession_unused", f"presentation.possession is {possession!r} but no event assigns the player "
                                             "to a track")
 
+    # A skybox material shows only where the main camera clears to the skybox; the game clears to a solid colour,
+    # so renderSettings.skybox alone leaves the sky black (seen in game captures, 2026-09-23).
+    cleared = [float(e["b"]) for e in events if e["t"] == "SetCameraProperty"
+               and (e.get("d") or {}).get("id", "_Main") == "_Main"
+               and ((e.get("d") or {}).get("properties") or {}).get("clearFlags") == "Skybox"]
+    for i, event in enumerate(events):
+        settings = (event.get("d") or {}).get("renderSettings") or {}
+        if event["t"] == "SetRenderingSettings" and settings.get("skybox") and not any(
+                b <= float(event["b"]) for b in cleared):
+            add("error", "skybox_not_cleared", f"event {i} sets the skybox {settings['skybox']} at beat {event['b']}, but "
+                                               "the main camera never clears to the skybox before it, so the sky stays "
+                                               "black; add camera_properties {\"clearFlags\": \"Skybox\"} to the setup "
+                                               "primitive", events=[i])
+
     # Photosensitivity: full-screen transitions per second (static proxy).
     blitted = {str((e.get("d") or {}).get("asset", "")).lower() for e in events if e["t"] == "Blit"}
     transitions = []

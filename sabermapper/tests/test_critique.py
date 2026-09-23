@@ -203,6 +203,19 @@ class SalienceTests(unittest.TestCase):
         for warning in result["warnings"]:
             self.assertIn(warning["code"], result["definitions"])
 
+    def test_a_sung_sustain_held_by_an_arc_counts_as_mapped(self):
+        # Held singing is authored as an arc (standing user rule): one hand holds the voice from beat 0 to 3.5
+        # while the other plays off the vocal onsets. The arc maps the voice.
+        notes = [note(0, 0, (1, 2, 0, 1)), note(1, 0.5, (2, 0, 1, 1)), note(2, 3.5, (0, 0, 0, 0))]
+        body = section("s", 0, 8, notes)
+        body["arcs"] = [{"id": "a1", "beat": 0, "color": 0, "x": 1, "y": 2, "direction": 1,
+                         "tail_beat": 3.5, "tail_x": 0, "tail_y": 0, "tail_direction": 0}]
+        result = critique_arrangement(arrangement([body]), self.report())
+        self.assertNotIn("vocal_line_unmapped", codes(result))
+        body["arcs"] = []
+        result = critique_arrangement(arrangement([body]), self.report())
+        self.assertIn("vocal_line_unmapped", codes(result), "without the arc the voice is unmapped")
+
     def test_following_the_salient_layer_passes(self):
         result = self.result([0, 1, 1.5, 2.5, 3, 4, 5, 5.5, 6, 7])
         self.assertFalse(codes(result) & {"vocal_line_unmapped", "drum_rhythm_unmapped"})

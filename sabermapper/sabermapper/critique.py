@@ -70,7 +70,7 @@ DEFINITIONS = {
     "top_row_starved": "Fewer than 5% of the notes sit on the top row in a map of at least 100 notes.",
     "boundary_accent_unmapped": "A non-energy_rise musical event of strength 0.7 or more sits within 0.25 beat of a section seam that carries no note within 0.25 beat.",
     "singing_bar": "A 4-beat bar (absolute beats 0, 4, 8...) where vocals sustains cover at least 25% and at least 2 vocals spectral_flux events of strength 0.25 or more start: articulated singing.",
-    "vocal_line_unmapped": "One or more consecutive singing bars where fewer than 50% of those vocal onsets have a note within 0.13 beat: the map follows another layer while the voice is the focal point.",
+    "vocal_line_unmapped": "One or more consecutive singing bars where fewer than 50% of those vocal onsets have a note within 0.13 beat or sit inside a vocal sustain held by an arc: the map follows another layer while the voice is the focal point.",
     "drum_rhythm_unmapped": "One or more consecutive non-singing bars (voice holding or resting) with at least 6 drums spectral_flux events of strength 0.3 or more (only the strongest per half-beat slot counts), fewer than 60% of which have a note within 0.13 beat.",
     **AUDIO_DEFINITIONS,
 }
@@ -295,6 +295,13 @@ def _salience(arrangement, spans, notes, report, warn):
     vocals, drums = onsets("vocals", VOCAL_ONSET_STRENGTH), onsets("drums", DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT)
     sustains = [(seconds_to_beat(s["start_seconds"], arrangement), seconds_to_beat(s["end_seconds"], arrangement))
                 for s in layers["vocals"].get("sustains") or []]
+    arcs = [(span["start_beat"] + float(Fraction(str(arc["beat"]))), span["start_beat"] + float(Fraction(str(arc["tail_beat"]))))
+            for span in spans for arc in span["section"].get("arcs") or []]
+
+    def held(beat):
+        """A vocal onset inside a sung sustain that an arc holds is mapped by that arc (held singing as arcs)."""
+        return (any(head <= beat <= tail for head, tail in arcs)
+                and any(start <= beat <= end for start, end in sustains))
     end, bars = max(s["end_beat"] for s in spans), []
     for start in range(0, math.ceil(end), SALIENCE_BAR_BEATS):
         stop = start + SALIENCE_BAR_BEATS
@@ -303,7 +310,7 @@ def _salience(arrangement, spans, notes, report, warn):
         coverage = sum(max(0.0, min(e, stop) - max(s, start)) for s, e in sustains) / SALIENCE_BAR_BEATS
         singing = coverage >= SINGING_SUSTAIN_COVERAGE and len(sung) >= SINGING_MIN_ONSETS
         onsets_in = sung if singing else hits
-        mapped = sum(1 for b in onsets_in if near(b))
+        mapped = sum(1 for b in onsets_in if near(b) or (singing and held(b)))
         code = None
         if singing and mapped < VOCAL_MAPPED_THRESHOLD * len(sung):
             code = "vocal_line_unmapped"

@@ -210,6 +210,24 @@ class PinsLocalityAndDeterminismTests(unittest.TestCase):
         self.assertEqual(place_arrangement(placed)["arrangement"], placed)
         self.assertEqual(compile_arrangement(placed), compile_arrangement(arrangement(rhythm(self.BEATS))))
 
+    def test_a_stored_same_hand_pair_at_one_instant_is_placed_again_as_a_stack(self):
+        # Ko Phangan beat 316 and Borrowed Waters beat 260 (2026-09-23): two placer-chosen notes of one hand at
+        # one instant kept stored cuts in two directions and cells off one line; the placer re-chooses them.
+        full = ["x", "y", "color", "direction"]
+        for first, second in (((0, 1, 2), (3, 2, 5)), ((2, 0, 1), (0, 0, 1))):
+            notes = [{"id": "lead", "beat": 2, "x": 1, "y": 0, "color": 1, "direction": 1, "placed": full},
+                     {"id": "a", "beat": 4, "x": first[0], "y": first[1], "color": 0, "direction": first[2],
+                      "placed": full},
+                     {"id": "b", "beat": 4, "x": second[0], "y": second[1], "color": 0, "direction": second[2],
+                      "placed": full}]
+            result = place_arrangement(arrangement(notes))
+            placed = result["arrangement"]
+            found = {d["code"] for d in validate_arrangement(placed)}
+            self.assertNotIn("simultaneous_direction_conflict", found)
+            self.assertNotIn("stack_shape", found)
+            self.assertTrue({"a/note/a", "a/note/b"} & set(result["report"]["rechosen"]))
+            self.assertEqual(place_arrangement(placed)["report"]["rechosen"], [])
+
     def test_a_rhythm_edit_in_one_bar_leaves_the_rest_alone(self):
         beats = [b for b in self.BEATS if not 16 <= b < 20]  # bar 5 rests
         placed = place_arrangement(arrangement(rhythm(beats)))["arrangement"]
@@ -311,6 +329,45 @@ class CheckAndSaveTests(unittest.TestCase):
         result = json.loads(stream.getvalue())
         self.assertEqual(result["revision"], self.revision)
         self.assertEqual(self.snapshot(), before)
+
+    def test_check_and_save_place_without_holding_the_workspace_lock(self):
+        # Nine agents on one workspace (2026-09-23): check and save held the workspace lock through minutes of
+        # placement and critique, so every other command waited or gave up. They hold it for reads and writes only.
+        from unittest import mock
+        import sabermapper.check as check_module
+        held = []
+
+        def watch(real):
+            def wrapper(*args, **kwargs):
+                held.append(self.store.lock.depth)
+                return real(*args, **kwargs)
+            return wrapper
+        with mock.patch.object(check_module, "check_arrangement", watch(check_module.check_arrangement)), \
+                mock.patch.object(check_module, "placed_for_check", watch(check_module.placed_for_check)):
+            self.store.check(self.project_id, arrangement=self.rhythm_only())
+            saved = self.store.save(self.project_id, self.rhythm_only(), self.revision)
+        self.assertTrue(held)
+        self.assertEqual(set(held), {0})
+        self.assertNotEqual(saved["revision"], self.revision)
+
+    def test_a_save_that_lands_after_another_is_refused(self):
+        from unittest import mock
+        import sabermapper.check as check_module
+        real = check_module.placed_for_check
+        store = self.store
+
+        def meanwhile(*args, **kwargs):
+            result = real(*args, **kwargs)
+            if not meanwhile.done:  # another save lands while this one is placing
+                meanwhile.done = True
+                store.save(self.project_id, self.rhythm_only(), self.revision)
+            return result
+        meanwhile.done = False
+        edited = self.rhythm_only()
+        edited["sections"][0]["intent"] = "an edit placed while another save landed"
+        with mock.patch.object(check_module, "placed_for_check", meanwhile):
+            with self.assertRaisesRegex(ValueError, "changed while the save was placing"):
+                self.store.save(self.project_id, edited, self.revision)
 
     def test_a_rhythm_only_draft_saves_placed_with_its_pins_recorded(self):
         draft = self.rhythm_only()

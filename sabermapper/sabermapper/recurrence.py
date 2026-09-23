@@ -92,7 +92,8 @@ def validate_themes(arrangement: dict, add) -> None:
         if not isinstance(theme["intent"], str) or not theme["intent"].strip():
             add("error", "invalid_theme", f"{where}.intent must name the recurring sound")
         if "evidence" in theme and not isinstance(theme["evidence"], dict):
-            add("error", "invalid_theme", f"{where}.evidence must be an object")
+            add("error", "invalid_theme", f"{where}.evidence must be an object with free-form keys, "
+                                          'such as {"sources": ["listen"], "note": "the chorus lyric returns"}')
         spans = theme["spans"]
         if not isinstance(spans, list) or len(spans) < 2:
             add("error", "invalid_theme", f"{where}.spans must list the statement and at least one echo")

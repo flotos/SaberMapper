@@ -262,6 +262,25 @@ class AudioSuggestionTests(unittest.TestCase):
         self.assertFalse([f["code"] for f in after if f["blocking"]])
         self.assertFalse([f for f in after if f["code"] == "note_off_sound"])
 
+    def test_a_removal_never_names_an_arc_or_chain_end(self):
+        # des fleurs (2026-09-23): a difficulty_exceeds_intensity removal named an arc's head note, and applying
+        # it left the arc without its note (a blocking arc_head_without_note).
+        from sabermapper.rhythm_proposal import audio_suggestions
+        arc = {"id": "hold", "beat": "81/2", "x": 1, "y": 0, "color": 0, "direction": 1, "tail_beat": "85/2",
+               "tail_x": 1, "tail_y": 1, "tail_direction": 0}
+        draft = arrangement(arcs=[arc])
+        draft["sections"][0]["notes"] = [{"id": "head", "beat": "81/2"}, {"id": "stray", "beat": "163/4"},
+                                         {"id": "tail", "beat": "85/2"}, {"id": "free", "beat": "167/4"}]
+        placed = place_arrangement(draft)["arrangement"]
+        ids = ["s/note/head", "s/note/stray", "s/note/tail", "s/note/free"]
+        findings = [{"code": code, "object_ids": list(ids), "beats": [40, 44], "suggestions": []}
+                    for code in ("lead_rhythm_diluted", "note_without_audio")]
+        audio_suggestions(placed, report(), findings)
+        removed = {i for f in findings for s in f["suggestions"] if s["op"] == "remove"
+                   for i in s.get("object_ids") or [s["object_id"]]}
+        self.assertTrue(removed)
+        self.assertFalse(removed & {"s/note/head", "s/note/tail"}, removed)
+
     def test_a_focus_on_an_absent_stem_gets_new_weights(self):
         evidence = report()
         contour = [{"seconds": i / 10, "energy": 0.5} for i in range(BEATS * 5)]
@@ -414,6 +433,19 @@ class MusicalRuleTests(unittest.TestCase):
             pair = [n for n in expanded_notes(self.placed) if n["beat"] == beat]
             self.assertEqual(sorted(n["color"] for n in pair), [0, 1])
             self.assertEqual(len({_parity(n["direction"], n["color"], 0) for n in pair}), 1, pair)
+
+    def test_remaining_lists_every_finding_check_raises_on_the_draft(self):
+        # Nine songs (2026-09-23): whole-song drafts reported `remaining: []` while `project check --arrangement`
+        # raised vocal, melody, drum, ensemble and stack findings on them. The draft names each, with suggestions.
+        from collections import Counter
+        from sabermapper.check import check_arrangement
+        from sabermapper.rhythm_proposal import FOLLOW_CODES
+        raised = Counter(f["code"] for f in check_arrangement(self.result["draft"], self.evidence)["findings"]
+                         if f["code"] in FOLLOW_CODES + TARGET_CODES)
+        self.assertTrue(raised, "the fixture leaves a finding the draft does not resolve")
+        self.assertEqual(Counter(r["code"] for r in self.result["remaining"]), raised)
+        self.assertTrue(all("suggestions" in r for r in self.result["remaining"] if r["code"] in FOLLOW_CODES))
+        json.dumps(self.result["remaining"])  # the CLI prints it
 
     def test_the_draft_raises_none_of_the_checked_findings(self):
         warnings = critique_arrangement(self.placed, self.evidence)["warnings"]

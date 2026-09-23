@@ -162,6 +162,35 @@ class TimestampedNoteTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.store.list_feedback(self.pid, **bad)
 
+    def test_feedback_on_an_older_revision_is_resolved_by_a_later_one(self):
+        # Fireflies and Living a Lie (2026-09-23): a revision answered a recorded note written on an older one, and
+        # no command could mark it addressed (a save's --request-id needs the note's own revision).
+        workspace = self.temp.name
+        ranged = self.store.add_feedback(self.pid, {"revision": self.revision, "start_beat": 8, "end_beat": 12,
+                                                    "text": "the pacing is too regular"})
+        path = self.store.directory(self.pid)
+        newer = deepcopy(self.arrangement)
+        newer["sections"][0]["intent"] = "Sparse intro on the guitar's own rhythm"
+        write_json(path / "arrangement.json", newer)
+        write_json(path / "history" / (arrangement_revision(newer) + ".json"), newer)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(main(["project", "feedback", "resolve", self.pid, ranged["id"], "--workspace", workspace,
+                                   "--note", "notes follow the guitar strums"]), 0)
+        resolved = json.loads(out.getvalue())
+        self.assertEqual((resolved["status"], resolved["resulting_revision"], resolved["resolution"]),
+                         ("addressed", arrangement_revision(newer), "notes follow the guitar strums"))
+        listed = self.store.list_feedback(self.pid, kind="range")["feedback"]
+        self.assertEqual([r["status"] for r in listed], ["addressed"])
+        again = self.store.resolve_feedback(self.pid, ranged["id"], note="the older one", revision=self.revision)
+        self.assertEqual(again["resulting_revision"], self.revision)  # any saved revision of its difficulty
+        for bad in ({"feedback_id": "nothere", "note": "x"}, {"feedback_id": ranged["id"], "note": "  "},
+                    {"feedback_id": ranged["id"], "note": "x", "revision": "f" * 64}):
+            with self.assertRaises(ValueError, msg=bad):
+                self.store.resolve_feedback(self.pid, **bad)
+        with self.assertRaises(FileNotFoundError):
+            self.store.resolve_feedback(self.pid, "0" * 12, note="x")
+
     def test_cli_project_feedback_add_and_list(self):
         workspace = self.temp.name
 

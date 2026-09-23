@@ -153,6 +153,8 @@ def main(argv=None):
             leaf.add_argument("--variant", choices=("initial", "revised", "baseline"))
     from .feedback_cli import register_feedback, dispatch_feedback
     register_feedback(project_commands)
+    from .verify import register_verify, dispatch_verify
+    register_verify(project_commands)
     from .musical_cli import register_musical, dispatch_musical
     register_musical(commands)
     from .frames_cli import register_frames, dispatch_frames
@@ -170,6 +172,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         if (code := dispatch_game(args, emit)) is not None:
+            return code
+        if (code := dispatch_verify(args, emit)) is not None:
             return code
         if dispatch_musical(args, emit) or dispatch_frames(args, emit) or dispatch_feedback(args, emit):
             return 0

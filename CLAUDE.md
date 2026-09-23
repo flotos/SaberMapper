@@ -8,7 +8,7 @@ Read @AGENTS.md for shared commands, directory layout and authoring boundaries.
 
 ## Agent-first workflow
 
-All map work is done by the agent, never by a human operator. The agent handles import, analysis, research, composition, edits, validation, revision management, and export. The user reviews saved revisions in the studio and ArcViewer on their own schedule and gives textual requests and feedback in Codex or Claude Code; the agent applies that feedback. Never open ArcViewer, the studio or a browser preview, and never hand a revision over for review, unless the user explicitly asks. The agent cannot see the rendered view, so opening it adds no evidence.
+All map work is done by the agent, never by a human operator. The agent handles import, analysis, research, composition, edits, validation, revision management, and export. The user reviews saved revisions in the studio and ArcViewer on their own schedule and gives textual requests and feedback in Codex or Claude Code; the agent applies that feedback. Never open ArcViewer, the studio or a browser preview, and never hand a revision over for review, unless the user explicitly asks. The agent cannot see the rendered view, so opening it adds no evidence. One exception (user decision, 2026-09-23): the agent may open Beat Saber itself to capture frames, but only through the leased commands (`game capture`, `game launch`, `game play`), which refuse with `game_busy` when another agent or the user already has the game; the agent reads the captured frames, never a live view, and closes the game it launched. The ban on opening ArcViewer, the studio and browser previews stays.
 
 Build every tool and feature for agent use first. Provide discoverable CLI or programmatic access, structured inputs and outputs, actionable errors, and revision-aware writes where applicable. Required mapping operations must be executable and inspectable by the agent without human UI interaction. Do not ask the user to edit arrangements, run commands, copy diagnostics, manage revisions, or operate studio controls. ArcViewer is the user's own visual review surface; the conversation is the interface for requests and feedback. Follow the shared agent-first product contract in @AGENTS.md when changing code, documentation, skills, or workflows.
 
@@ -45,5 +45,6 @@ Claude skills are installed at the workspace root:
 - `/sabermapper-map` — author a new map or arrangement.
 - `/sabermapper-review` — inspect feedback and revise a scoped section.
 - `/sabermapper-research` — research and retrieve reference patterns.
+- `/sabermapper-vivify` — build, verify in the game and refine a vivified (Vivify) map.
 
 Run application commands from `sabermapper/` using `.venv/Scripts/python`. Read the current project and revision before editing; preserve locks and save with `project save`. Finish work by saving and exporting, then report the project, revision and the checks actually run; do not launch ArcViewer or the studio preview. Canonical skill sources are in `sabermapper/skills/`; refresh both agent copies with `.venv/Scripts/python scripts/install_skills.py --update` from that directory.

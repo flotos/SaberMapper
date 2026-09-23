@@ -1041,6 +1041,21 @@ def stage(spec: dict, base_dir: Path, unity_project: Path, library: dict, target
 
     shader_paths: dict[str, Path] = {}
 
+    def copy_includes(source: Path, unity_dir: str, seen: set | None = None):
+        """Stage the shader's relative #include files next to it, so shared .cginc code compiles in Unity."""
+        seen = set() if seen is None else seen
+        text = source.read_text(encoding="utf-8-sig", errors="replace")
+        for include in re.findall(r'#include\s+"([^"]+)"', _strip_comments(text)):
+            if include.lower().split("/")[-1] in BUILTIN_SHADER_INCLUDES or include.startswith("Packages/"):
+                continue
+            candidate = (source.parent / include).resolve()
+            if not candidate.is_file() or candidate in seen or ".." in Path(include).parts:
+                continue
+            seen.add(candidate)
+            inc_rel = f"{unity_dir}/{include}"
+            copy(candidate, inc_rel)
+            copy_includes(candidate, inc_rel.rsplit("/", 1)[0], seen)
+
     def shader_unity(asset):
         shader = asset["shader"]
         if "library" in shader:
@@ -1052,6 +1067,7 @@ def stage(spec: dict, base_dir: Path, unity_project: Path, library: dict, target
         if rel not in shader_paths:
             copy(source, rel)
             shader_paths[rel] = source
+            copy_includes(source, rel.rsplit("/", 1)[0])
             parsed = parse_shader(source.read_text(encoding="utf-8-sig", errors="replace"))
             if parsed["name"]:
                 source_map["shaders"][parsed["name"]] = str(source)

@@ -245,7 +245,10 @@ reads the alpha channel.
 every stereo macro) and put the new file next to assets.json. Reference it with
 `"shader": {"source": "shaders/x.shader"}`, `"tier": 2` and
 `"provenance": {"author": "agent", "description": "…"}`. Blits keep `_MainTex` as the screen and sample it
-only through `UNITY_SAMPLE_SCREENSPACE_TEXTURE`. Checks, in order:
+only through `UNITY_SAMPLE_SCREENSPACE_TEXTURE`. Shaders that share code `#include` it with a path relative
+to the shader (`#include "common.cginc"`, subfolders allowed, no `..`): lint reads the included code, and
+the build stages every relative include (and the includes it pulls in) next to the shader in the Unity
+project, so several materials can share one pattern or one set of layout constants. Checks, in order:
 
 1. `assets lint`: macros, cost, property values.
 2. `assets build`: Unity compiles the shader. Errors come back with the line in your file. A shader error

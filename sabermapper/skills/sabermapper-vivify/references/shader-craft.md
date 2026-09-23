@@ -328,6 +328,39 @@ Verified in the game (2026-09-23): a Poly Haven panorama as skybox, Kenney pines
 their own colours (after the sRGB correction), and decimated Poly Haven rocks all render, and Kenney models
 face the player unrotated.
 
+### Architecture and glass (captured 2026-09-23, Living a Lie cathedral)
+
+A gothic nave (procedural OBJ meshes from a Python generator, about 500k triangles, 41 renderers) with
+four tier-2 shaders sharing one include. What held up in the game captures:
+
+- **One include for shared code, one generated include for layout.** The stone, glass, shaft and flame
+  shaders include `cathedral.cginc` (noise, palette, tracery, glass), which includes
+  `cathedral_layout.cginc`, written by the mesh generator (window positions, candle positions, rose
+  centre). Geometry and lighting cannot drift apart when the generator is rerun.
+- **Stained glass as tracery over recessed glass.** The window mesh is the opening; the shader draws the
+  stone bars as signed distances and puts the glass a few centimetres behind them. Four samples along each
+  eye's view ray through the bar depth find the bar sides, which catch the glass colour. Pieces come from
+  Voronoi cells folded into the window's symmetry (12- and 24-fold for a rose), leads from the cell-edge
+  distance, and antique texture (density, streaks, seeds, grisaille) is computed in metres, not window units.
+- **Anti-alias outside the branches.** Compute the pixel footprint once (`fwidth` of the pattern
+  coordinate) before any per-region branch and pass it down; a gradient inside a branch makes the compiler
+  flatten every branch, so all regions' Voronoi run on every pixel.
+- **Project the windows onto the stone.** For a surface point, follow the direction to the light back to
+  the window plane and evaluate the glass there: coloured window patterns land on floors and piers, with
+  pier shadows from a cheap test against the pier row. Follow the reflected view ray to the same plane for a
+  mirror image of the rose in a polished floor; both are per eye and stereo-correct.
+- **Light shafts through the glass.** Sweep each window outline along its light into a prism; draw the back
+  faces with `ZTest Always`, march from the nearer of the back face and the scene depth towards the eye,
+  and add the glass colour each sample came through. Needs `depthTextureMode: ["Depth"]` and a ShadowCaster
+  pass on the opaque scenery. Fade shafts below about 5 m so the note lane stays clear.
+- **Candle flames on crossed quads.** Two vertical quads at 90° instead of billboards: both eyes see the same
+  flame and nothing swims when the head rolls.
+- **Fog glow belongs close to the light.** A wide scatter lobe (`pow(cos, 6)`) turned the far half of the
+  nave into flat orange soup; a tight lobe (`pow(cos, 30-40)`) keeps a halo around the rose and the stone
+  dark. Neutral dark ambient makes the coloured light read as colour.
+- **Floors at grazing angles sparkle.** Fine bump noise and a sharp gloss shimmered on the floor; weaker
+  bump on floors, joints widened to the pixel footprint and faded with distance fixed it.
+
 ### Stencil portals
 
 A mask mesh with `ColorMask 0` writes a stencil reference, and content tests against it. This gives

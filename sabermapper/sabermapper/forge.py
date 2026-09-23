@@ -1322,14 +1322,19 @@ def _build_locked(spec, spec_path, dest, target, editor, version, unity_project,
     bundleinfo["bundleFiles"] = [final_bundle.resolve().as_posix()]
     report.update({"source_spec": str(spec_path), "spec_sha256": hashlib.sha256(spec_path.read_bytes()).hexdigest(),
                    "bundle_header": header, "bundle_mb": round(size_mb, 3), "build_id": build_id})
+    from .asset_credits import CREDITS_FILE, credits_for_spec
+    credits = credits_for_spec(spec, spec_path)
     for folder in (dest, history):
         write_json(folder / "bundleinfo.json", bundleinfo)
         write_json(folder / "build-report.json", report)
+        write_json(folder / CREDITS_FILE, credits)
     if log_path.is_file():
         shutil.copy2(log_path, dest / "build.log")
     shutil.rmtree(work, ignore_errors=True)
     return {"ok": True, **context, "log": str(dest / "build.log"), "bundle_paths": [str(final_bundle)],
             "bundleinfo": bundleinfo, "crc": crc, "crc_key": info["crc_key"], "build_report": report,
+            "credits": {"file": str(dest / CREDITS_FILE), "third_party": len(credits["third_party"]),
+                        "generated_media": len(credits["generated_media"]), "attribution_text": credits["attribution_text"]},
             "warnings": editor["warnings"] + report.get("warnings", []) +
             [d for d in lint["diagnostics"] if d["severity"] == "warning"]}
 

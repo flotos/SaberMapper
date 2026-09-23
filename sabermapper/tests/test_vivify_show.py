@@ -502,6 +502,21 @@ class VivifiedExportTests(BundleCase):
         self.assertNotIn("_provenance", json.dumps(report))
         self.assertIn("bundle_platform_missing", codes(report["vivify"]["warnings"]))
 
+    def test_credits_ship_in_the_zip_and_beside_it(self):
+        (self.bundle_dir / "credits.json").write_text(json.dumps(
+            {"format": "sabermapper-credits/1", "third_party": [{"title": "Nature Kit"}], "generated_media": [],
+             "licenses": ["CC0-1.0"], "attribution_text": "Third-party assets: Nature Kit."}), encoding="utf-8")
+        output, report = self.export(show=fx.show(), bundle_dir=self.bundle_dir, evidence=EVIDENCE)
+        with ZipFile(output) as archive:
+            self.assertEqual("Nature Kit", json.loads(archive.read("credits.json"))["third_party"][0]["title"])
+        credits = report["vivify"]["credits"]
+        self.assertEqual(("Third-party assets: Nature Kit.", 1), (credits["attribution_text"], credits["third_party"]))
+        self.assertTrue(Path(credits["file"]).is_file())
+        self.assertTrue(credits["file"].endswith("map.zip.credits.json"))
+        self.assertIn("map description", credits["publish"])
+        with ZipFile(output.with_name("map-vanilla.zip")) as twin:
+            self.assertNotIn("credits.json", twin.namelist())
+
     def test_note_colors_become_the_map_colour_scheme(self):
         arrangement = fx.arrangement(choreographed=True)
         arrangement["presentation"]["note_colors"] = {"left": "#4dff59", "right": [0.95, 1, 0.95]}
@@ -621,6 +636,8 @@ class ShowStorageTests(unittest.TestCase):
         self.assertEqual(stale["stale_difficulties"], [])
 
     def test_project_export_is_vivified_and_reports_both_paths(self):
+        write_json(self.path / "assets" / "assets.json", {"format": "sabermapper-assets/1", "project": self.project,
+                                                          "assets": []})
         save_show(self.store, self.project, self.show, "none")
         result = self.store.export(self.project)
         exports = self.path / "exports"
@@ -628,6 +645,8 @@ class ShowStorageTests(unittest.TestCase):
         self.assertTrue((exports / result["provenance_file"]).exists())
         self.assertTrue(result["vanilla_twin"].endswith("-vanilla.zip"))
         self.assertTrue(result["vanilla_twin_url"].endswith("/exports/" + result["vanilla_twin"]))
+        self.assertTrue((exports / result["credits_file"]).exists())
+        self.assertIn("attribution_text", result)
 
     def test_cli_round_trip(self):
         from sabermapper.__main__ import main

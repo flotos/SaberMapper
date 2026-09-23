@@ -8,8 +8,22 @@ from .show import note_colors, show_revision
 from . import vivify
 
 
+def _credits(bundle_directory) -> dict | None:
+    """The credits of the shipped bundle: credits.json written by `assets build`, else built from assets.json."""
+    from .asset_credits import CREDITS_FILE, credits_for_file
+    import json
+    if not bundle_directory:
+        return None
+    folder = Path(bundle_directory)
+    if (folder / CREDITS_FILE).is_file():
+        return json.loads((folder / CREDITS_FILE).read_text(encoding="utf-8"))
+    if (folder / "assets.json").is_file():
+        return credits_for_file(folder / "assets.json")
+    return None
+
+
 def vivified_entries(info: dict, by_rank: list, report: dict, vivid: dict, destination: Path):
-    """(map entries without song/cover/report, vanilla-twin entries, provenance sidecar).
+    """(map entries without song/cover/report, vanilla-twin entries, provenance sidecar, credits or None).
 
     Mutates ``info`` (per-difficulty ``_requirements``, Info-level ``_assetBundle``) and ``report``.
     """
@@ -49,6 +63,10 @@ def vivified_entries(info: dict, by_rank: list, report: dict, vivid: dict, desti
     entries = [("Info.dat", _json_bytes(info))]
     entries += [(row["beatmap_filename"], _json_bytes(beatmap)) for _, (beatmap, row) in by_rank]
     entries += [(vivify.BUNDLE_FILES[key], Path(bundle["files"][key]).read_bytes()) for key in shipped]
+    credits = _credits(bundle["directory"]) if shipped else None
+    credits_path = destination.with_name(destination.name + ".credits.json")
+    if credits is not None:
+        entries.append(("credits.json", _json_bytes(credits)))
     twin = [("Info.dat", _json_bytes(twin_info))]
     twin += [(row["beatmap_filename"], _json_bytes(vivify.strip_custom(beatmap))) for _, (beatmap, row) in by_rank]
     twin_path = destination.with_name(destination.stem + "-vanilla.zip")
@@ -59,6 +77,12 @@ def vivified_entries(info: dict, by_rank: list, report: dict, vivid: dict, desti
         "bundle_files": [vivify.BUNDLE_FILES[key] for key in shipped],
         "bundle_directory": bundle["directory"] if bundle else None,
         "vanilla_twin": str(twin_path), "provenance_file": str(sidecar_path), "warnings": warnings,
+        "credits": None if credits is None else {
+            "file": str(credits_path), "third_party": len(credits.get("third_party", [])),
+            "generated_media": len(credits.get("generated_media", [])), "licenses": credits.get("licenses", []),
+            "attribution_text": credits.get("attribution_text"),
+            "publish": "Paste attribution_text into the map description: BeatSaver removes files Info.dat does not "
+                       "reference, so credits.json only travels with the ZIP when it is shared directly"},
         "checks": "Show structure, bundle schema, object lifetimes, possession, static flash rate, attention "
                   "budget and choreography checked statically; in-game rendering needs a game run."}
     sidecar = {"format": "SaberMapper show provenance 0.1", "map": destination.name,
@@ -66,4 +90,4 @@ def vivified_entries(info: dict, by_rank: list, report: dict, vivid: dict, desti
                "note": "one row per customData.customEvents entry (same index), per difficulty; beats are "
                        "arrangement beats before the audio-offset shift, seconds are source-audio seconds",
                "difficulties": provenance}
-    return entries, twin, sidecar
+    return entries, twin, sidecar, credits

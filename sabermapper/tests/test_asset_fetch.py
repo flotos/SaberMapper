@@ -265,6 +265,7 @@ class FetchFlowTests(unittest.TestCase):
         entry = result["assets"][0]
         self.assertEqual(("mesh", 3, "models/rock_b.obj"), (entry["kind"], entry["tier"], entry["mesh"]["file"]))
         self.assertEqual(["Ann"], entry["provenance"]["fetched"]["authors"])
+        self.assertEqual("Rock Set", entry["provenance"]["fetched"]["name"])
         self.assertEqual(2.0, result["summary"]["bounds_m"]["size"][1])
         spec = json.loads((self.project / "assets" / "assets.json").read_text(encoding="utf-8"))
         diags, _ = forge.validate_spec(spec, self.project / "assets")
@@ -282,6 +283,7 @@ class FetchFlowTests(unittest.TestCase):
         self.assertTrue(info["models"][0]["preview"])
         result = asset_fetch.get("kenney:statues", self.project, "demo", model="statue")
         self.assertIn("face the player", result["next"])
+        self.assertEqual("statue", result["assets"][0]["provenance"]["fetched"]["model"])
         mesh = mesh_files.load_model_file(self.project / "assets" / "models" / "statue.obj")
         self.assertAlmostEqual(0.214, mesh["colors"][0][0], places=3)
 

@@ -455,10 +455,32 @@ def _asset_id(requested: str | None, fallback: str) -> str:
     return aid
 
 
-def _provenance(source, ident, page_url, urls, authors, output: Path, postprocess) -> dict:
-    return {"fetched": {"source": source, "asset": ident, "url": page_url, "files": urls, "authors": authors,
-                        "retrieved_at": now()},
-            "license": LICENSE, "output_sha256": _sha256(output), "postprocess": postprocess}
+def _provenance(source, ident, page_url, urls, authors, output: Path, postprocess, *, title=None, model=None) -> dict:
+    fetched = {"source": source, "asset": ident, "name": title or ident, "url": page_url, "files": urls,
+               "authors": authors, "retrieved_at": now()}
+    if model:
+        fetched["model"] = model
+    return {"fetched": fetched, "license": LICENSE, "output_sha256": _sha256(output), "postprocess": postprocess}
+
+
+def _kenney_title(slug: str) -> str:
+    feed = {item["slug"]: item["title"] for item in _kenney_feed()} if slug not in KENNEY_3D else {}
+    return feed.get(slug) or slug.replace("-", " ").title()
+
+
+def _title(source: str, ident: str) -> str:
+    """The work's display name for credits (Poly Haven and ambientCG names from their APIs)."""
+    try:
+        if source == "polyhaven":
+            return _json(f"https://api.polyhaven.com/info/{ident}", f"polyhaven/{_safe(ident)}/info.json").get("name") or ident
+        if source == "ambientcg":
+            data = _json(f"https://ambientcg.com/api/v2/full_json?id={urllib.parse.quote(ident)}",
+                         f"ambientcg/{_safe(ident)}/info.json")
+            found = data.get("foundAssets") or [{}]
+            return found[0].get("displayName") or ident
+        return _kenney_title(ident)
+    except FetchError:
+        return ident
 
 
 def _image_out(data: bytes, dest: Path, max_size: int) -> tuple[dict | None, tuple[int, int]]:
@@ -532,7 +554,9 @@ def get(ref: str, project_dir: Path, project_id: str, *, kind: str | None = None
         written.append(str(out))
         entries.append({"id": aid, "kind": "mesh", "tier": 3, "path": f"assets/sabermapper/{slug}/meshes/{aid}.asset",
                         "mesh": {"file": f"models/{aid}.obj"},
-                        "provenance": _provenance(source, ident, page, urls, authors, out, postprocess)})
+                        "provenance": _provenance(source, ident, page, urls, authors, out, postprocess,
+                                                  title=_title(source, ident),
+                                                  model=model if source == "kenney" else None)})
         summary = {"triangles": triangle_count(mesh), "bounds_m": bounds(mesh), "has_vertex_colors": mesh.get("colors") is not None,
                    "has_uvs": mesh.get("uvs") is not None, "parts": mesh.get("parts", [])[:40]}
     elif kind in ("texture", "sky"):
@@ -586,7 +610,8 @@ def get(ref: str, project_dir: Path, project_id: str, *, kind: str | None = None
                         "max_size": max(size)}
             entries.append({"id": aid, "kind": "texture", "tier": 3, "path": f"assets/sabermapper/{slug}/textures/{aid}.jpg",
                             "source": f"textures/{aid}.jpg", "texture": settings,
-                            "provenance": _provenance(source, ident, page, [url], authors, out, [op] if op else [])})
+                            "provenance": _provenance(source, ident, page, [url], authors, out, [op] if op else [],
+                                                      title=_title(source, ident))})
             summary[aid] = {"size": list(size)}
     else:
         raise FetchError("fetch_kind_invalid", f"kind must be one of {KINDS}", "Use --kind model|texture|sky")

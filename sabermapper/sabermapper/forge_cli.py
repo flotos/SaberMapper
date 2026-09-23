@@ -15,16 +15,20 @@ def register_forge(commands):
              "build": "Lint, then build the bundle with Unity batchmode; outputs go to <project>/assets/",
              "promote": "Copy a project's agent-written shader into the library (needs intent, properties, safe ranges, description)",
              "generate": "Tier-3 generative media (textures, skyboxes, meshes); returns generator_unavailable until a local model is installed",
+             "credits": "Sources, authors and licences of every fetched or generated (tier-3) asset, with the "
+                        "attribution text to paste into the map description; --write saves <project>/assets/credits.json",
              "doctor": "Where Unity is looked for, what is installed, targets and config",
              "config": "Persist the Unity path, version or build project directory for this machine"}
     for action, text in helps.items():
         parser = actions.add_parser(action, help=text)
-        if action in ("init", "lint", "build", "promote", "generate"):
-            parser.add_argument("project", nargs="?" if action in ("lint", "build") else None,
+        if action in ("init", "lint", "build", "promote", "generate", "credits"):
+            parser.add_argument("project", nargs="?" if action in ("lint", "build", "credits") else None,
                                 help="Project ID; its spec is <project>/assets/assets.json")
             parser.add_argument("--workspace", type=Path, default=Path("workspace"))
-        if action in ("lint", "build"):
-            parser.add_argument("--spec", type=Path, help="Build or lint this assets.json instead of a project's")
+        if action in ("lint", "build", "credits"):
+            parser.add_argument("--spec", type=Path, help="Use this assets.json instead of a project's")
+        if action == "credits":
+            parser.add_argument("--write", action="store_true", help="Also write credits.json next to assets.json")
         if action in ("build", "doctor"):
             parser.add_argument("--target", choices=sorted(TARGETS) + sorted(UNSUPPORTED_TARGETS),
                                 help=f"Bundle target; default: the spec's, else {DEFAULT_TARGET}")
@@ -170,6 +174,18 @@ def _dispatch(args, emit):
     if action == "generate":
         _project(args)
         emit(generate(args.kind, args.prompt, backend=args.backend, seed=args.seed))
+        return 0
+    if action == "credits":
+        from .asset_credits import CREDITS_FILE, credits_for_file
+        spec, _, _ = _spec_and_dest(args)
+        if not spec.is_file():
+            raise ForgeError("spec_missing", f"{spec} does not exist", "Run `assets init PROJECT` or pass --spec FILE")
+        credits = credits_for_file(spec)
+        if args.write:
+            from .storage import write_json
+            write_json(spec.parent / CREDITS_FILE, credits)
+            credits["written"] = str(spec.parent / CREDITS_FILE)
+        emit(credits)
         return 0
     if action == "fetch":
         from . import asset_fetch

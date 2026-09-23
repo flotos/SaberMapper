@@ -151,6 +151,9 @@ def register_capture(actions):
     parser.add_argument("--probe", help="Dense probe START-END@FPS for flash checks (default: 3 s @30 fps at the "
                                         "strongest moment or densest notes)")
     parser.add_argument("--no-probe", action="store_true", help="Skip the default dense probe")
+    parser.add_argument("--probe-with-notes", action="store_true",
+                        help="Render probe frames with notes visible (default: hidden, because uncut notes fly through "
+                             "the camera during a capture and read as flashes a player never sees)")
     parser.add_argument("--camera", choices=("player", "wide"), default="player",
                         help="player: the FPFC screen incl. Vivify post-processing; wide: raised camera behind the track")
     parser.add_argument("--width", type=int, help="Output width (aspect kept when --height is absent)")
@@ -174,7 +177,7 @@ def run_capture(args, emit):
                  times=parse_times(args.times) or None, every_beats=args.every_beats, probe=parse_probe(args.probe),
                  auto_probe=not args.no_probe, camera=args.camera, out=args.out, wait=args.wait, speed=args.speed,
                  exact=args.exact, keep_open=args.keep_open, width=args.width, height=args.height,
-                 hud=not args.no_hud, **_options(args)))
+                 hud=not args.no_hud, probe_with_notes=args.probe_with_notes, **_options(args)))
 
 
 SUBCOMMANDS = {

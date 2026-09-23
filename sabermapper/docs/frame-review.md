@@ -21,7 +21,12 @@ findings), `sabermapper/frames_cli.py` (CLI). Tests: `tests/test_frames.py` (syn
 ```
 
 `reason` is `section_start`, `moment`, `grid`, `requested` or `probe`. Probe frames are a dense run
-(20-30 fps over a few seconds) for the flash check. A directory without `capture.json` is also read:
+(20-30 fps over a few seconds) for the flash check. `game capture` renders them with notes, bombs, chains
+and arcs hidden and marks them `notes_hidden: true`: nobody cuts notes during a capture, so uncut notes fly
+through the camera and fill up to half of a single frame, which reads as a large-area flash although a
+player, who cuts them about 1 m ahead, never sees it. The flash check therefore measures the scene
+(environment, lights, Vivify objects and post-processing). Regular frames keep their notes, so the note
+contrast and corridor checks still see them. `game capture --probe-with-notes` keeps notes on the probe. A directory without `capture.json` is also read:
 PNGs named `tSSSS.mmm.png` (song seconds) become frames, and other PNGs are skipped with a
 `frame_name_unparsed` warning. With `--project`, frames lacking a beat or section get them from the
 arrangement's tempo and sections.

@@ -6,7 +6,12 @@ game it launched and release the lease (unless --keep-open), also on error.
 
 capture.json (schema 1, read by frames.py / frame_metrics.py):
 {schema_version, project, revision, difficulty, camera, width, height, game_version, level_path, created_at,
- frames: [{file, requested_time, song_time, beat, section_id, reason}], log_diagnostics: [...]}
+ frames: [{file, requested_time, song_time, beat, section_id, reason, notes_hidden?}], log_diagnostics: [...]}
+`notes_hidden: true` appears only on frames the bridge rendered with notes, bombs, chains and arcs hidden.
+
+The dense flash probe hides notes by default (`probe.hide_notes`): nobody cuts notes during a capture, so uncut
+notes fly through the FPFC camera and fill half the frame for one frame each, which a player never sees (they cut
+notes about 1 m ahead). The flash check measures the scene; regular frames keep their notes for review.
 """
 from __future__ import annotations
 
@@ -157,10 +162,13 @@ def build_manifest(*, meta: dict, results: list[dict], plan: list[dict], arrange
         if not result.get("written"):
             continue
         name = result["name"]
-        frames.append(_annotate({"file": name, "requested_time": result.get("requested_time"),
-                                 "song_time": result.get("song_time"),
-                                 "reason": "probe" if result.get("reason") == "probe" else reasons.get(name, "requested")},
-                                arrangement, spans))
+        frame = _annotate({"file": name, "requested_time": result.get("requested_time"),
+                           "song_time": result.get("song_time"),
+                           "reason": "probe" if result.get("reason") == "probe" else reasons.get(name, "requested")},
+                          arrangement, spans)
+        if result.get("notes_hidden"):
+            frame["notes_hidden"] = True
+        frames.append(frame)
     frames.sort(key=lambda f: (f["song_time"] if f["song_time"] is not None else f["requested_time"], f["file"]))
     return {"schema_version": SCHEMA_VERSION, **meta, "frames": frames, "log_diagnostics": log_diagnostics}
 
@@ -184,7 +192,7 @@ def run_capture(store, project_id: str, *, difficulty: str | None = None, revisi
                 times=None, every_beats: float | None = None, probe: dict | None = None, auto_probe: bool = True,
                 camera: str = "player", out: str | Path | None = None, wait: float = 0.0, speed: float = 1.0,
                 exact: bool | None = None, keep_open: bool = False, width: int | None = None, height: int | None = None,
-                hud: bool = True, game: Game | None = None, **options) -> dict:
+                hud: bool = True, probe_with_notes: bool = False, game: Game | None = None, **options) -> dict:
     from ..revisions import arrangement_revision
     from ..storage import read_json
     if camera not in ("player", "wide"):
@@ -210,6 +218,8 @@ def run_capture(store, project_id: str, *, difficulty: str | None = None, revisi
         probe = default_probe(arrangement, duration=duration, moments=moments)
     if not plan and not probe:
         raise GameError("capture_invalid", "Nothing to capture", fix="Pass --times, --every-beats or --probe")
+    if probe:
+        probe = {**probe, "hide_notes": not probe_with_notes}
     starts = [item["time"] for item in plan] + ([probe["start"]] if probe else [])
     ends = [item["time"] for item in plan] + ([probe["end"]] if probe else [])
     preroll_start = max(0.0, min(starts) - PREROLL)
@@ -237,7 +247,7 @@ def run_capture(store, project_id: str, *, difficulty: str | None = None, revisi
         client.load(level_path=level_path, difficulty=installed["export"]["difficulty"], start_time=start,
                     speed=speed, modifiers="no_fail", hud=hud)
         job = client.capture(out_dir=out_dir, camera=camera, width=width, height=height, probe=probe and {
-            k: probe[k] for k in ("start", "end", "fps")},
+            k: probe[k] for k in ("start", "end", "fps", "hide_notes")},
             frames=[{"time": item["time"], "name": item["name"], "reason": item["reason"]} for item in plan])
         report["job_id"] = job.get("job_id")
         final = _wait_capture(client, handle, timeout=(max(ends) - start) / max(speed, 0.1) + 90)
@@ -264,6 +274,17 @@ def run_capture(store, project_id: str, *, difficulty: str | None = None, revisi
         (out_dir / "capture.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
         missing = [r["name"] for r in results if not r.get("written")]
         captured = {r["name"] for r in results}
+        probe_frames = [f for f in manifest["frames"] if f["reason"] == "probe"]
+        hidden = sum(1 for f in probe_frames if f.get("notes_hidden"))
+        report["probe_notes_hidden"] = {"requested": bool(probe and probe["hide_notes"]), "frames": len(probe_frames),
+                                        "notes_hidden": hidden}
+        if probe and probe["hide_notes"] and probe_frames and hidden < len(probe_frames):
+            report["warnings"] = [{
+                "code": "probe_notes_visible",
+                "message": f"{len(probe_frames) - hidden} of {len(probe_frames)} probe frames were rendered with notes "
+                           f"visible (bridge {health.get('bridge_version')}); uncut notes flying through the camera "
+                           "can read as flashes.",
+                "fix": "Run `sabermapper game build-bridge --install` with the game closed, then capture again"}]
         report.update(status=status.get("status"), frames=len(manifest["frames"]),
                       not_reached=[item["name"] for item in plan if item["name"] not in captured],
                       failed=missing, dropped=status.get("dropped"), manifest=str(out_dir / "capture.json"),

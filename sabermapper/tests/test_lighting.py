@@ -117,6 +117,32 @@ class GenerationTests(unittest.TestCase):
         rising = [p[1] for p in pulses(arr) if p[1] in (2, 3) and abs(p[0] % 4 - 2.5) < 1e-6]
         self.assertTrue(rising and set(rising) <= {3})
 
+    def test_one_event_per_group_and_beat_so_a_section_entry_keeps_its_base(self):
+        # A strong hit a hair before the calm section makes the peak bar pulse the center at the same
+        # instant the entry accent snaps to; the entry's steady center must win, not the sort order.
+        evidence = report()
+        evidence["layers"]["drums"]["events"].append({"id": "edge", "seconds": 11.99, "method": "spectral_flux",
+                                                      "strength": 0.95})
+        arr = lit(arrangement(((0, 24), (24, 24))), evidence, sections={"s0": {"mood": "peak"}, "s1": {"mood": "calm"}})
+        events = arr["lightshow"]["generated"]["events"]
+        keys = [(e[0], e[1]) for e in events]
+        self.assertEqual(len(keys), len(set(keys)))
+        center = [e for e in events if e[1] == 4 and 23.9 <= e[0] < 48]
+        self.assertEqual(center[0][2], 1)  # blue on: the calm base
+        self.assertEqual(len(center), 1)
+        _, findings = lighting_findings(arr, evidence)
+        self.assertNotIn("light_blackout_notes", codes(findings))
+
+    def test_onsets_inside_the_audio_offset_never_become_events(self):
+        arr = arrangement()
+        arr["song"]["audio_offset_seconds"] = 0.5
+        evidence = report()
+        evidence["layers"]["drums"]["events"].insert(0, {"id": "pre", "seconds": 0.45, "method": "spectral_flux",
+                                                         "strength": 0.95})
+        arr = lit(arr, evidence)
+        self.assertGreaterEqual(min(e[0] for e in arr["lightshow"]["generated"]["events"]), 0)
+        self.assertEqual(errors(arr), [])
+
     def test_generation_is_deterministic(self):
         self.assertEqual(lit(arrangement())["lightshow"], lit(arrangement())["lightshow"])
 
@@ -152,6 +178,11 @@ class CueTests(unittest.TestCase):
         self.assertIn((10.0, 12, 9, 1.0), events)
         self.assertIn((11.0, True), boosts)
         self.assertIn((12.0, 9, 0, 1.0), events)
+        # A cue on a generated event's exact beat and group replaces it rather than racing it.
+        generated = next(e for e in arr["lightshow"]["generated"]["events"] if e[1] == 1 and e[0] >= 20)
+        arr["lightshow"]["cues"].append({"beat": generated[0], "action": "off", "groups": ["ring"]})
+        events, _ = compile_lightshow(arr)
+        self.assertEqual([e for e in events if e[0] == generated[0] and e[1] == 1], [(generated[0], 1, 0, 0.0)])
 
     def test_compiled_beatmap_carries_basic_events_and_boosts(self):
         arr = lit(arrangement(), sections={"s0": {"mood": "peak"}})

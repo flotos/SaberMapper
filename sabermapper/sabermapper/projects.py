@@ -278,6 +278,16 @@ class ProjectStore:
             raise
         return self.get(project_id)
 
+    def outline(self, project_id: str, difficulty: str | None = None) -> dict:
+        """The map explained for the player: style paragraph, section summaries in song seconds, evidence apart."""
+        from .outline import outline
+        with self.lock:
+            path = self.directory(project_id)
+            arrangement = read_json(self.arrangement_file(path, difficulty))
+            project = read_json(path / "project.json")
+        return {"project": project_id, "revision": arrangement_revision(arrangement),
+                **outline(arrangement, project.get("duration_seconds"))}
+
     def get(self, project_id: str, difficulty: str | None = None) -> dict:
         from .movement import analyze_movement
         from .musical import project_runs

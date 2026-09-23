@@ -323,6 +323,9 @@ def make_server(workspace: str | Path, port: int = 8765, game=None, token: str |
                 elif re.fullmatch(r"/api/projects/[\w-]+", path):
                     difficulty = parse_qs(urlparse(self.path).query).get("difficulty", [None])[0]
                     self._json(store.get(path.split("/")[3], difficulty or None))
+                elif re.fullmatch(r"/api/projects/[\w-]+/outline", path):
+                    difficulty = parse_qs(urlparse(self.path).query).get("difficulty", [None])[0]
+                    self._json(store.outline(path.split("/")[3], difficulty or None))
                 elif match := re.fullmatch(r"/api/projects/([\w-]+)/previews/(map-[0-9a-f]{10}-[0-9a-f]{6})\.(zip|json)", path):
                     project_id, job, kind = match.groups()
                     result = previews.wait(project_id, job)
@@ -337,8 +340,10 @@ def make_server(workspace: str | Path, port: int = 8765, game=None, token: str |
                     if not re.fullmatch(r"(?:song\.ogg|cover\.png|arrangement\.json|difficulties/(?:Easy|Normal|Hard|Expert|ExpertPlus)\.json|analysis\.json|musical/[a-f0-9]{32}/(?:report\.json|[a-z][a-z0-9_-]{0,39}\.wav)|feedback/[a-f0-9]+\.json|exports/[a-zA-Z0-9.-]+\.(?:zip|json))", relative):
                         raise ValueError("File is not a project download")
                     self._file(folder / relative)
-                elif path in {"/", "/index.html", "/app.js", "/music.js", "/style.css"}:
+                elif path in {"/", "/index.html", "/app.js", "/music.js", "/style.css", "/viewer.js", "/viewer.css"}:
                     self._file(STATIC / ("index.html" if path == "/" else path[1:]))
+                elif path in {"/viewer", "/viewer/"}:
+                    self._file(STATIC / "viewer.html")
                 else:
                     self._json({"error": "Not found"}, 404)
             except (BrokenPipeError, ConnectionResetError):
@@ -439,9 +444,13 @@ def make_server(workspace: str | Path, port: int = 8765, game=None, token: str |
                         result = {"filename": filename, "url": f"/api/projects/{project_id}/files/exports/{filename}",
                                   "status_url": f"/api/projects/{project_id}/previews/{job}.json"}
                         local_url = f"http://{self.headers['Host']}/api/projects/{project_id}/previews/{job}.zip"
-                        result["viewer_url"] = "/arcviewer/?" + urlencode({
-                            "url": local_url, "noProxy": "true", "t": min(start, current["project"]["duration_seconds"]),
-                            "mode": "Standard", "difficulty": current["difficulty"]})
+                        at = min(start, current["project"]["duration_seconds"])
+                        result["arcviewer_url"] = "/arcviewer/?" + urlencode({
+                            "url": local_url, "noProxy": "true", "t": at, "mode": "Standard",
+                            "difficulty": current["difficulty"]})
+                        # The SaberMapper viewer shows ArcViewer beside the map's explanation and a vertical timeline.
+                        result["viewer_url"] = "/viewer/?" + urlencode({
+                            "project": project_id, "difficulty": current["difficulty"], "map": local_url, "t": at})
                     elif action == "analyze":
                         from .audio import analyze_audio
                         directory = store.directory(project_id)

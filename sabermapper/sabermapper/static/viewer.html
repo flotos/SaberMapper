@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>SaberMapper viewer</title><link rel="stylesheet" href="/viewer.css"></head>
+<body>
+<aside id="story" class="story" aria-label="What the map does here">
+  <header><a class="back" href="/" title="Back to the studio">╱╱ SaberMapper</a><h1 id="song-title">Loading…</h1><p id="song-meta" class="meta"></p></header>
+  <section class="idea"><p id="style-idea" class="idea-text"></p><details id="style-more"><summary>About this map</summary><p id="style-summary"></p><ul id="style-signatures" class="signatures"></ul></details></section>
+  <section class="now" aria-live="polite"><div class="label">NOW <span id="now-time" class="time">0:00</span> <span id="now-state" class="state"></span></div><h2 id="now-name"></h2><p id="now-range" class="meta"></p><p id="now-summary" class="summary"></p><div id="now-themes" class="themes"></div><details id="now-evidence"><summary>Evidence</summary><p id="now-evidence-text"></p></details></section>
+  <section class="next"><div class="label">NEXT</div><button id="next-button" class="next-button" type="button"><strong id="next-name"></strong><span id="next-summary"></span></button></section>
+  <p class="hint">Click any section on the right to jump there (ArcViewer reloads at that point). The current section unfolds and follows ArcViewer while the song plays.</p>
+</aside>
+<main class="stage"><iframe id="arcviewer" title="ArcViewer" allow="fullscreen; autoplay"></iframe></main>
+<nav id="rail" class="rail" aria-label="Song sections, top to bottom"><div class="rail-title">SECTIONS</div><div id="rail-track" class="rail-track"></div></nav>
+<script src="/viewer.js" defer></script>
+</body></html>

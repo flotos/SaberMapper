@@ -72,7 +72,10 @@ class StudioPreviewTests(unittest.TestCase):
             while self.control._inflight != 1 and time.monotonic() < deadline:
                 time.sleep(0.01)
             self.assertEqual(self.control._inflight, 1)
-            map_url = parse_qs(urlparse(result["viewer_url"]).query)["url"][0]
+            self.assertTrue(result["viewer_url"].startswith("/viewer/?"))
+            self.assertEqual(parse_qs(urlparse(result["viewer_url"]).query)["map"][0],
+                             parse_qs(urlparse(result["arcviewer_url"]).query)["url"][0])
+            map_url = parse_qs(urlparse(result["arcviewer_url"]).query)["url"][0]
             self.assertEqual(urlparse(map_url).path, result["status_url"].removesuffix(".json") + ".zip")
             waiting = {}
             viewer = threading.Thread(target=lambda: waiting.update(zip=self.request("GET", urlparse(map_url).path)))

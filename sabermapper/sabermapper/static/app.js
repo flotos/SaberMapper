@@ -74,6 +74,15 @@ async function refreshProjects() {
   return projects;
 }
 async function loadProject(id, difficulty) { $('arcviewer-handoff').hidden=true; state.project=await api(projectUrl(id, difficulty)); state.selection=[0,Math.min(8,totalBeats())]; showView('studio'); renderProject(true);await refreshProjects(); }
+// Player-facing texts: the style's paragraph and each section's one-sentence summary. A section without one shows the
+// first sentence of its intent, without the evidence trail (outline.fallback_summary).
+function sectionSummary(s){if(typeof s.summary==='string'&&s.summary.trim())return s.summary;const text=String(s.intent||'').replace(/\s*(?:Evidence\b|\(evidence|Run [0-9a-f]{8,})[\s\S]*$/i,'').trim();const first=(text.split(/(?<=[.!?])\s+/)[0]||'');return first.length<=240?first:first.slice(0,239).trimEnd()+'…';}
+function renderStory(a){const style=a.style&&typeof a.style==='object'?a.style:null,settings=style?.settings||{};
+  $('story-idea').textContent=style?.idea||'No style yet: ask your assistant to brainstorm one (style template).';
+  $('story-summary').textContent=style?.summary||(style?'Ask your assistant to write the summary paragraph: the mapping goal and the chosen approach.':'');
+  $('story-summary').hidden=!style;
+  $('story-settings').textContent=Object.entries(settings).map(([k,v])=>`${k.replaceAll('_',' ')} ${v}`).join(' · ');
+  $('story-signatures').innerHTML=(style?.signatures||[]).map(s=>`<li><strong>${esc(s.theme)}</strong>: ${esc(s.move)}</li>`).join('');}
 function showView(view) { state.view=view;document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==`view-${view}`);document.querySelectorAll('[data-view]').forEach(el=>el.classList.toggle('active',el.dataset.view===view));$('view-label').textContent=({studio:'Studio',corpus:'Patterns',research:'Research'}[view]);if(view==='corpus')run('Loading…',renderCorpus);if(view==='research')run('Loading…',renderResearch);if(view==='studio' && state.project)requestAnimationFrame(drawWaveform); }
 function renderProject(audioChanged=false) {
   const d=state.project,a=d.arrangement;
@@ -87,9 +96,12 @@ function renderProject(audioChanged=false) {
   $('stat-checks').textContent=errors.length?`${errors.length} errors`:warnings.length?`${warnings.length} warnings`:'OK';$('stat-check-detail').textContent=errors.length||warnings.length?'see Checks':'no issues';
   $('bpm').value=a.song.bpm;$('offset').value=a.song.audio_offset_seconds;$('timing-badge').textContent=d.project.timing_reviewed?'Checked':'Unchecked';$('timing-badge').className='badge '+(d.project.timing_reviewed?'good':'warn');$('confirm-timing').textContent=d.project.timing_reviewed?'Unmark':'Mark checked \u2713';
   const timing=d.analysis.timing||{};$('timing-confidence').textContent=`${timing.source || 'Auto-detected'}${timing.confidence !== undefined ? ` \u00b7 confidence ${typeof timing.confidence==='number' ? timing.confidence.toFixed(2) : timing.confidence}` : ''}`;
-  $('sections').innerHTML=a.sections.map(s=>`<button class="section-card" data-section="${esc(s.id)}"><div class="name"><span>${esc(s.id)}</span><span>${s.locked?'▣':s.resolved?'↗':'?'}</span></div><div class="intent">${esc(s.intent)}</div><div class="meta">BEATS ${esc(s.start_beat)}–${beatNumber(s.start_beat)+beatNumber(s.length_beats)} · ${s.notes.length} notes${s.patterns.length?' · '+s.patterns.length+' patterns':''}</div></button>`).join('');
-  $('sections').querySelectorAll('[data-section]').forEach(b=>b.onclick=()=>openSection(b.dataset.section));
-  $('section-strip').innerHTML=a.sections.map(s=>`<button data-seek="${beatNumber(s.start_beat)}" title="${esc(s.intent)}">${esc(s.id)}</button>`).join('');
+  renderStory(a);
+  $('sections').innerHTML=a.sections.map(s=>{const start=beatSeconds(beatNumber(s.start_beat)),end=beatSeconds(beatNumber(s.start_beat)+beatNumber(s.length_beats));return `<article class="section-card" data-section="${esc(s.id)}" data-at="${start}" tabindex="0" role="button" aria-label="Watch ${esc(s.id)} in 3D from ${time(start)}"><div class="name"><span>${esc(s.id)}</span><span class="card-actions"><span class="watch">▶ 3D</span><button type="button" class="text-button" data-edit="${esc(s.id)}" title="Edit or lock this section" aria-label="Edit ${esc(s.id)}">✎</button><span title="${s.locked?'Locked':s.resolved?'Resolved':'Unresolved'}">${s.locked?'▣':s.resolved?'↗':'?'}</span></span></div><p class="summary">${esc(sectionSummary(s))}</p><details class="evidence"><summary>Evidence</summary><div class="intent">${esc(s.intent)}</div></details><div class="meta">${time(start)}–${time(end)} · BEATS ${esc(s.start_beat)}–${beatNumber(s.start_beat)+beatNumber(s.length_beats)} · ${s.notes.length} notes${s.patterns.length?' · '+s.patterns.length+' patterns':''}</div></article>`;}).join('');
+  $('sections').querySelectorAll('[data-edit]').forEach(b=>b.onclick=e=>{e.stopPropagation();openSection(b.dataset.edit);});
+  $('sections').querySelectorAll('details').forEach(d=>d.onclick=e=>e.stopPropagation());
+  $('sections').querySelectorAll('[data-section]').forEach(c=>{c.onclick=()=>openPreview(Number(c.dataset.at));c.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&e.target===c){e.preventDefault();openPreview(Number(c.dataset.at));}};});
+  $('section-strip').innerHTML=a.sections.map(s=>`<button data-seek="${beatNumber(s.start_beat)}" title="${esc(sectionSummary(s))}">${esc(s.id)}</button>`).join('');
   $('section-strip').querySelectorAll('[data-seek]').forEach(b=>b.onclick=()=>{$('audio').currentTime=beatSeconds(Number(b.dataset.seek));state.selection=[Number(b.dataset.seek),Number(b.dataset.seek)+8];drawTimeline();});
   $('diagnostic-count').textContent=d.diagnostics.length;
   $('diagnostics').innerHTML=d.diagnostics.length?d.diagnostics.map(x=>`<div class="diagnostic ${esc(x.severity)}"><strong>${esc(x.code.replaceAll('_',' '))}</strong><br>${esc(x.message)}${x.section_id?`<br><small>${esc(x.section_id)}</small>`:''}</div>`).join(''):'<div class="diagnostic good">✓ No issues.</div>';
@@ -168,13 +180,15 @@ $('playtest-form').onsubmit=e=>{e.preventDefault();run('Saving…',async()=>{sta
 window.addEventListener('resize',drawWaveform);document.addEventListener('keydown',e=>{if(e.code==='Space'&&!['INPUT','TEXTAREA','SELECT','BUTTON'].includes(e.target.tagName)&&state.project&&state.view==='studio'){e.preventDefault();$('play').click();}});
 (async()=>{try{const info=await api('/api/status');state.token=info.token;state.workspace=info.workspace;state.code=info.code?.version;setInterval(checkCode,30000);const list=await refreshProjects();if(list.length)await loadProject(list[0].id);}catch(e){toast(e.message,true);}})();
 
-// The viewer tab boots ArcViewer while the server writes the map ZIP; ArcViewer's map request waits for it.
-$('preview-map').onclick=()=>{
+// The viewer tab (ArcViewer beside the map's explanation) boots while the server writes the map ZIP; ArcViewer's map
+// request waits for it. A section card opens it at the section's start, the 3D preview button at the playhead.
+$('preview-map').onclick=()=>openPreview($('audio').currentTime);
+function openPreview(seconds){
   if(state.busy){toast('Still working…');return;}
   if(state.previewing){toast('The 3D preview is still exporting…');return;}
-  const projectId=currentId(), revision=state.project.revision, difficulty=state.project.difficulty, seconds=$('audio').currentTime;
+  const projectId=currentId(), revision=state.project.revision, difficulty=state.project.difficulty;
   const viewer=window.open('about:blank','_blank');
-  if(viewer){viewer.opener=null;viewer.document.title='ArcViewer';viewer.document.body.textContent='Loading…';}
+  if(viewer){viewer.opener=null;viewer.document.title='SaberMapper viewer';viewer.document.body.textContent='Loading…';}
   $('audio').pause();
   run('Preparing preview…',async()=>{
     let result;
@@ -195,7 +209,7 @@ $('preview-map').onclick=()=>{
       finally{state.previewing=false;}
     })();
   });
-};
+}
 
 // Verification console: play the chosen revision in Beat Saber, scrub, and leave timestamped notes.
 // Every control calls the same HTTP API as the agent's CLI twins (`game ...`, `project feedback add|list`).

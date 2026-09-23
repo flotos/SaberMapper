@@ -92,7 +92,7 @@ SIDEWAYS = (2, 3, 8)  # cuts a stack of three never takes: it runs vertically or
 # When the next notes follow a stack this soon, the stack keeps to the outer lanes, off the centre where they
 # would sit behind it.
 STACK_SIDE_SECONDS = 0.5
-STACK_CENTRE_COST = 0.5
+STACK_CENTRE_COST = 2.0  # above the travel cost of reaching the outer lane
 
 
 class PlacementStyle(NamedTuple):
@@ -362,7 +362,7 @@ def _free_cuts(effective, hand, fast, reset, first, style=None):
     return result
 
 
-def _cut_options(state, notes, hand, beat, seconds, other_last, bpm, style=None):
+def _cut_options(state, notes, hand, beat, seconds, other_last, bpm, style=None, quick=False):
     """(direction, cost, violations, new hand state) for ``hand`` cutting ``notes`` at ``beat``."""
     effective, last_s, last_b, last_dir, run_len, run_start, prev_dir = state
     fixed = sorted({s.fixed["direction"] for s in notes if "direction" in s.fixed})
@@ -390,8 +390,13 @@ def _cut_options(state, notes, hand, beat, seconds, other_last, bpm, style=None)
         if len(fixed) > 1 and any("color" not in s.pinned for s in notes):
             cost += HARD
             violations += (("simultaneous_direction_conflict", ids),)
-        if direction in SIDEWAYS and sum(1 for s in notes if s.stack) >= STACK_MAX_NOTES:
+        stacked = sum(1 for s in notes if s.stack)
+        if direction in SIDEWAYS and stacked >= STACK_MAX_NOTES:
             cost += HARD  # a stack of three runs vertically or diagonally, never across a row
+        if quick and stacked >= 2 and direction not in (0, 1, 8):
+            # Notes follow fast: a stack spanning columns would reach the centre, where they sit behind it.
+            # A vertical cut keeps it in the outer lane (pass 2 prices the cells the same way).
+            cost += STACK_CENTRE_COST * (stacked - 1)
         if (last_s is not None and 0 <= beat_gap <= CHORD_BEATS and 0 <= gap <= CHORD_SECONDS
                 and direction == last_dir):
             options.append((direction, cost, violations, state))  # one swing with the note just before
@@ -456,9 +461,10 @@ def _plan_cuts(groups, held, bpm, width=BEAMS[0][0], per_timing_limit=BEAMS[0][1
     """Beam search for every swing's hand and cut; returns ({slot index: (color, direction)}, violations)."""
     empty = (None, None, None, None, 0, None, None)
     beam = [(0.0, (empty, empty), None, None, None)]  # cost, hand states, last single hand, last beat, node
-    for group in groups:
+    for number, group in enumerate(groups):
         beat, seconds = float(group[0].beat), group[0].seconds
         busy = _held_colors(held, group[0].beat)
+        quick = number + 1 < len(groups) and groups[number + 1][0].seconds - seconds < STACK_SIDE_SECONDS
         candidates = {}
         for cost, hands, last_hand, last_beat, node in beam:
             for colors, assign_cost, assign_violations in _assignments(group, busy):
@@ -475,7 +481,7 @@ def _plan_cuts(groups, held, bpm, width=BEAMS[0][0], per_timing_limit=BEAMS[0][1
                     other = hands[1 - hand][1]
                     per_hand.append([(hand, *option) for option in
                                      _cut_options(hands[hand], by_hand[hand], hand, beat, seconds, other, bpm,
-                                                  style)])
+                                                  style, quick)])
                 combos = per_hand[0] if len(per_hand) == 1 else [
                     (a, b) for a in per_hand[0] for b in per_hand[1]]
                 for combo in combos:

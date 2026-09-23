@@ -141,6 +141,11 @@ high one at least **23%**. The bands come from four workspace songs placed from 
 default placed turns of 21-24 degrees, diagonal shares of 45-50% and top-row shares of 18-21%. Round placed 1-10 degrees,
 angular 42-45, few diagonals 23-27%, many 58-84%, a low top row 8-11% and a high one 25-26%.
 
+### Player-facing texts (`metrics.summaries`)
+
+**`summary_missing`**: the style has no `summary` paragraph, or sections have no one-sentence `summary`. The
+studio and the viewer then show the first sentence of each intent, which is written for agents.
+
 ### Boundary accents (`metrics.boundary_accents`)
 
 Only checked when a musical evidence report is supplied. For every section

@@ -221,7 +221,8 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
             continue
         sid = section.get("id")
         if not keys(section, {"id", "start_beat", "length_beats", "intent", "locked", "resolved", "notes", "patterns"}, "section", sid,
-                    optional={"bombs", "obstacles", "arcs", "chains", "musical_focus"} | ({"presentation"} if presented else set())):
+                    optional={"bombs", "obstacles", "arcs", "chains", "musical_focus", "summary"}
+                    | ({"presentation"} if presented else set())):
             continue
         if not isinstance(sid, str) or not sid or "/" in sid or sid in section_ids:
             add("error", "invalid_id", "section ID must be nonempty, unique, and contain no slash", str(sid))
@@ -229,6 +230,9 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
             section_ids.add(sid)
         if not isinstance(section["intent"], str) or not section["intent"].strip():
             add("error", "invalid_intent", "section intent must be nonempty", sid)
+        if "summary" in section:
+            from .outline import validate_summary
+            validate_summary(section, add, sid)
         if type(section["locked"]) is not bool or type(section["resolved"]) is not bool:
             add("error", "invalid_section", "locked and resolved must be booleans", sid)
         elif not section["resolved"]:

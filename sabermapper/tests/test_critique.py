@@ -76,7 +76,10 @@ class CritiqueMetricTests(unittest.TestCase):
                 index += 1
             notes.append(section(f"part{part}", part * 64, 64, part_notes))
         varied = arrangement(notes)
-        varied["style"] = {"idea": "Random variety.", "grounding": ["the fixture"], "settings": {}}
+        varied["style"] = {"idea": "Random variety.", "summary": "A varied fixture.", "grounding": ["the fixture"],
+                           "settings": {}}
+        for part in varied["sections"]:
+            part["summary"] = "Random placements."
         result = critique_arrangement(varied)
         self.assert_warning_only(result)
         self.assertEqual(result["warnings"], [])

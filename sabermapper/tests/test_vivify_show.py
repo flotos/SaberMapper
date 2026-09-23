@@ -488,6 +488,10 @@ class VivifiedExportTests(BundleCase):
             info = json.loads(archive.read("Info.dat"))
         scheme = info["_colorSchemes"][0]
         self.assertTrue(scheme["useOverride"])
+        # Info 2.1.0 keys only: SongCore refuses the map on anything else (environmentColorW broke loading).
+        self.assertEqual(set(scheme["colorScheme"]), {
+            "colorSchemeId", "saberAColor", "saberBColor", "environmentColor0", "environmentColor1", "obstaclesColor",
+            "environmentColor0Boost", "environmentColor1Boost"})
         self.assertEqual(scheme["colorScheme"]["saberAColor"], {"r": 0.302, "g": 1.0, "b": 0.349, "a": 1.0})
         self.assertEqual(scheme["colorScheme"]["saberBColor"], {"r": 0.95, "g": 1.0, "b": 0.95, "a": 1.0})
         entry = info["_difficultyBeatmapSets"][0]["_difficultyBeatmaps"][0]

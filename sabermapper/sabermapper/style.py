@@ -32,6 +32,7 @@ import uuid
 from fractions import Fraction
 from pathlib import Path
 
+from .outline import STYLE_SUMMARY_LIMIT
 from .storage import digest, now, read_json, write_json
 
 STYLE_VERSION = "1.0"
@@ -95,11 +96,14 @@ def _check_style(style, where, add, themes=None):
     if not isinstance(style, dict):
         add(f"{where} must be an object")
         return
-    extra = set(style) - {"id", "idea", "grounding", "settings", "signatures", "rubric", "source"}
+    extra = set(style) - {"id", "idea", "summary", "grounding", "settings", "signatures", "rubric", "source"}
     if extra:
         add(f"{where} has unsupported fields {sorted(extra)}")
     if not _text(style.get("idea")):
         add(f"{where}.idea must be one sentence naming the map's idea")
+    if "summary" in style and not _text(style.get("summary"), STYLE_SUMMARY_LIMIT):
+        add(f"{where}.summary must be one paragraph (at most {STYLE_SUMMARY_LIMIT} characters) explaining the mapping "
+            "goal and approach to the player")
     grounding = style.get("grounding")
     if not isinstance(grounding, list) or not grounding or not all(_text(g) for g in grounding):
         add(f"{where}.grounding must list the song evidence the idea follows from (title, lyrics, stems, "
@@ -284,7 +288,8 @@ def arrangement_style(document: dict, revision: str | None = None) -> dict | Non
                    and c.get("id") == document.get("selected")), None)
     if chosen is None:
         return None
-    block = {"idea": chosen["idea"], "grounding": list(chosen["grounding"]), "settings": dict(chosen["settings"])}
+    block = {"idea": chosen["idea"], **({"summary": chosen["summary"]} if chosen.get("summary") else {}),
+             "grounding": list(chosen["grounding"]), "settings": dict(chosen["settings"])}
     if chosen.get("signatures"):
         block["signatures"] = [dict(s) for s in chosen["signatures"]]
     if revision:
@@ -394,7 +399,7 @@ def style_template(store, project_id):
             measured[name] = style_metrics(place_arrangement(current, strict=False)["arrangement"])
         except (KeyError, TypeError, ValueError):
             measured[name] = None
-    skeleton = {"id": "", "idea": "", "grounding": [""], "settings": dict(DEFAULTS), "signatures": [],
+    skeleton = {"id": "", "idea": "", "summary": "", "grounding": [""], "settings": dict(DEFAULTS), "signatures": [],
                 "rubric": {criterion: {"score": None, "why": ""} for criterion in RUBRIC}}
     current = style_file(directory)
     revision = read_json(current)["revision"] if current.exists() else None
@@ -428,7 +433,8 @@ def style_template(store, project_id):
                       "(`music spectrogram`), the title and the lyrics.",
                       "Exactly three candidates, each a different way to play this song: one sentence (idea), the "
                       "evidence it follows from (grounding), every setting, and signature moves tied to the song's "
-                      "themes.",
+                      "themes. The selected one also needs summary: one plain-language paragraph for the player on "
+                      "the mapping goal and approach, shown in the studio and beside ArcViewer.",
                       "A style chooses among what the audio supports: it never adds notes, relaxes a movement rule "
                       "or raises the difficulty past the target tier.",
                       "Differ from other_songs where this song differs; the same settings for every song is no style.",

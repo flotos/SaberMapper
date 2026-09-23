@@ -133,6 +133,12 @@ class GenerationTests(unittest.TestCase):
         _, findings = lighting_findings(arr, evidence)
         self.assertNotIn("light_blackout_notes", codes(findings))
 
+    def test_a_calm_opening_on_beat_zero_keeps_its_base_light(self):
+        arr = lit(arrangement(), sections={"s0": {"mood": "calm"}})
+        center = [e for e in arr["lightshow"]["generated"]["events"] if e[1] == 4]
+        self.assertEqual(center[0][:3], [0.0, 4, 1])
+        self.assertNotIn("light_blackout_notes", codes(lighting_findings(arr, report())[1]))
+
     def test_onsets_inside_the_audio_offset_never_become_events(self):
         arr = arrangement()
         arr["song"]["audio_offset_seconds"] = 0.5

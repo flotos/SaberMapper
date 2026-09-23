@@ -1,6 +1,6 @@
 # SM-036: Build maps correct by construction; replace the repair commands with one validator
 
-Status: Proposed · not implemented.
+Status: Implemented (2026-09-23) · v0 and every expansion step. See Implementation below.
 Phase: Productize.
 Size: L; v0 slice: M (see backlog size legend).
 Dependencies: SM-017 (arrangement format), SM-018 (compiler), SM-019 (validation), SM-030 (movement model), SM-034 (critique).
@@ -95,14 +95,50 @@ The repair commands stay available during v0.
 
 ## Acceptance criteria
 
-- [ ] An arrangement with only `id`/`beat` notes (plus arcs and chains) compiles and saves with zero blocking findings, or fails with an infeasibility error that names the beat, the notes, the violated rule and at least one feasible alternative.
-- [ ] Fully specified arrangements from every existing project compile byte-identically before and after the change.
-- [ ] Pinned fields are never changed by placement, and a local rhythm edit leaves every note outside the edited bar unchanged.
-- [ ] `project check` is read-only (it writes nothing to the project directory), and `project save` blocks exactly the findings it marks `blocking`.
-- [ ] Every blocking movement finding in `project check` carries at least one concrete suggestion that clears it.
-- [ ] An unedited `music rhythm --propose` draft, once placed, produces no `note_without_audio`, `density_exceeds_audio`, `lead_rhythm_diluted`, `lead_rhythm_unmapped`, `intensity_underplayed`, `difficulty_exceeds_intensity` or `one_hand_burst` finding, in tests and on every workspace project with an evidence run.
-- [ ] The comparison in Expansion step 3 is recorded for every project and difficulty, and each is either saved as a revision that is no worse on every measure or kept with a stated reason.
-- [ ] The `repair-swings`, `repair-visibility` and `repair-audio` commands and modules are removed. No skill, doc or test references them, and the "Systematic fixes" guidance in `AGENTS.md` names build-time placement and `project check` as the automated levels.
+- [x] An arrangement with only `id`/`beat` notes (plus arcs and chains) compiles and saves with zero blocking findings, or fails with an infeasibility error that names the beat, the notes, the violated rule and at least one feasible alternative.
+- [x] Fully specified arrangements from every existing project compile byte-identically before and after the change.
+- [x] Pinned fields are never changed by placement, and a local rhythm edit leaves every note outside the edited bar unchanged.
+- [x] `project check` is read-only (it writes nothing to the project directory), and `project save` blocks exactly the findings it marks `blocking`.
+- [x] Every blocking movement finding in `project check` carries at least one concrete suggestion that clears it.
+- [x] An unedited `music rhythm --propose` draft, once placed, produces no `note_without_audio`, `density_exceeds_audio`, `lead_rhythm_diluted`, `lead_rhythm_unmapped`, `intensity_underplayed`, `difficulty_exceeds_intensity` or `one_hand_burst` finding, in tests and on every workspace project with an evidence run.
+- [x] The comparison in Expansion step 3 is recorded for every project and difficulty, and each is either saved as a revision that is no worse on every measure or kept with a stated reason.
+- [x] The `repair-swings`, `repair-visibility` and `repair-audio` commands and modules are removed. No skill, doc or test references them, and the "Systematic fixes" guidance in `AGENTS.md` names build-time placement and `project check` as the automated levels.
+
+## Implementation (2026-09-23)
+
+- **Placer** (`placement.py`). A beam search chooses each swing's hand and cut under flow (including the 2 s
+  rest rule of movement model 1.6), held sabers, `one_hand_burst` and reach. Two same-hand swings under
+  1/`REACH_SPEED` s apart are impossible, because each needs its own cell. A second pass chooses cut and cell
+  together, for short hand travel and for the SM-034 variety metrics. The result is verified with
+  `analyze_movement`. A wider beam is retried only when the first leaves a rule broken, for example a long
+  phrase whose cuts must meet a pinned arc. A double keeps the parity pass 1 found for both hands.
+- **Pins.** The settled representation is a `placed` list on each note, naming the fields the placer chose.
+  Those fields are kept while valid and re-chosen only when an edit breaks a rule. Editing a placed value pins
+  it (`pin_edits`), and deleting a field asks for a fresh choice. A field that was pinned and is now listed in
+  `placed` stays open. Fully specified notes with no `placed` list compile byte for byte as before.
+- **One validator** (`check.py`). `project check` merges placement, validation, movement, audio grounding and
+  critique. `--arrangement` checks a draft as save would, writing nothing. `project save` refuses exactly the
+  findings marked `blocking` (shared gate). Movement suggestions (`set`, `move`, `remove`) are verified against
+  the model. Placement errors carry verified `unpin` or `remove` alternatives. Audio and critique suggestions
+  (`add`, `retime`, `remove`, `set_weights`) come from the rhythm draft's generators.
+- **Alias decision.** `project critique` and the top-level `validate` and `critique` stay as documented
+  aliases of the check report. They add the critique's `metrics`, `warnings` and `definitions` for existing
+  workflows and baselines.
+- **Rhythm draft** (`rhythm_proposal.py`, `music rhythm --propose [--draft FILE] [--held SECONDS]`). It follows
+  the musical rules below and adjusts itself until none of the seven target findings remain. A consistency
+  change came with it: `lead_rhythm_unmapped` judges a soft bar (below `SOFT_RATIO` of the heavy loudness) on
+  the lead's strongest attack per beat. Before that, it could ask for more swings than
+  `difficulty_exceeds_intensity` allows in the same bar.
+- **Evidence.** 485 tests pass. Compile output of every stored map is byte-identical to `main` on the same data.
+  Every workspace map re-places from its rhythm alone with no blocking or burst findings, in at most 3.6 s. An
+  unedited whole-song draft of every project and difficulty with an evidence run (9 of 9) raises none of the
+  seven target findings, in 6-28 s.
+- **Comparison** (`workspace/authoring/sm-036/comparison.json`). Living a Lie ExpertPlus re-placed no worse on
+  every measure and was saved as revision `5b0994c4`, replacing `9e348b1d`, then exported. The other eight keep
+  their revisions, each with its reason. Re-placing a finished map cannot reproduce the loudness-tuned hand
+  travel its evidence-driven authoring gave it: placement reads the arrangement alone, never the evidence run.
+  So `difficulty_exceeds_intensity`, `intensity_underplayed` or the distinct-placement count gets worse. New
+  maps get their intensity balance from the rhythm draft instead.
 
 ## Musical rules the rhythm draft and placer follow
 

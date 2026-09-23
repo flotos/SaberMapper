@@ -128,7 +128,7 @@ DEFINITIONS = {
     "vocal_line_unmapped": "One or more consecutive singing bars where fewer than 50% of those vocal onsets have a note within 0.13 beat or sit inside a vocal sustain held by an arc: the map follows another layer while the voice is the focal point.",
     "drum_rhythm_unmapped": "One or more consecutive non-singing bars (voice holding or resting) without a declared non-drum instrument lead (bar_lead), with at least 6 drums spectral_flux events of strength 0.3 or more (only the strongest per half-beat slot counts), fewer than 60% of which have a note within 0.13 beat.",
     "bar_lead": "The layer whose rhythm a 4-beat bar follows: vocals in a singing bar, otherwise the lead of the musical_focus phrase covering the bar's middle when that lead is an analyzed stem other than mix. Other bars have no declared lead and skip the lead checks.",
-    "lead_rhythm_unmapped": "One or more consecutive bars led by an instrument stem (not vocals, which vocal_line_unmapped covers), outside thin, soft passages (mean passage support_score below 0.6 and energy_ratio below 0.75, where density_exceeds_audio sets the density), with at least 3 lead onsets (spectral_flux, pitch_change or chord_change of strength 0.3 or more, strongest per half-beat slot), fewer than 60% of which have a note within 0.13 beat.",
+    "lead_rhythm_unmapped": "One or more consecutive bars led by an instrument stem (not vocals, which vocal_line_unmapped covers), outside thin, soft passages (mean passage support_score below 0.6 and energy_ratio below 0.75, where density_exceeds_audio sets the density), with at least 3 lead onsets (spectral_flux, pitch_change or chord_change of strength 0.3 or more, strongest per half-beat slot), fewer than 60% of which have a note within 0.13 beat. In a bar softer than 0.8 of the heavy passages' loudness (difficulty_exceeds_intensity), the onsets judged are the strongest per beat.",
     "lead_rhythm_diluted": "One or more consecutive bars with a declared lead, at least 3 lead onsets and at least 4 note times, where fewer than 75% of the note times follow the lead: a note follows it when a lead onset of strength 0.2 or more sits within 0.13 beat, when the lead is silent within 0.75 beat (a gap another layer may fill), or when an arc is held through it. Filler between the lead's attacks flattens its syncopation into a metronome stream.",
     "melodic_bar": "A 4-beat bar that is not a singing bar, has no declared instrument lead (bar_lead) and fewer "
                    "than 6 strong drum hits: the drums do not carry it, so the pitched line is what the player hears.",
@@ -795,6 +795,9 @@ def _lead_rhythm(arrangement, spans, notes, report, salience, warn):
         index = bisect_left(values, beat - reach)
         return index < len(values) and values[index] <= beat + reach
 
+    # Softer audio plays easier (difficulty_exceeds_intensity): a soft bar is judged on its lead's strongest attack
+    # per beat, the resolution a thin, quiet bar is drafted at, so the two checks never ask for opposite things.
+    soft = {b["start_beat"] for b in intensity_bars(arrangement, report, notes)[1] if b.get("relative", 1.0) < SOFT_RATIO}
     end = max(s["end_beat"] for s in spans)
     for start in range(0, math.ceil(end), SALIENCE_BAR_BEATS):
         stop = start + SALIENCE_BAR_BEATS
@@ -808,6 +811,8 @@ def _lead_rhythm(arrangement, spans, notes, report, salience, warn):
         inside = [t for t in times if start <= t < stop]
         if len(strong) < LEAD_MIN_ONSETS:
             continue
+        if start in soft:
+            strong = [b for b, s in strongest_per_slot(found, 1) if s >= LEAD_ONSET_STRENGTH and start <= b < stop]
         mapped = sum(1 for b in strong if within(times, b, SALIENCE_MATCH_BEATS))
         # A note on the bar's heaviest hit of the rest of the band is the ensemble's weight, not filler;
         # more than ENSEMBLE_ALLOWANCE_PER_BAR of them is a second rhythm competing with the lead.

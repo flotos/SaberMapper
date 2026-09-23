@@ -792,13 +792,15 @@ def _place_motifs(arrangement):
     return placed
 
 
-def place_arrangement(arrangement: dict, *, unpin: bool = False, strict: bool = True) -> dict:
+def place_arrangement(arrangement: dict, *, unpin: bool = False, strict: bool = True,
+                      alternatives: bool = True) -> dict:
     """Fill every open note field so the movement rules hold; the input is not modified.
 
     Returns ``{"arrangement", "report", "errors"}``. A fully specified arrangement with no ``placed`` record
     is returned unchanged (the same object). ``unpin`` re-places every unlocked literal note from scratch,
     ignoring its stored values (for comparing a stored map with a fresh placement). When a rule cannot hold,
     ``strict`` raises :class:`PlacementError`; otherwise the best placement comes back with the errors.
+    ``alternatives=False`` skips verifying alternatives for the errors (a draft generator's inner loop).
     """
     empty = {"placed_notes": 0, "rechosen": [], "motifs": []}
     if not unpin and not needs_placement(arrangement):
@@ -809,7 +811,7 @@ def place_arrangement(arrangement: dict, *, unpin: bool = False, strict: bool = 
                 "errors": []}
     result, report, violations, by_id = done
     errors = [v for v in violations if _attributable(v, by_id)]
-    errors = _describe(arrangement, errors, by_id, unpin) if errors else []
+    errors = _describe(arrangement, errors, by_id, unpin, alternatives) if errors else []
     if errors and strict:
         raise PlacementError(errors)
     return {"arrangement": result, "report": report, "errors": errors}
@@ -841,7 +843,7 @@ def pin_edits(stored: dict, edited: dict) -> dict:
     return result
 
 
-def _describe(arrangement, violations, by_id, unpin):
+def _describe(arrangement, violations, by_id, unpin, alternatives=True):
     """Structured infeasibility errors; the first few carry alternatives verified by placing them."""
     errors = []
     for number, violation in enumerate(violations):
@@ -854,7 +856,7 @@ def _describe(arrangement, violations, by_id, unpin):
                   "pinned": {s.oid: sorted(s.pinned, key=FIELDS.index) for s in slots},
                   "reason": violation["reason"]}
         record["alternatives"] = (_alternatives(arrangement, violation, slots, unpin)
-                                  if number < MAX_ALTERNATIVE_ERRORS else [])
+                                  if alternatives and number < MAX_ALTERNATIVE_ERRORS else [])
         options = "; ".join(_say(a) for a in record["alternatives"]) or "none verified; see project check"
         record["message"] = (f'beat {record["beat"]:g}: {", ".join(violation["object_ids"])} cannot be placed '
                              f'without {violation["code"]} ({violation["reason"]}). Feasible alternatives: {options}')

@@ -68,14 +68,22 @@ def distance(left: dict, right: dict) -> float:
     return round(sum(abs(math.log(max(left[k], FLOOR) / max(right[k], FLOOR))) for k in FEATURES), 4)
 
 
+def missing_reference_warning(arrangement: dict) -> dict | None:
+    """The tier_reference_missing warning a critique command adds when it has no reference to pass."""
+    target = arrangement.get("difficulty", {}).get("target_tier")
+    if target is None:
+        return None
+    return {"severity": "warning", "code": "tier_reference_missing", "section_id": None, "object_ids": [],
+            "value": None, "threshold": None,
+            "message": f"difficulty.target_tier is {target} but no tier reference was found; run `corpus analyze` "
+                       "so critique can compare the map with real charts of that tier."}
+
+
 def tier_fit(arrangement: dict, reference: dict | None, warn) -> dict:
     target = arrangement.get("difficulty", {}).get("target_tier")
     if target is None:
         return {"checked": False, "reason": "difficulty.target_tier is not set"}
-    if reference is None:
-        warn("tier_reference_missing", f"difficulty.target_tier is {target} but no tier reference was supplied; run "
-             "`corpus analyze` so critique can compare the map with real charts of that tier.",
-             value=None, threshold=None)
+    if reference is None:  # internal callers (repairs) never pass one; the critique commands report it missing
         return {"checked": False, "target_tier": target, "reason": "no tier reference"}
     tiers = [t for t in reference["tiers"] if t.get("windows") and all(reference_features(t)[k] is not None for k in FEATURES)]
     order = [t["id"] for t in reference["tiers"]]

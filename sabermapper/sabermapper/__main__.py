@@ -175,9 +175,13 @@ def main(argv=None):
                 emit(export_arrangement(arrangement, args.audio, args.cover, args.output))
         elif args.command == "critique":
             from .critique import critique_arrangement
-            emit(critique_arrangement(read_json(args.arrangement),
-                                      read_json(args.report) if args.report else None,
-                                      read_json(args.tier_reference) if args.tier_reference else None), args.output)
+            from .tier_fit import missing_reference_warning
+            arrangement = read_json(args.arrangement)
+            result = critique_arrangement(arrangement, read_json(args.report) if args.report else None,
+                                          read_json(args.tier_reference) if args.tier_reference else None)
+            missing = None if args.tier_reference else missing_reference_warning(arrangement)
+            result["warnings"] += [missing] if missing else []
+            emit(result, args.output)
         elif args.command == "analyze":
             from .audio import analyze_audio
             emit(analyze_audio(args.audio, bpm=args.bpm, offset_seconds=args.offset), args.output)
@@ -234,6 +238,9 @@ def main(argv=None):
                 reference_path = store.root / "corpus" / "tier-reference.json"
                 result = critique_arrangement(record["arrangement"], report,
                                               read_json(reference_path) if reference_path.exists() else None)
+                from .tier_fit import missing_reference_warning
+                missing = None if reference_path.exists() else missing_reference_warning(record["arrangement"])
+                result["warnings"] += [missing] if missing else []
                 if report is None:
                     result["warnings"].insert(0, {
                         "severity": "warning", "code": "audio_evidence_missing", "section_id": None,

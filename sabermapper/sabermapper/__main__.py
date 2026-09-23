@@ -80,7 +80,7 @@ def main(argv=None):
     sub.add_argument("--difficulty", choices=DIFFICULTIES, help="Difficulty the feedback is about; default: primary")
     sub = commands.add_parser("project", help="Read, revise, restore and export persistent projects")
     project_commands = sub.add_subparsers(dest="project_action", required=True)
-    for name in ("list", "get", "save", "check", "export", "restore", "review", "critique",
+    for name in ("list", "get", "outline", "save", "check", "export", "restore", "review", "critique",
                  "set-album", "add-difficulty", "remove-difficulty",
                  "lights", "lights-inspect"):
         leaf = project_commands.add_parser(name, help={
@@ -89,6 +89,8 @@ def main(argv=None):
             "lights-inspect": "Show the lighting timeline of a beat range: events per moment with the sounds under "
                               "them, section moods and cues",
             "set-album": "Set the album that groups this project in the studio's artist/album tree",
+            "outline": "The map explained for the player: the style's summary paragraph and each section's "
+                       "one-sentence summary with its start and end in song seconds (evidence kept apart)",
             "check": "One read-only report of everything the map breaks or misses: placement, validation, movement, "
                      "audio grounding and critique findings, each with blocking, beats, object IDs and suggested "
                      "edits. `project save` refuses exactly the findings marked blocking. --arrangement checks a "
@@ -100,7 +102,7 @@ def main(argv=None):
         leaf.add_argument("--workspace", type=Path, default=Path("workspace"))
         if name != "list":
             leaf.add_argument("project")
-        if name in ("get", "save", "check", "restore", "review", "critique", "lights", "lights-inspect"):
+        if name in ("get", "outline", "save", "check", "restore", "review", "critique", "lights", "lights-inspect"):
             leaf.add_argument("--difficulty", choices=DIFFICULTIES,
                               help="Which difficulty to act on; default: the primary one (arrangement.json)")
         if name == "add-difficulty":
@@ -241,6 +243,8 @@ def main(argv=None):
                 emit(store.list())
             elif args.project_action == "get":
                 emit(store.get(args.project, args.difficulty))
+            elif args.project_action == "outline":
+                emit(store.outline(args.project, args.difficulty))
             elif args.project_action == "set-album":
                 emit(store.set_album(args.project, args.album))
             elif args.project_action == "save":

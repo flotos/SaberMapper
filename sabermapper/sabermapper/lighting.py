@@ -189,8 +189,11 @@ def compile_lightshow(arrangement: dict) -> tuple[list[tuple], list[tuple]]:
         events = [e for e in events if not (start <= e[0] < end and e[1] in types)]
         if "boost" in targets:
             boosts = [b for b in boosts if not start <= b[0] < end]
+    # A cue replaces whatever the generated layer does to the same group at the same beat.
+    added = [event for cue in cues for event in _cue_events(cue)]
+    replaced = {(round(e[0], 4), e[1]) for e in added}
+    events = [e for e in events if (round(e[0], 4), e[1]) not in replaced] + added
     for cue in cues:
-        events.extend(_cue_events(cue))
         if cue.get("action") == "boost":
             boosts.append((_beat(cue["beat"]), bool(cue["on"])))
     order = {LEFT_SPEED: -2, RIGHT_SPEED: -1}
@@ -495,10 +498,13 @@ class _Evidence:
         return sum(self.active[lo:hi]) / (hi - lo), sum(self.energy[lo:hi]) / (hi - lo)
 
     def nearest_onset(self, beat, reach, names=None):
-        """The strongest onset within ``reach`` beats of ``beat`` (any of ``names``), as a beat, else None."""
+        """The strongest onset within ``reach`` beats of ``beat`` (any of ``names``), as a beat, else None.
+
+        Onsets before beat 0 (inside the audio offset) are not on the map's timeline and never qualify.
+        """
         best = None
         for name in names or self.onsets:
-            for row in self.between(name, beat - reach, beat + reach + 1e-9):
+            for row in self.between(name, max(0.0, beat - reach), beat + reach + 1e-9):
                 key = (row[1], -abs(row[0] - beat))
                 if best is None or key > best[0]:
                     best = (key, row[0])
@@ -893,7 +899,14 @@ def generate_lightshow(arrangement: dict, report: dict, run_id: str | None = Non
     last = max((s["end_beat"] for s in spans), default=first)
     builder.take({"priority": 300, "lights": [(_snap(last), g, 0, 0.0) for g in LIGHT_TYPES]}, force=True)
     _limit_strobe(builder)
-    events = sorted({(round(e[0], 4), e[1], e[2], round(e[3], 2)) for e in builder.events},
+    # One event per group and beat: two values at the same instant leave the group's state to sort order,
+    # so the higher-priority one (a section entry over a bar pulse) wins.
+    chosen = {}
+    for beat, kind, value, brightness, priority in builder.events:
+        key = (round(beat, 4), kind)
+        if key not in chosen or priority > chosen[key][4]:
+            chosen[key] = (key[0], kind, value, round(brightness, 2), priority)
+    events = sorted((e[:4] for e in chosen.values()),
                     key=lambda e: (e[0], {LEFT_SPEED: -2, RIGHT_SPEED: -1}.get(e[1], e[1]), e[2]))
     boosts = [(round(b, 4), on) for b, on in builder.boosts]
     # Locked sections keep the lights they were approved with.

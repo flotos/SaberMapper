@@ -149,6 +149,9 @@ class ProjectStore:
             raise ValueError("Invalid project ID")
         path = contained(self.projects, project_id)
         if not (path / "project.json").is_file():
+            if not any(self.projects.glob("*/project.json")):
+                raise FileNotFoundError(f"Project was not found: workspace {self.root} has no projects. In a git "
+                                        "worktree, run `workspace clone` to copy the real workspace here first")
             raise FileNotFoundError("Project was not found")
         return path
 

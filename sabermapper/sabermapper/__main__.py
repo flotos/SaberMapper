@@ -164,8 +164,12 @@ def main(argv=None):
     register_concept(commands)
     from .style_cli import register_style, dispatch_style
     register_style(commands)
+    from .workspace_cli import register_workspace, dispatch_workspace
+    register_workspace(commands)
     args = parser.parse_args(argv)
     try:
+        if (code := dispatch_workspace(args, emit)) is not None:
+            return code
         if (code := dispatch_game(args, emit)) is not None:
             return code
         if (code := dispatch_verify(args, emit)) is not None:

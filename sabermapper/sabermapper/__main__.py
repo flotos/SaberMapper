@@ -150,8 +150,12 @@ def main(argv=None):
     register_musical(commands)
     from .research_cli import register_subcommands, dispatch
     register_subcommands(commands)
+    from .game.cli import register_game, dispatch_game
+    register_game(commands)
     args = parser.parse_args(argv)
     try:
+        if (code := dispatch_game(args, emit)) is not None:
+            return code
         if dispatch_musical(args, emit):
             return 0
         if dispatch(args):

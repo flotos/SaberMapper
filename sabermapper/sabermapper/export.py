@@ -300,22 +300,26 @@ def export_arrangements(arrangements: list[dict], audio: str | Path, cover: str 
         _write_zip(destination, entries)
         return report
     from .vivify_export import vivified_entries
-    entries, twin, sidecar = vivified_entries(info, by_rank, report, vivid, destination)
+    entries, twin, sidecar, credits = vivified_entries(info, by_rank, report, vivid, destination)
     common = [("song.ogg", audio_bytes), (cover_name, cover_bytes)]
     entries += common + [("SaberMapper-report.json", _json_bytes(report))]
     twin += common + [("SaberMapper-report.json", _json_bytes({**report, "variant": "vanilla twin: every customData, "
                                                                 "requirement and bundle removed for ArcViewer"}))]
     twin_path, sidecar_path = Path(report["vivify"]["vanilla_twin"]), Path(report["vivify"]["provenance_file"])
-    for path in (twin_path, sidecar_path):
-        if path.exists():
+    credits_path = Path(report["vivify"]["credits"]["file"]) if credits is not None else None
+    for path in (twin_path, sidecar_path, credits_path):
+        if path is not None and path.exists():
             raise ExportError(f"output already exists: {path}")
     _write_zip(destination, entries)
     try:
         _write_zip(twin_path, twin)
         sidecar_path.write_bytes(_json_bytes(sidecar))
+        if credits_path is not None:
+            credits_path.write_bytes(_json_bytes(credits))
     except Exception:
-        for path in (destination, twin_path, sidecar_path):
-            path.unlink(missing_ok=True)
+        for path in (destination, twin_path, sidecar_path, credits_path):
+            if path is not None:
+                path.unlink(missing_ok=True)
         raise
     return report
 

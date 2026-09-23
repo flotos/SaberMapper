@@ -342,6 +342,10 @@ class BuildDriverTests(ForgeTestCase):
         self.assertEqual([str(bundle)], result["bundle_paths"])
         self.assertTrue((assets / "build-report.json").is_file() and (assets / "build.log").is_file())
         self.assertTrue((assets / "builds" / result["build_id"] / "build-report.json").is_file())
+        credits = json.loads((assets / "credits.json").read_text(encoding="utf-8"))
+        self.assertEqual("sabermapper-credits/1", credits["format"])
+        self.assertEqual(credits["attribution_text"], result["credits"]["attribution_text"])
+        self.assertTrue((assets / "builds" / result["build_id"] / "credits.json").is_file())
         argv = json.loads((self.root / "argv.json").read_text())
         for flag in ("-batchmode", "-quit", "-nographics", "-projectPath"):
             self.assertIn(flag, argv)

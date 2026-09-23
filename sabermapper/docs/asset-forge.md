@@ -119,6 +119,7 @@ All output is JSON. Failures print `{"error": {"code", "message", "fix", ...}}` 
 | `assets fetch search [QUERY] [--kind model\|texture\|sky] [--source S] [--limit N]` | Free CC0 candidates from Poly Haven, ambientCG and Kenney with licence, triangles, size and preview URL |
 | `assets fetch info REF` | Caches one candidate and lists its mesh nodes, pack models (with local preview PNGs) or maps and resolutions |
 | `assets fetch get REF PROJECT [--model M] [--node N] [--height M] [--max-triangles N] [--kind K] [--maps color,normal] [--add]` | Converts it into `<project>/assets/` as tier-3 assets with provenance (see Fetched media) |
+| `assets credits PROJECT \| --spec FILE [--write]` | Sources, authors, licences and changes of every tier-3 asset, grouped per source work, with `attribution_text` for the map description |
 | `assets doctor [--target] [--unity] [--unity-version]` | Config, installed editors, targets, the resolved Unity or `unity_missing` |
 | `assets config [--unity PATH] [--unity-version V] [--unity-project DIR]` | Persist machine settings (`''` clears) |
 
@@ -321,6 +322,8 @@ Provenance (lint checks every key and that `output_sha256` matches the file actu
                "postprocess": [{"op": "normalise", "origin": "base", "height_m": 1.2},
                                {"op": "decimate", "method": "vertex_clustering", "triangles_before": 63127, "triangles_after": 4900}]}
 ```
+
+Credits: `assets build` writes `<project>/assets/credits.json` (format `sabermapper-credits/1`) from the tier-3 provenance records: per source work its title, source, page URL, authors, licence and licence URL, download URLs, retrieval time, and every asset made from it with the changes applied (extraction, normalisation, reduction, resizing); generated media list their model and licence. Library and agent-written assets are SaberMapper's own and are not listed. `project export` puts `credits.json` in the map ZIP, writes `<zip>.credits.json` beside it and reports `attribution_text`. BeatSaver removes ZIP files that Info.dat does not reference, so the text goes into the map description when publishing.
 
 Model-file lint rules: `mesh_file_missing`, `mesh_file_format` (OBJ only; convert with `assets fetch get`),
 `mesh_file_empty`, `mesh_file_inline` (declare the model as a mesh asset), `mesh_budget_exceeded`,

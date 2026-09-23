@@ -39,6 +39,7 @@ Everything the loop needs is a command or a file in this skill. Each command pri
 | Show choreography | `show validate`, `show save`, `show compile` (`docs/vivify-show.md`) | step 4 |
 | Export and see it in the game | `project export`, `game capture`, `frames sheet`, `frames summary` | step 5 |
 | Handover gate | `project verify --record` | step 6 |
+| Credits for fetched or generated media | `assets credits ID` (also written by `assets build` and shipped by `project export`) | step 6 |
 | User notes | `project feedback list` | step 7 |
 
 ### 1. Listen
@@ -107,6 +108,8 @@ Rules that hold for every shader:
 ### 6. Verify, then hand over
 
 `project verify ID [--difficulty D] --record` runs structure, audio, show, capture, frame metrics (photosensitivity flash rate, note-corridor contrast, palette drift, boundary changes) and game-log checks on the current revision. Exit code 0 and `ready_for_human: true` are required before a handover. Fix everything in `blocking` (its `next` list says what), re-capture, and verify again. A flash-rate error is a hard stop: slow the effect below 3 flashes per second or shrink its area.
+
+Every export of a map with fetched or generated media carries its credits: `credits.json` inside the ZIP, `map-….zip.credits.json` beside it, and `attribution_text` in the export result (`assets credits ID` prints them any time). BeatSaver deletes files that Info.dat does not reference, so when the map is published the credits must go in the map description: give the user the `attribution_text` at handover, ready to paste.
 
 When ready, tell the user the project, the revision, the checks that ran (`ran`) and what was skipped (`skipped`), the selected concept in two sentences, and that they can verify it from the studio: pick the revision, press Play in game (or Play at playhead), scrub with the slider, and press Note at any moment to leave feedback.
 

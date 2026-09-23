@@ -789,4 +789,7 @@ class ProjectStore:
                 result["vanilla_twin"] = Path(report["vivify"]["vanilla_twin"]).name
                 result["vanilla_twin_url"] = f"/api/projects/{project_id}/files/exports/{result['vanilla_twin']}"
                 result["provenance_file"] = Path(report["vivify"]["provenance_file"]).name
+                if report["vivify"].get("credits"):
+                    result["credits_file"] = Path(report["vivify"]["credits"]["file"]).name
+                    result["attribution_text"] = report["vivify"]["credits"]["attribution_text"]
             return result

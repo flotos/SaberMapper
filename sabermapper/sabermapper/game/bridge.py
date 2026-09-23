@@ -107,8 +107,8 @@ class BridgeClient:
     def capture(self, *, out_dir: str | Path, frames: list[dict] | None = None, probe: dict | None = None,
                 camera: str = "player", width: int | None = None, height: int | None = None,
                 hide_notes: bool = False) -> dict:
-        """Start a capture job. `hide_notes` hides notes, bombs, chains and arcs on every frame; a probe's own
-        `hide_notes` hides them on probe frames only (the bridge renders regular frames with notes separately)."""
+        """Start a capture job. `hide_notes` hides notes, bombs, chains and arcs for the whole job; a probe's own
+        `hide_notes` hides them continuously from its first frame to its end (regular frames in that window too)."""
         body = {"out_dir": str(out_dir), "camera": camera, "frames": frames or [], "probe": probe,
                 "width": width, "height": height, "hide_notes": hide_notes or None}
         return self.request("POST", "/capture", {k: v for k, v in body.items() if v is not None})

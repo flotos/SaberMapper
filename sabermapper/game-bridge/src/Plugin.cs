@@ -11,7 +11,7 @@ namespace SaberMapperBridge
     [Plugin(RuntimeOptions.SingleStartInit)]
     public class Plugin
     {
-        public const string Version = "0.2.0";
+        public const string Version = "0.3.0";
         internal static IPALogger Log;
         internal static BridgeConfig Config;
         internal static BridgeServer Server;

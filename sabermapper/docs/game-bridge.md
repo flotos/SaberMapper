@@ -80,15 +80,15 @@ The Python client turns a 403 after a human takeover into `game_preempted` via `
 | `POST /restart` | `{start_time?}` | restart the current level, optionally at a new time |
 | `POST /seek` | `{time}` | = restart at `time` (see *Seek strategy*) |
 | `POST /menu` | - | `StandardLevelReturnToMenuController.ReturnToMenu()`; cancels a pending load |
-| `POST /capture` | `{frames:[{time, name, reason?}], probe?:{start, end, fps, hide_notes=false}, out_dir, camera="player"\|"wide", width?, height?, hide_notes=false}` | starts a job; `capture_busy` if one runs. `hide_notes` hides notes on every frame, `probe.hide_notes` on probe frames only (see *Hidden notes*) |
+| `POST /capture` | `{frames:[{time, name, reason?}], probe?:{start, end, fps, hide_notes=false}, out_dir, camera="player"\|"wide", width?, height?, hide_notes=false}` | starts a job; `capture_busy` if one runs. `hide_notes` hides notes for the whole job, `probe.hide_notes` from the first probe frame to the end of the probe (see *Hidden notes*) |
 | `GET /capture` | - | job status with every frame `{name, file, requested_time, song_time, frame, reason, written, notes_hidden, hidden_renderers, error?}` |
 | `POST /capture/cancel` | - | cancels the running job |
 
 `/state` snapshot (updated every frame; `version` increments on discrete changes):
 `{scene: "menu"|"loading"|"game"|"results", level: {level_id, level_path, characteristic, difficulty,
 song_name, practice_start_time}|null, song_time, song_length, paused, speed, fps, capture: {job_id, status,
-requested, captured, written, pending, dropped, error, hide_notes, notes_hidden_frames, probe: {start, end, fps,
-finished, hide_notes}}|null, autoplay: false, songs_loading,
+requested, captured, written, pending, dropped, error, hide_notes, notes_hidden_frames, notes_hidden_now,
+probe: {start, end, fps, finished, hide_notes}}|null, autoplay: false, songs_loading,
 songs_ready, pending_load, last_load, last_end_state, last_error, realtime, version}`.
 `results` means the level the bridge started ended cleared/failed; the game shows no results screen
 because the bridge, not the level-selection flow, owns the level.
@@ -153,16 +153,21 @@ effect, including Vivify `Blit` post-processing**. `AsyncGPUReadback` returns th
 - A `main` mode (render `Camera.main` into a texture) was tried and removed: it bypasses the game's
   bloom/tonemapping and produced washed-out light-blue frames.
 - Probe mode `{start, end, fps}` captures `probe-NNNNN.png` at a fixed rate for the flash check.
-- Hidden notes (bridge 0.2.0): nobody cuts notes during a capture (there is no autoplay), so uncut notes fly
+- Hidden notes (bridge 0.3.0): nobody cuts notes during a capture (there is no autoplay), so uncut notes fly
   through the FPFC camera and fill up to half the frame for a single frame each. A player cuts them about 1 m
-  ahead and never sees that. On a frame with `hide_notes`, the bridge sets `Renderer.forceRenderingOff` on every
-  renderer under the active `NoteController`s (notes, bombs, chains, including Vivify note prefabs parented under
-  them) and `SliderController`s (arcs) at the first camera cull of that frame, after every `LateUpdate`, and
-  turns exactly those renderers back on after the end-of-frame grab. Walls, sabers, the environment and Vivify
-  scene objects stay visible, and gameplay is unchanged. Requests due in a frame are taken in `LateUpdate`; a
-  regular frame that keeps notes and falls due together with a notes-hidden probe frame waits one render frame
-  (about 7 ms at 144 fps), so it never shares that render. Each frame reports `notes_hidden` (hiding actually ran
-  that frame) and `hidden_renderers`.
+  ahead and never sees that. Notes are hidden through **one continuous window**: the whole job with
+  `hide_notes`, or from the first probe frame to the end of the probe window with `probe.hide_notes`. On every
+  frame of the window, at the first camera cull (after every `LateUpdate`), the bridge sets
+  `Renderer.forceRenderingOff` on each renderer under the active `NoteController`s (notes, bombs, chains,
+  including Vivify note prefabs parented under them) and `SliderController`s (arcs) that is not already off, so
+  notes spawned during the window are hidden too. Nothing is turned back on inside the window. When the window
+  closes (the probe ends, the job finishes, fails or is cancelled, or the level stops or leaves) exactly the
+  renderers it turned off are turned back on, once, and the log says `capture notes visible again (N renderers)`.
+  The live game window therefore shows notes disappear for the probe and come back after it, never blinking.
+  (Bridge 0.2.0 hid and restored notes on every probe frame, which made them blink about 30 times per second on
+  the watched game window, a flashing hazard.) Walls, sabers, the environment and Vivify scene objects stay
+  visible, and gameplay is unchanged. Every frame grabbed inside the window, probe or regular, reports
+  `notes_hidden: true` and `hidden_renderers`; `/state.capture.notes_hidden_now` says whether the window is open.
 - Timing: captured `song_time` was within 7 ms after the requested time at 144 fps in every run.
 
 ## CLI
@@ -196,10 +201,12 @@ the lease in `finally` (unless `--keep-open`, which keeps both). Default frame s
 section start, every key moment from `listen.latest_listen` (when that module and a listen run exist),
 every 16 beats; duplicates within 0.1 s merge (priority requested > section_start > moment > grid). A 3 s,
 30 fps probe is added by default at the strongest moment (drops first), else at the densest 3 s of notes.
-Probe frames are rendered with notes hidden (`probe.hide_notes`, see *Hidden notes*): the flash check measures
-the scene the player sees, not uncut notes hitting the camera. `--probe-with-notes` keeps them. The report's
-`probe_notes_hidden` counts the probe frames rendered without notes, and a `probe_notes_visible` warning names a
-bridge that did not hide them (older than 0.2.0: rebuild and install it).
+The probe is rendered with notes hidden from its first frame to its end (`probe.hide_notes`, see *Hidden
+notes*): the flash check measures the scene the player sees, not uncut notes hitting the camera. Regular frames
+inside the probe window are rendered without notes too and carry `notes_hidden: true`; frames outside it keep
+their notes. `--probe-with-notes` keeps notes on the probe. The report's `probe_notes_hidden` counts the probe
+frames rendered without notes and lists `regular_frames_notes_hidden`, and a `probe_notes_visible` warning names
+a bridge that did not hide them (older than 0.2.0: rebuild and install it).
 Default output: `<project>/captures/<revision[:10]>-<UTC timestamp>/`.
 
 `capture.json` (schema 1, read by `frames.py`):

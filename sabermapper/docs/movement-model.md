@@ -1,4 +1,4 @@
-# Movement model 1.4 and implementation survey
+# Movement model 1.5 and implementation survey
 
 The shared `analyze_movement(notes, bpm, njs=..., spawn_offset_beats=...)` result contains versioned swings,
 aggregate proxies, review warnings, and an explicit unsupported-motion list.
@@ -14,7 +14,7 @@ crossover count, reaction-time estimate from NJS/spawn offset, and recovery
 time are descriptive proxies, not comfort, injury, ranked difficulty, or star
 ratings. Walls, bombs, arcs, chains and complex rotations are not inferred.
 
-Model 1.3 has two blocking flow rules, both defined once in `movement.flow_break`.
+Model 1.4 has two blocking flow rules, both defined once in `movement.flow_break`.
 They apply to consecutive same-hand swings without a reset (a reset is a gap of a
 full beat or more):
 
@@ -38,7 +38,30 @@ had a down-right cut followed by a right cut, 45 degrees apart. The player asked
 for a systematic fix, with half-beat 90-degree turns at 0.3 s or less blocked
 everywhere.
 
-Model 1.4 adds the review warning `one_hand_burst`: three or more consecutive
+Model 1.4 adds a blocking sight-line rule, `hidden_note`. It is defined once in
+`movement.hidden_note` and `movement.hidden_window`. Notes of either hand are
+checked in time order. A note arriving in the same cell as the note just in front
+of it is hidden until that note is cut, and its arrow reads late. It must trail
+that note by 0.35 s (`SIGHTLINE_HIDDEN_SECONDS`) in the four centre cells of the
+middle and top rows (x 1-2, y 1-2), which sit on the player's line of sight. Elsewhere
+it must trail by 0.2 s (`HIDDEN_SECONDS`). The window is in seconds rather than
+beats, because the time the back note is visible before its hit does not depend on
+NJS: a faster jump spreads the two notes further apart but brings them in faster.
+The rule followed a player report at End of You 0:24: three blue notes in cell
+(2,1) at 190 BPM, 0.158 s apart, cut right-left-right, where the front note hid the
+ones behind it. Like the flow rules, a finding is an error unless every note
+involved is in a locked section.
+
+`sabermapper.visibility_repair.repair_hidden_notes` and `project
+repair-visibility` move one note of each pair to a free cell at most two cells
+away. Timing and cut direction are unchanged. The chosen cell must leave both notes
+visible, keep the hands uncrossed and stay under the reach proxy. Among those, the
+repair prefers the fewest hidden pairs left, the shortest move, the hand's own side,
+cells off the line of sight, and the cell where the previous cut left the saber. It
+removes the note on the weaker metric position only when no cell works. Arc anchors
+move with their note. Audio repair skips hidden cells when it adds notes.
+
+Model 1.5 adds the review warning `one_hand_burst`: three or more consecutive
 same-hand swings (`BURST_SWINGS`), each less than 0.2 s (`BURST_SECONDS`) after
 the previous one, while the other hand has no swing between the first and the
 last. One hand then streams a figure that alternating hands would carry. It
@@ -56,6 +79,16 @@ the fewest breaks nearby, preferring the smallest turn from the authored
 direction. Arc heads and tails are re-angled together with their note. A pattern
 instance involved in a break is inlined as literal notes first; the compiled
 output stays the same. Chain anchors and locked sections are never changed.
+
+An arc or chain occupies its saber from head to tail. The validator blocks a
+same-color note strictly inside it (`arc_note_conflict`, `chain_note_conflict`;
+a warning when locked). This followed a 2026-09-23 player report at End of You
+0:42. Because a blocking error suppresses the movement model,
+`repair_held_conflicts` runs first in `repair-swings`. It moves the note to the
+other hand if that hand is free, as audio repair's flow-safe insert does.
+Otherwise it ends the arc on the note when at least one beat of hold remains,
+or drops the arc and keeps its notes. A note inside a chain is removed. A
+strategy is applied only if it adds no blocking finding or `reach_proxy` warning.
 
 The following primary repositories were inspected on 2026-09-22:
 

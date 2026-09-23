@@ -43,7 +43,7 @@ def report(layers, length=32):
 
 
 # The left hand opens and closes the phrase; the right hand streams three eighths in between.
-SPEECH = [note("l1", 4, 0, 1), note("r1", "15/2", 1, 0), note("r2", 8, 1, 1), note("r3", "17/2", 1, 0),
+SPEECH = [note("l1", 4, 0, 1), note("r1", "15/2", 1, 0, y=0), note("r2", 8, 1, 1), note("r3", "17/2", 1, 0, x=3),
           note("l2", 12, 0, 0), note("r4", 14, 1, 1)]
 
 
@@ -63,8 +63,8 @@ class MovementTests(unittest.TestCase):
         self.assertNotIn("one_hand_burst", codes(arrangement(notes)))
 
     def test_eighths_at_a_moderate_tempo_are_not_a_burst(self):
-        notes = [{"id": n, "beat": b, "x": 2, "y": 1, "color": 1, "direction": d}
-                 for n, b, d in (("a", 0, 1), ("b", 0.5, 0), ("c", 1, 1))]
+        notes = [{"id": n, "beat": b, "x": x, "y": y, "color": 1, "direction": d}
+                 for n, b, x, y, d in (("a", 0, 2, 1, 1), ("b", 0.5, 2, 0, 0), ("c", 1, 3, 1, 1))]
         self.assertEqual(analyze_movement(notes, bpm=120)["warnings"], [], "0.25 s apart")
         self.assertEqual([w["code"] for w in analyze_movement(notes, bpm=190)["warnings"]], ["one_hand_burst"])
 
@@ -93,10 +93,10 @@ class SplitBurstTests(unittest.TestCase):
         self.assertNotIn("one_hand_burst", codes(result["arrangement"]))
 
     def test_an_end_note_goes_when_dropping_the_middle_would_break_flow(self):
-        # A soft sixteenth down-up-down on the voice: without the up-cut the two down-cuts come 0.16 s apart.
-        notes = [note("l1", 4, 0, 1), note("r1", "31/4", 1, 1), note("r2", 8, 1, 0), note("r3", "33/4", 1, 1),
+        # A soft triplet down-up-down on the voice: without the up-cut the two down-cuts come 0.21 s apart.
+        notes = [note("l1", 4, 0, 1), note("r1", "23/3", 1, 1), note("r2", 8, 1, 0, y=0), note("r3", "25/3", 1, 1),
                  note("l2", 12, 0, 0)]
-        evidence = report({"vocals": [(7.75, 0.8), (8, 0.8), (8.25, 0.8)]})
+        evidence = report({"vocals": [(23 / 3, 0.8), (8, 0.8), (25 / 3, 0.8)]})
         evidence["passages"] = [{"start_seconds": 0.0, "end_seconds": seconds(32), "support_score": 0.2,
                                  "energy_ratio": 0.4}]
         result = split_bursts(arrangement(notes), evidence)
@@ -114,7 +114,7 @@ class SplitBurstTests(unittest.TestCase):
 
 class InsertNoteTests(unittest.TestCase):
     def test_a_fill_never_creates_a_burst(self):
-        source = arrangement([note("r1", "15/2", 1, 0), note("r2", 8, 1, 1)])
+        source = arrangement([note("r1", "15/2", 1, 0, y=0), note("r2", 8, 1, 1)])
         change = insert_note(source, Fraction(17, 2), "new")
         self.assertTrue(change is None or change["color"] == 0, change)
         self.assertNotIn("one_hand_burst", codes(source))

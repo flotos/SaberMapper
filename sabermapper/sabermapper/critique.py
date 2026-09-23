@@ -15,6 +15,7 @@ from statistics import median
 
 from .arrangement import expanded_notes
 from .audio_grounding import DEFINITIONS as AUDIO_DEFINITIONS, audio_findings
+from .movement import analyze_movement
 
 MODEL_VERSION = "1.0"
 WINDOW_SECONDS = 4.0
@@ -73,11 +74,18 @@ MELODY_LAYER = "mix"
 MELODY_ONSET_STRENGTH = 0.3
 MELODY_MIN_CHANGES = 3
 MELODY_MAPPED_THRESHOLD = 0.5
-# Legato pads and voices reach a new pitch gradually, often just after the beat, and quiet passages are
-# quantized to half beats: a note within a quarter beat marks the change.
-MELODY_MATCH_BEATS = 0.25
 FOCUS_CODES = ("vocal_line_unmapped", "drum_rhythm_unmapped", "lead_rhythm_unmapped",
-               "lead_rhythm_diluted", "melody_unmapped", "focus_on_quiet_stem")
+               "lead_rhythm_diluted", "melody_unmapped", "focus_on_quiet_stem", "difficulty_exceeds_intensity",
+               "intensity_underplayed")
+INTENSITY_BAR_BEATS = 4
+INTENSITY_LOUD_PERCENTILE = 75
+LOUD_RATIO = 0.9
+SOFT_RATIO = 0.8
+INTENSITY_MIN_LOUD_BARS = 4
+INTENSITY_MIN_SWINGS = 4
+DEMAND_TRAVEL_BEATS = 1.0
+SOFT_PEAK_PERCENTILE = 90
+UNDERPLAYED_MIN_BARS = 2
 
 DEFINITIONS = {
     "rolling_nps": "Notes per second inside 4-second windows hopped every 1 second from the first note to the last.",
@@ -110,7 +118,7 @@ DEFINITIONS = {
                    "than 6 strong drum hits: the drums do not carry it, so the pitched line is what the player hears.",
     "melody_unmapped": "One or more consecutive melodic bars with at least 3 mix melody_change events (the predominant "
                        "pitch settling on a new held note) of strength 0.3 or more, strongest per half-beat slot, "
-                       "fewer than 50% of which have a note within 0.25 beat: the notes ignore the pitch changes of "
+                       "fewer than 50% of which have a note within 0.13 beat: the notes ignore the pitch changes of "
                        "a pad, choir or legato line.",
     "grid_alignment": "For each 32-beat window, the median signed offset in milliseconds of strong drums (else percussive, low or mix) spectral_flux onsets of strength 0.3 or more from the nearest quarter beat, counting only onsets within 0.1 beat of it; windows need at least 8 such onsets.",
     "grid_drift": "Some grid_alignment window's median offset differs from the song-wide median by more than 30 ms: the tempo or offset drifts there, so notes placed on the grid miss the audio.",
@@ -121,6 +129,18 @@ DEFINITIONS = {
                              "with support 0.9 or more, counting only notes that are not on a vocal, drum or melody onset the salience "
                              "checks count: the map plays a thin, quiet passage as hard as the full band.",
     "focus_on_quiet_stem": "A musical_focus phrase gives weight 0.3 or more to a separated stem whose median energy_contour level inside the phrase is at least 20 dB below that stem's own 90th-percentile level over the song: the stem is essentially absent there, so its events are separator bleed (for example vocals in an instrumental intro) or the instrument was routed to another stem (for example a soft solo piano in other while the piano stem is silent). The message names the most active stem, measured the same way.",
+    "swing_demand": "Per 4-beat bar, the sum over its swings (movement-model swings; a same-hand chord is one) of 1 "
+                    "plus the grid distance from the same hand's previous swing when that swing is at most 1 beat "
+                    "earlier, divided by the bar's seconds: how often and how far the hands must move.",
+    "relative_loudness": "A bar's mix energy_ratio (evidence passages, overlap-weighted) divided by the 75th "
+                         "percentile over the mapped bars: 1.0 is the level of the song's loud, heavy passages.",
+    "difficulty_exceeds_intensity": "One or more consecutive bars with relative_loudness below 0.8 and at least 4 "
+                                    "swings whose swing_demand exceeds the median demand of the loud bars "
+                                    "(relative_loudness 0.9 or more, at least 4 mapped) times (0.5 + 0.5 x "
+                                    "relative_loudness): softer audio plays as hard as the heavy passages.",
+    "intensity_underplayed": "Two or more consecutive loud bars (relative_loudness 0.9 or more) whose mean "
+                             "swing_demand is below the 90th percentile of the softer bars' demand (relative_loudness "
+                             "below 0.8, at least 2 mapped): the heavy passage plays easier than the quieter ones.",
     **AUDIO_DEFINITIONS,
 }
 
@@ -336,6 +356,141 @@ def _quiet_density(arrangement, spans, notes, times, report, warn):
             "flagged": [[_round(r[0]["start_seconds"], 3), _round(r[-1]["end_seconds"], 3)] for r in runs]}
 
 
+def _percentile(values, percent):
+    ordered = sorted(values)
+    return ordered[min(len(ordered) - 1, int((len(ordered) - 1) * percent / 100 + 0.5))]
+
+
+def intensity_bars(arrangement, report, notes=None):
+    """Per 4-beat bar: loudness relative to the song's heavy passages beside the swing demand mapped there.
+
+    Returns ``(context, bars)``. ``context`` is None when the evidence run has no passages, the notes do not
+    form a movement model, or fewer than INTENSITY_MIN_LOUD_BARS loud bars are mapped; the bars are then
+    unrated. Each rated bar carries ``allowed`` (soft bars only) and ``excess``.
+    """
+    passages = (report or {}).get("passages") or []
+    notes = expanded_notes(arrangement) if notes is None else notes
+    if not passages or not notes:
+        return None, []
+    bpm = float(arrangement["song"]["bpm"])
+    try:
+        swings = analyze_movement([{"id": n["id"], "beat": float(n["beat"]), "x": n["x"], "y": n["y"],
+                                    "color": n["color"], "direction": n["direction"],
+                                    "angle": n.get("angle", 0) or 0,
+                                    "seconds": beat_to_seconds(n["beat"], arrangement)} for n in notes], bpm)["swings"]
+    except ValueError:
+        return None, []
+    costs, previous = {}, {0: None, 1: None}
+    for swing in swings:
+        prior = previous[swing["hand"]]
+        travel = (math.hypot(swing["x"] - prior["x"], swing["y"] - prior["y"])
+                  if prior and swing["beat"] - prior["beat"] <= DEMAND_TRAVEL_BEATS else 0.0)
+        costs.setdefault(int(swing["beat"] // INTENSITY_BAR_BEATS), []).append((1 + travel, swing["note_ids"]))
+        previous[swing["hand"]] = swing
+    bars = []
+    for index in range(min(costs), max(costs) + 1):
+        start = index * INTENSITY_BAR_BEATS
+        first, last = beat_to_seconds(start, arrangement), beat_to_seconds(start + INTENSITY_BAR_BEATS, arrangement)
+        weighted = [(min(last, p["end_seconds"]) - max(first, p["start_seconds"]), p["energy_ratio"])
+                    for p in passages if p["end_seconds"] > first and p["start_seconds"] < last]
+        weight = sum(w for w, _ in weighted)
+        if weight <= 0 or last <= first:
+            continue
+        inside = costs.get(index, [])
+        bars.append({"start_beat": start, "energy_ratio": sum(w * e for w, e in weighted) / weight,
+                     "swings": len(inside), "demand": sum(c for c, _ in inside) / (last - first),
+                     "note_ids": [i for _, ids in inside for i in ids]})
+    loud_level = _percentile([b["energy_ratio"] for b in bars], INTENSITY_LOUD_PERCENTILE) if bars else 0.0
+    if loud_level <= 1e-9:
+        return None, bars
+    for bar in bars:
+        bar["relative"] = bar["energy_ratio"] / loud_level
+    loud = [b["demand"] for b in bars if b["relative"] >= LOUD_RATIO and b["swings"]]
+    if len(loud) < INTENSITY_MIN_LOUD_BARS:
+        return None, bars
+    reference = median(loud)
+    for bar in bars:
+        soft = bar["relative"] < SOFT_RATIO
+        bar["allowed"] = reference * (0.5 + 0.5 * bar["relative"]) if soft else None
+        bar["excess"] = bool(soft and bar["swings"] >= INTENSITY_MIN_SWINGS and bar["demand"] > bar["allowed"] + 1e-9)
+    # What the soft passages actually reach: a heavy run below it plays easier than the intro or verse before it.
+    soft = [b["demand"] for b in bars if b["allowed"] is not None and b["swings"]]
+    peak = _percentile(soft, SOFT_PEAK_PERCENTILE) if len(soft) >= 2 else None
+    return {"loud_level": loud_level, "reference_demand": reference, "soft_peak_demand": peak}, bars
+
+
+def underplayed_runs(bars, context):
+    """Runs of consecutive loud bars; a run is flagged where two adjacent loud bars average below the soft peak."""
+    peak = (context or {}).get("soft_peak_demand")
+    if peak is None:
+        return []
+    flagged = set()
+    for left, right in zip(bars, bars[1:]):
+        if (left["relative"] >= LOUD_RATIO and right["relative"] >= LOUD_RATIO
+                and right["start_beat"] - left["start_beat"] == INTENSITY_BAR_BEATS
+                and (left["demand"] + right["demand"]) / 2 < peak - 1e-9):
+            flagged.update((left["start_beat"], right["start_beat"]))
+    runs = []
+    for bar in bars:
+        if bar["start_beat"] not in flagged:
+            continue
+        if runs and runs[-1][-1]["start_beat"] + INTENSITY_BAR_BEATS == bar["start_beat"]:
+            runs[-1].append(bar)
+        else:
+            runs.append([bar])
+    return [run for run in runs if len(run) >= UNDERPLAYED_MIN_BARS]
+
+
+def _intensity(arrangement, spans, notes, report, warn):
+    """Flag soft bars mapped as hard as the heavy passages, and heavy runs easier than the soft peaks."""
+    context, bars = intensity_bars(arrangement, report, notes)
+    if context is None:
+        return {"checked": False}
+
+    def section_of(beat):
+        return next((s["id"] for s in spans if s["start_beat"] <= beat < s["end_beat"]), None)
+
+    reference = context["reference_demand"]
+    runs = []
+    for bar in bars:
+        if not bar["excess"]:
+            continue
+        if runs and runs[-1][-1]["start_beat"] + INTENSITY_BAR_BEATS == bar["start_beat"]:
+            runs[-1].append(bar)
+        else:
+            runs.append([bar])
+    for run in runs:
+        first, last = run[0]["start_beat"], run[-1]["start_beat"] + INTENSITY_BAR_BEATS
+        worst = max(run, key=lambda b: b["demand"] / b["allowed"])
+        warn("difficulty_exceeds_intensity",
+             f'Beats {first:g}-{last:g}: the audio plays at {worst["relative"]:.2f}x the loudness of the heavy '
+             f'passages, but the map asks a swing demand of {worst["demand"]:.2f}, above the {worst["allowed"]:.2f} '
+             f'this loudness allows against the {reference:.2f} median of the loud bars. Softer audio must play '
+             "easier than heavier audio: keep the strongest onsets, shorten hand travel, and drop fast "
+             "alternations; or raise the heavy passages if they are the ones underplayed.",
+             section_id=section_of(first), value=_round(worst["demand"] / worst["allowed"], 4), threshold=1.0,
+             object_ids=[i for b in run for i in b["note_ids"]], beats=[first, last])
+    peak = context["soft_peak_demand"]
+    loud_runs = underplayed_runs(bars, context)
+    for run in loud_runs:
+        first, last = run[0]["start_beat"], run[-1]["start_beat"] + INTENSITY_BAR_BEATS
+        mean = sum(b["demand"] for b in run) / len(run)
+        warn("intensity_underplayed",
+             f'Beats {first:g}-{last:g}: the heavy passage ({min(b["relative"] for b in run):.2f}x-'
+             f'{max(b["relative"] for b in run):.2f}x the loud level) averages a swing demand of {mean:.2f}, '
+             f'below the {peak:.2f} the softer passages reach. Heavier, louder audio must play harder: map more of '
+             "the loud layer's attacks (declare the riff as the musical_focus lead when it carries the rhythm), "
+             "with wider movement and bursts where it rolls.",
+             section_id=section_of(first), value=_round(mean, 4), threshold=_round(peak, 4),
+             object_ids=[i for b in run for i in b["note_ids"]], beats=[first, last])
+    return {"checked": True, "loud_level": _round(context["loud_level"], 4),
+            "reference_demand": _round(reference, 4),
+            "soft_peak_demand": None if peak is None else _round(peak, 4),
+            "bars": [{"start_beat": b["start_beat"], "relative": _round(b["relative"], 3),
+                      "swings": b["swings"], "demand": _round(b["demand"], 3),
+                      "allowed": None if b["allowed"] is None else _round(b["allowed"], 3)} for b in bars]}
+
+
 def _repetition(notes, warn):
     placements = [(n["x"], n["y"], n["color"], n["direction"]) for n in notes]
     counts = Counter(placements)
@@ -504,8 +659,8 @@ def _melody(arrangement, spans, notes, report, salience, warn):
     beats = sorted(float(n["beat"]) for n in notes)
 
     def near(beat):
-        index = bisect_left(beats, beat - MELODY_MATCH_BEATS)
-        return index < len(beats) and beats[index] <= beat + MELODY_MATCH_BEATS
+        index = bisect_left(beats, beat - SALIENCE_MATCH_BEATS)
+        return index < len(beats) and beats[index] <= beat + SALIENCE_MATCH_BEATS
     bars = []
     for bar in salience["bars"]:
         if bar["salient"] not in (None, "drums") or bar["onsets"] >= DRUM_PATTERN_MIN_ONSETS:
@@ -727,7 +882,7 @@ def _focus_stems(arrangement, spans, report, warn):
 
 
 def focus_findings(arrangement: dict, report: dict | None) -> list[dict]:
-    """The focus and salience warnings, as project diagnostics (never blocking)."""
+    """The focus, salience and intensity warnings, as project diagnostics (never blocking)."""
     if not report:
         return []
     return [{**w, "model_version": MODEL_VERSION} for w in critique_arrangement(arrangement, report)["warnings"]
@@ -804,6 +959,7 @@ def critique_arrangement(arrangement: dict, report: dict | None = None) -> dict:
     metrics["melody"] = _melody(arrangement, spans, notes, report, metrics["salience"], warn)
     metrics["grid_alignment"] = _grid(arrangement, report, warn)
     metrics["focus_stems"] = _focus_stems(arrangement, spans, report, warn)
+    metrics["intensity"] = _intensity(arrangement, spans, notes, report, warn)
     # Audio grounding: blocking spans are save errors elsewhere; here every finding stays a warning.
     metrics["audio"], findings = audio_findings(arrangement, report)
     for finding in findings:

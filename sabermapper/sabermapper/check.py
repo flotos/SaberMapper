@@ -245,11 +245,36 @@ def apply_suggestion(arrangement: dict, suggestion: dict) -> dict:
     """Apply one suggestion to a copy of ``arrangement``; a set or moved field becomes the agent's pin.
 
     ``add`` inserts rhythm-only notes (the placer places them), ``remove`` takes ``object_id`` or
-    ``object_ids``, ``set_weights`` rewrites a focus phrase's lead and weights.
+    ``object_ids``, ``set_weights`` rewrites a focus phrase's lead and weights, ``stack`` marks the note
+    ``object_id`` (or new notes at ``beat``) as a stack of ``size`` notes and removes the notes in ``remove``.
     """
     import copy
     from fractions import Fraction
     result = copy.deepcopy(arrangement)
+    if suggestion["op"] == "stack":
+        for oid in suggestion.get("remove", ()):
+            result = apply_suggestion(result, {"op": "remove", "object_id": oid})
+        if "object_id" in suggestion:
+            sid, kind, nid = suggestion["object_id"].split("/", 2)
+            if kind != "note":
+                raise ValueError(f"{suggestion['object_id']} is not a literal note")
+            section = next(s for s in result["sections"] if s["id"] == sid)
+            note = next(n for n in section["notes"] if n["id"] == nid)
+            note["stack"], relative, count = True, note["beat"], suggestion["size"] - 1
+        else:
+            beat = Fraction(str(suggestion["beat"]))
+            section = next(s for s in result["sections"] if Fraction(str(s["start_beat"])) <= beat
+                           < Fraction(str(s["start_beat"])) + Fraction(str(s["length_beats"])))
+            offset = beat - Fraction(str(section["start_beat"]))
+            relative, count = int(offset) if offset.denominator == 1 else str(offset), suggestion["size"]
+        taken = {n["id"] for n in section["notes"]}
+        for index in range(count):
+            note_id = f"k-{str(relative).replace('/', '_')}-{index}"
+            while note_id in taken:
+                note_id += "x"
+            taken.add(note_id)
+            section["notes"].append({"id": note_id, "beat": relative, "stack": True})
+        return result
     if suggestion["op"] == "add":
         for item in suggestion["notes"]:
             beat = Fraction(str(item["beat"]))

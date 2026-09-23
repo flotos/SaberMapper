@@ -11,6 +11,10 @@ blocking movement rules hold by construction:
 * ``hidden_note`` (a note arriving too soon behind another in its cell), reach (``movement.REACH_SPEED``)
   and hand crossing.
 
+Notes marked ``"stack": true`` at one beat form a stack: one hand cuts all of them in one direction, and
+their cells run in an unbroken line along that cut (``movement.stack_line``), so the stack reads as one longer
+note. A diagonal cut is preferred when the flow allows it.
+
 A saved note lists the fields the placer chose in ``placed``. On the next placement those values are kept
 while they stay valid and re-chosen only when a rhythm edit makes them break a rule, so an edit in one bar
 leaves the rest of the map alone. Deleting a field asks for a fresh choice; removing it from ``placed``
@@ -57,6 +61,8 @@ RULE_FIELDS = {"fast_direction_break": ("direction", "color"), "flow_parity_brea
                "one_hand_burst": ("color",), "arc_note_conflict": ("color",), "chain_note_conflict": ("color",),
                "hidden_note": ("x", "y"), "reach_proxy": ("x", "y")}
 MAX_ALTERNATIVE_ERRORS = 5
+STACK_OPTIONS = 36  # cell and cut choices kept per stack note, so a full line along the cut stays reachable
+STACK_DIAGONAL_PREFERENCE = 0.3  # stacks lie on a diagonal cut when the flow allows one
 
 
 class PlacementError(ValueError):
@@ -70,11 +76,11 @@ class PlacementError(ValueError):
 
 class _Slot:
     __slots__ = ("index", "oid", "beat", "seconds", "fixed", "soft", "pinned", "note", "locked", "value",
-                 "anchored", "motif", "anchor", "held_cut")
+                 "anchored", "motif", "anchor", "held_cut", "stack")
 
-    def __init__(self, oid, beat, fixed, soft, pinned, note, locked, motif=None):
+    def __init__(self, oid, beat, fixed, soft, pinned, note, locked, motif=None, stack=False):
         self.oid, self.beat, self.fixed, self.soft, self.pinned = oid, beat, fixed, soft, pinned
-        self.note, self.locked, self.motif = note, locked, motif
+        self.note, self.locked, self.motif, self.stack = note, locked, motif, stack
         self.value, self.anchored, self.index, self.seconds, self.anchor = {}, set(), 0, 0.0, None
         self.held_cut = None  # a cut pass 1 settled that pass 2 keeps (a double's parity)
 
@@ -160,7 +166,7 @@ def _collect(arrangement, unpin):
                 return None
             fixed, soft, pinned = _pins(note, locked, unpin)
             slots.append(_Slot(f'{section["id"]}/note/{note["id"]}', start + _beat(note["beat"]),
-                               fixed, soft, pinned, note, locked))
+                               fixed, soft, pinned, note, locked, stack=note.get("stack") is True))
         for pattern in section["patterns"]:
             motif = arrangement["motifs"][pattern["motif"]]
             mirror = pattern.get("mirror") is True
@@ -173,7 +179,8 @@ def _collect(arrangement, unpin):
                 chosen = set(note.get("placed", ()))
                 slots.append(_Slot(f'{section["id"]}/pattern/{pattern["id"]}/{note["id"]}',
                                    start + _beat(pattern["start_beat"]) + _beat(note["beat"]),
-                                   values, {}, set(FIELDS) - chosen, None, locked, motif=pattern["motif"]))
+                                   values, {}, set(FIELDS) - chosen, None, locked, motif=pattern["motif"],
+                                   stack=note.get("stack") is True))
     slots.sort(key=lambda s: (s.beat, s.oid))
     for index, slot in enumerate(slots):
         slot.index, slot.seconds = index, seconds(slot.beat)
@@ -346,7 +353,10 @@ def _assignments(group, busy):
             if color in busy:
                 cost += BLOCK
                 violations += ((f"{busy[color][1][:-1]}_note_conflict", (slot.index,)),)
-        if len(group) > 1 and len(set(colors)) == 1 and any("color" not in s.fixed for s in group):
+        if len({c for slot, c in zip(group, colors) if slot.stack}) > 1:
+            cost += BLOCK  # a stack split across both hands (validation names pinned ones)
+        if (len(group) > 1 and len(set(colors)) == 1 and any("color" not in s.fixed for s in group)
+                and not all(s.stack for s in group)):
             cost += 2.0  # a same-hand chord where a double would do
         result.append((colors, cost, violations))
     return result
@@ -589,6 +599,8 @@ def _cell_options(slot, occupied, hands, front, fixed_cells, ahead_cell, ahead_s
                 cost = base + cut_cost
                 if direction in (2, 3) and y != 1:
                     cost += 0.4
+                if slot.stack and direction in (4, 5, 6, 7):
+                    cost -= STACK_DIAGONAL_PREFERENCE
                 if gap is not None and gap > 0 and state.direction is not None:
                     _, exit_point = _entry_exit(state.x, state.y, state.direction)
                     entry, _ = _entry_exit(x, y, direction)
@@ -603,7 +615,7 @@ def _cell_options(slot, occupied, hands, front, fixed_cells, ahead_cell, ahead_s
                 cost -= 0.12 if placement not in context["used"] else 0  # a placement the map has not used yet
                 cells.append((cost, x, y, direction, found))
     cells.sort(key=lambda c: (c[0], c[1], c[2], c[3]))
-    return cells[:8]
+    return cells[:STACK_OPTIONS if slot.stack else 8]
 
 
 def _combine(open_slots, options, group):
@@ -626,10 +638,17 @@ def _combine(open_slots, options, group):
             return crossed + (DOUBLE_PARITY_COST if _parity(ad, ca, 0) != _parity(bd, cb, 0) else 0.0)
         if ad != bd:
             return 50.0  # one saber cuts a chord in one direction
+        # A chord lies along its cut, its notes next to each other; a stack must (the third note of a stack of
+        # three fills the gap two cells apart).
+        off = 50.0 if a_slot.stack and b_slot.stack else 5.0
+        dx, dy = bx - ax, by - ay
         if ad == 8:
-            return 0.0 if max(abs(ax - bx), abs(ay - by)) == 1 else 5.0
+            return 0.0 if max(abs(dx), abs(dy)) == 1 else (1.0 if max(abs(dx), abs(dy)) == 2
+                                                         and dx % 2 == 0 and dy % 2 == 0 else off)
         vx, vy = _VECTORS[ad]
-        return 0.0 if (bx - ax, by - ay) in ((vx, vy), (-vx, -vy)) else 5.0  # a chord lies along its cut
+        if (dx, dy) in ((vx, vy), (-vx, -vy)):
+            return 0.0
+        return 1.0 if (dx, dy) in ((2 * vx, 2 * vy), (-2 * vx, -2 * vy)) else off
 
     def search(index, chosen, total):
         if best[0] is not None and total >= best[0]:

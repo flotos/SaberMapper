@@ -1,0 +1,175 @@
+"""Audio repair: notes move onto sounds, and unmapped salient sounds gain flow-safe notes."""
+import io
+import json
+import tempfile
+import unittest
+from contextlib import redirect_stdout
+from fractions import Fraction
+
+from sabermapper.audio_grounding import note_support
+from sabermapper.audio_repair import _grid_beat, ground_notes, insert_note, repair_audio
+from sabermapper.critique import critique_arrangement
+from sabermapper.validation import validate_arrangement
+
+
+def note(i, beat, color=None, direction=None):
+    color = i % 2 if color is None else color
+    # Each hand alternates down/up so the fixture itself has no flow break.
+    direction = (1 if (i // 2) % 2 == 0 else 0) if direction is None else direction
+    return {"id": f"n{i}", "beat": beat, "x": 1 + color, "y": 1, "color": color, "direction": direction}
+
+
+def arrangement(beats, *, length=64):
+    # 120 BPM, offset 0: beat b sits at b / 2 seconds.
+    return {"schema_version": "0.1",
+            "song": {"title": "Fixture", "artist": "Tests", "bpm": 120, "audio_offset_seconds": 0.0},
+            "difficulty": {"name": "ExpertPlus", "rank": 9, "njs": 16, "spawn_offset_beats": 0},
+            "motifs": {}, "sections": [{"id": "s", "start_beat": 0, "length_beats": length, "intent": "fixture",
+                                        "locked": False, "resolved": True, "patterns": [],
+                                        "notes": [note(i, b) for i, b in enumerate(beats)]}]}
+
+
+def report(drum_beats, *, vocals=(), sustains=(), seconds=32.0):
+    contour = [{"seconds": i / 10, "energy": 0.5} for i in range(int(seconds * 10))]
+    drums = [{"id": f"drums:{i}", "seconds": b / 2, "method": "spectral_flux", "strength": 0.8}
+             for i, b in enumerate(drum_beats)]
+    sung = [{"id": f"vocals:{i}", "seconds": b / 2, "method": "spectral_flux", "strength": 0.8}
+            for i, b in enumerate(vocals)]
+    return {"source": {"sha256": "fixture", "duration_seconds": seconds}, "created_at": "2026-09-22T00:00:00+00:00",
+            "backend": "fixture", "preset": "balanced",
+            "layers": {"mix": {"events": [], "energy_contour": contour}, "drums": {"events": drums},
+                       "vocals": {"events": sung, "sustains": [{"start_seconds": s / 2, "end_seconds": e / 2}
+                                                                for s, e in sustains]}}}
+
+
+def errors(arrangement):
+    return [d for d in validate_arrangement(arrangement) if d["severity"] == "error"]
+
+
+class GridTests(unittest.TestCase):
+    def test_snaps_to_the_coarsest_grid_on_the_sound(self):
+        self.assertEqual(_grid_beat(3.02), Fraction(3))
+        self.assertEqual(_grid_beat(3.49), Fraction(7, 2))
+        self.assertEqual(_grid_beat(3.335), Fraction(10, 3))
+        self.assertEqual(_grid_beat(3.26), Fraction(13, 4))
+
+
+class GroundNotesTests(unittest.TestCase):
+    def test_off_sound_notes_move_onto_the_nearest_onset(self):
+        # Drums on every beat; four notes were placed a quarter beat late.
+        beats = list(range(10)) + [10.25, 12.25, 14.25, 16.25] + list(range(18, 40))
+        source = arrangement(beats)
+        result = ground_notes(source, report(range(64)))
+        moved = {c["beat"]: c["to_beat"] for c in result["changes"] if c["action"] == "moved"}
+        self.assertEqual(moved, {10.25: 10.0, 12.25: 12.0, 14.25: 14.0, 16.25: 16.0})
+        self.assertEqual(note_support(result["arrangement"], report(range(64)))["share"], 1.0)
+        self.assertEqual(errors(result["arrangement"]), [])
+        self.assertEqual(source["sections"][0]["notes"][10]["beat"], 10.25, "input must not be mutated")
+
+    def test_a_note_with_no_sound_in_reach_is_removed(self):
+        drums = [b for b in range(64) if not 20 <= b <= 23]
+        beats = [b for b in range(40) if b not in (20, 22, 23)]  # beat 21 has no sound within half a beat
+        result = ground_notes(arrangement(beats), report(drums))
+        self.assertEqual([(c["beat"], c["action"]) for c in result["changes"]], [(21.0, "removed")])
+        self.assertEqual(errors(result["arrangement"]), [])
+
+    def test_a_triplet_feel_moves_eighths_onto_the_stronger_triplet(self):
+        # Onsets on each beat and its 2/3 point; a note on the off-beat eighth has no sound.
+        drums = sorted([b for b in range(64)] + [b + Fraction(2, 3) for b in range(64)])
+        result = ground_notes(arrangement(list(range(8)) + [8.5] + list(range(10, 30))), report(drums))
+        self.assertEqual([(c["beat"], c["to_beat"]) for c in result["changes"]], [(8.5, float(Fraction(26, 3)))])
+
+    def test_arc_anchors_move_with_their_arc(self):
+        source = arrangement(list(range(10)) + [10.25] + list(range(12, 30)))
+        anchor = source["sections"][0]["notes"][10]
+        source["sections"][0]["arcs"] = [{"id": "a1", "beat": 10.25, "x": anchor["x"], "y": 1,
+                                          "color": anchor["color"], "direction": anchor["direction"],
+                                          "tail_beat": 13, "tail_x": 1 + anchor["color"], "tail_y": 1,
+                                          "tail_direction": source["sections"][0]["notes"][12]["direction"]}]
+        self.assertEqual(source["sections"][0]["notes"][12]["color"], anchor["color"])
+        self.assertEqual(errors(source), [])
+        result = ground_notes(source, report(range(64)))
+        self.assertEqual(result["arrangement"]["sections"][0]["arcs"][0]["beat"], 10)
+        self.assertEqual(errors(result["arrangement"]), [])
+
+
+class InsertNoteTests(unittest.TestCase):
+    def test_a_new_note_never_adds_a_flow_break(self):
+        source = arrangement([0, 1, 2, 3, 8, 9, 10, 11])
+        change = insert_note(source, Fraction(5), "new")
+        self.assertIsNotNone(change)
+        self.assertEqual(errors(source), [])
+        self.assertIn({"id": "new", "beat": 5, "x": change["x"], "y": change["y"], "color": change["color"],
+                       "direction": change["direction"]}, source["sections"][0]["notes"])
+
+    def test_a_crowded_onset_is_left_alone(self):
+        self.assertIsNone(insert_note(arrangement([0, 1, 2, 3]), Fraction(17, 8), "new"),
+                          "another note sits within a quarter beat")
+        self.assertIsNone(insert_note(arrangement([0, 0.5, 1, 1.5, 2, 2.5]), Fraction(7, 4), "new"),
+                          "both hands swing within half a beat")
+
+    def test_locked_sections_are_not_filled(self):
+        source = arrangement([0, 1, 8, 9])
+        source["sections"][0]["locked"] = True
+        self.assertIsNone(insert_note(source, Fraction(5), "new"))
+
+
+class RepairAudioTests(unittest.TestCase):
+    def test_an_unmapped_vocal_line_gains_notes(self):
+        # The voice sings four onsets in beats 16-20 over a held sustain, and the map follows only the drums
+        # on beats 0-15 and 21-39: the bar is flagged, then mapped.
+        beats = list(range(16)) + list(range(21, 40))
+        evidence = report(range(64), vocals=[16.5, 17.5, 18.5, 19.5], sustains=[(16.25, 20)])
+        before = critique_arrangement(arrangement(beats), evidence)
+        flagged = [w for w in before["warnings"] if w["code"] == "vocal_line_unmapped"]
+        self.assertEqual(flagged[0]["beats"], [16, 20])
+        result = repair_audio(arrangement(beats), evidence)
+        added = [c["beat"] for c in result["changes"] if c["action"] == "added"]
+        self.assertTrue({16.5, 17.5, 18.5, 19.5} & set(added))
+        self.assertNotIn("vocal_line_unmapped", {w["code"] for w in result["remaining"]})
+        self.assertEqual(errors(result["arrangement"]), [])
+
+    def test_missing_evidence_is_an_actionable_error(self):
+        with self.assertRaisesRegex(ValueError, "music analyze"):
+            repair_audio(arrangement([0, 1]), None)
+
+
+class RepairAudioCommandTests(unittest.TestCase):
+    def test_dry_run_reports_and_real_run_saves(self):
+        from pathlib import Path
+        from unittest import mock
+        from sabermapper.__main__ import main
+        from sabermapper.projects import ProjectStore
+        with tempfile.TemporaryDirectory() as folder:
+            store = ProjectStore(Path(folder))
+            created = store.create(demo=True)
+            project, revision = created["project"]["id"], created["revision"]
+            source = store.get(project)["arrangement"]
+            first = source["sections"][0]
+            start = Fraction(str(first["start_beat"]))
+            evidence = report([float(start + Fraction(str(n["beat"]))) for s in source["sections"]
+                               for n in s["notes"]], seconds=60)
+            first["notes"][0]["beat"] = str(Fraction(str(first["notes"][0]["beat"])) + Fraction(1, 4))
+            if errors(source):
+                self.skipTest("demo shape changed; fixture edit introduced a structural error")
+            revision = store.save(project, source, revision)["revision"]
+            with mock.patch("sabermapper.musical.latest_run", return_value=("run", evidence)):
+                out = io.StringIO()
+                with redirect_stdout(out):
+                    self.assertEqual(main(["project", "repair-audio", project, "--workspace", folder,
+                                           "--revision", revision, "--dry-run"]), 0)
+                dry = json.loads(out.getvalue())
+                self.assertFalse(dry["saved"])
+                self.assertEqual(dry["summary"]["moved"], 1)
+                self.assertEqual(store.get(project)["revision"], revision)
+                out = io.StringIO()
+                with redirect_stdout(out):
+                    self.assertEqual(main(["project", "repair-audio", project, "--workspace", folder,
+                                           "--revision", revision]), 0)
+                saved = json.loads(out.getvalue())
+                self.assertTrue(saved["saved"])
+                self.assertEqual(store.get(project)["revision"], saved["revision"])
+
+
+if __name__ == "__main__":
+    unittest.main()

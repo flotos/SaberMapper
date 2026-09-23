@@ -69,11 +69,14 @@ def main(argv=None):
     sub.add_argument("--revision", required=True)
     sub = commands.add_parser("project", help="Read, revise, restore and export persistent projects")
     project_commands = sub.add_subparsers(dest="project_action", required=True)
-    for name in ("list", "get", "save", "export", "restore", "review", "critique", "repair-swings"):
-        leaf = project_commands.add_parser(name, help=(
-            "Fix blocking fast_direction_break/flow_parity_break findings: drop 16th pickups or "
-            "re-angle one cut (arc directions follow)"
-            if name == "repair-swings" else None))
+    for name in ("list", "get", "save", "export", "restore", "review", "critique", "repair-swings",
+                 "repair-audio"):
+        leaf = project_commands.add_parser(name, help={
+            "repair-swings": "Fix blocking fast_direction_break/flow_parity_break findings: drop 16th pickups or "
+                             "re-angle one cut (arc directions follow)",
+            "repair-audio": "Fix audio findings: move notes with no sound under them onto the nearest onset "
+                            "(or remove them), then add flow-safe notes on unmapped vocal, drum, accent and "
+                            "density-collapse onsets"}.get(name))
         leaf.add_argument("--workspace", type=Path, default=Path("workspace"))
         if name != "list":
             leaf.add_argument("project")
@@ -81,9 +84,11 @@ def main(argv=None):
             leaf.add_argument("--run", help="Musical evidence run ID for the audio checks; "
                                              "defaults to the newest run of the current audio")
             leaf.add_argument("--output", type=Path)
-        if name == "repair-swings":
+        if name in ("repair-swings", "repair-audio"):
             leaf.add_argument("--dry-run", action="store_true", help="Report planned changes without saving")
-        if name in ("save", "restore", "review", "repair-swings"):
+        if name == "repair-audio":
+            leaf.add_argument("--output", type=Path, help="Write the full report here instead of stdout")
+        if name in ("save", "restore", "review", "repair-swings", "repair-audio"):
             leaf.add_argument("--revision", required=True)
         if name == "save":
             leaf.add_argument("--arrangement", type=Path, required=True)
@@ -194,6 +199,23 @@ def main(argv=None):
                 emit({"project": args.project, "previous_revision": record["revision"], "revision": revision,
                       "saved": revision != record["revision"], "changes": repair["changes"],
                       "unresolved": repair["unresolved"]})
+            elif args.project_action == "repair-audio":
+                from .audio_repair import repair_audio
+                from .musical import latest_run
+                record = store.get(args.project)
+                if record["revision"] != args.revision:
+                    raise ValueError(f"Project is at revision {record['revision']}; reread it before repairing")
+                run_id, report = latest_run(store.directory(args.project))
+                repair = repair_audio(record["arrangement"], report)
+                revision = record["revision"]
+                if repair["changes"] and not args.dry_run:
+                    revision = store.save(args.project, repair["arrangement"], args.revision)["revision"]
+                emit({"project": args.project, "run_id": run_id, "previous_revision": record["revision"],
+                      "revision": revision, "saved": revision != record["revision"],
+                      "summary": {action: sum(1 for c in repair["changes"] if c["action"] == action)
+                                  for action in ("moved", "removed", "added")},
+                      "changes": repair["changes"], "unresolved": repair["unresolved"],
+                      "remaining_warnings": repair["remaining"]}, args.output)
             elif args.project_action == "review":
                 record = {"revision": args.revision}
                 for name, key in (("timing_reviewed", "timing_reviewed"), ("playtested", "playtested"),

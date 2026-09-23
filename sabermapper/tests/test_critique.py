@@ -38,8 +38,10 @@ class CritiqueMetricTests(unittest.TestCase):
         self.assertEqual(result["model_version"], "1.0")
         for warning in result["warnings"]:
             self.assertEqual(warning["severity"], "warning")
-            self.assertEqual(set(warning), {"severity", "code", "message", "section_id",
-                                            "object_ids", "value", "threshold"})
+            self.assertEqual(set(warning) - {"beats"}, {"severity", "code", "message", "section_id",
+                                                        "object_ids", "value", "threshold"})
+            if "beats" in warning:  # absolute beat range for automated repair
+                self.assertLessEqual(warning["beats"][0], warning["beats"][1])
             self.assertIn(warning["code"], result["definitions"])
 
     def looping(self):

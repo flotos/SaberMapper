@@ -186,6 +186,7 @@ def _density(arrangement, notes, times, spans, warn):
              f'in the last {TAIL_SECONDS:g} s (beats {tail_beat:.2f}-{tail_end_beat:.2f}) runs {pre:.2f} nps '
              f'against a {s_med:.2f} nps section median, while "{right["id"]}" opens at {head:.2f} nps.',
              section_id=left["id"], value=_round(pre / s_med, 4), threshold=COLLAPSE_RATIO,
+             beats=[_round(tail_beat, 4), _round(tail_end_beat, 4)],
              object_ids=[note["id"] for note in notes if note["section_id"] == left["id"]
                          and tail_start <= beat_to_seconds(note["beat"], arrangement) < tail_start + PROBE_SECONDS])
     return {"rolling_nps": rolling, "section_nps": per_section,
@@ -260,6 +261,7 @@ def _boundary_accents(arrangement, spans, notes, report, warn):
              f'{best["method"]} event {best["id"]} at beat {best["beat"]:.3f} (strength {best["strength"]:g}) '
              f'has no note within {SEAM_BEATS:g} beat.',
              section_id=span["id"], value=_round(best["offset"], 4), threshold=SEAM_BEATS,
+             beats=[_round(best["beat"], 4), _round(best["beat"], 4)],
              object_ids=[best["id"]])
         flagged.append(span["id"])
     return {"checked": True, "unmapped_sections": flagged}
@@ -327,7 +329,7 @@ def _salience(arrangement, spans, notes, report, warn):
                 else "the voice holds or rests while the drums carry a strong pattern, but notes miss it")
         warn(code, f"Beats {first:g}-{last:g}: {what}; {mapped} of {total} "
                    f'{"vocal" if code == "vocal_line_unmapped" else "drum"} onsets carry a note.',
-             section_id=section, value=_round(mapped / total, 4),
+             section_id=section, value=_round(mapped / total, 4), beats=[first, last],
              threshold=VOCAL_MAPPED_THRESHOLD if code == "vocal_line_unmapped" else DRUM_MAPPED_THRESHOLD)
     return {"checked": True, "bars": bars}
 
@@ -365,10 +367,12 @@ def critique_arrangement(arrangement: dict, report: dict | None = None) -> dict:
     """Return warning-only density, repetition, seam and movement metrics."""
     warnings = []
 
-    def warn(code, message, *, value, threshold, section_id=None, object_ids=()):
+    def warn(code, message, *, value, threshold, section_id=None, object_ids=(), beats=None):
         warnings.append({"severity": "warning", "code": code, "message": message,
                          "section_id": section_id, "object_ids": list(object_ids),
                          "value": value, "threshold": threshold})
+        if beats is not None:  # absolute [start, end] beats of the finding, for automated repair
+            warnings[-1]["beats"] = beats
 
     notes = expanded_notes(arrangement)
     spans = _sections(arrangement)

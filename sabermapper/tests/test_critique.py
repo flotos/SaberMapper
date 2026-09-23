@@ -40,7 +40,7 @@ class CritiqueMetricTests(unittest.TestCase):
             self.assertEqual(warning["severity"], "warning")
             self.assertEqual(set(warning) - {"beats"}, {"severity", "code", "message", "section_id",
                                                         "object_ids", "value", "threshold"})
-            if "beats" in warning:  # absolute beat range for automated repair
+            if "beats" in warning:  # absolute beat range the check's suggestions use
                 self.assertLessEqual(warning["beats"][0], warning["beats"][1])
             self.assertIn(warning["code"], result["definitions"])
 

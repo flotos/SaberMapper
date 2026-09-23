@@ -93,8 +93,8 @@ Define the terms so a check can enforce them:
   notes. This must not create `lead_rhythm_diluted` false positives. Adjust that check so a note on
   a strong attack of a rhythm-carrying secondary stem counts as following the music, not as
   dilution. Keep flagging notes that sit on no strong attack.
-- Encode it as a verifier change in `critique.py` (and `audio_repair.follow_lead`/`fill_findings`
-  where they rebuild bars), with regression tests. Rerun across every project; this changes what is
+- Encode it as a verifier change in `critique.py` (and in the rhythm draft, `rhythm_proposal.py`,
+  which drafts bars from the same rule), with regression tests. Rerun across every project; this changes what is
   flagged on existing maps. Record the preference in `workspace/player-profile.json` overrides
   (`profile feedback`), because it is reusable.
 

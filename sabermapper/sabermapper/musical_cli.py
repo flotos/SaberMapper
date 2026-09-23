@@ -12,7 +12,8 @@ def register_musical(commands):
     actions.add_parser("backends", help="List techniques, dependencies, and authoring boundaries")
     helps = {"analyze": "Create an immutable evidence run (stems, onsets, pitch and chord changes)",
              "list": "List evidence runs", "inspect": "Evidence and mapped notes for a beat range",
-             "rhythm": "Per-bar onset grids per layer beside the mapped notes, with the bar's lead",
+             "rhythm": "Per-bar onset grids per layer beside the mapped notes, with the bar's lead; --propose "
+                       "drafts note times from the critique's own rules, placed and checked",
              "spectrogram": "PNG of the mix and stems over a beat range with grid, notes, attacks and entries"}
     for action in ("analyze", "list", "inspect", "rhythm", "spectrogram"):
         parser = actions.add_parser(action, help=helps[action])
@@ -33,8 +34,20 @@ def register_musical(commands):
             parser.add_argument("--device", default="auto", help="cuda, cpu or auto (cuda when available)")
         if action == "rhythm":
             parser.add_argument("--run", help="Evidence run ID; default: newest run for the current audio")
-            parser.add_argument("--start", type=float, required=True, help="Absolute start beat")
-            parser.add_argument("--end", type=float, required=True, help="Exclusive end beat")
+            parser.add_argument("--start", type=float, help="Absolute start beat (required without --propose)")
+            parser.add_argument("--end", type=float, help="Exclusive end beat (required without --propose)")
+            parser.add_argument("--propose", action="store_true",
+                                help="Draft note times for the range (default: the whole song) with the evidence "
+                                     "behind each: the lead's attacks, fills, drum or melody onsets and accents, "
+                                     "scaled to the difficulty's target tier, then placed and checked so the draft "
+                                     "carries no rhythm finding the critique would raise")
+            parser.add_argument("--tier", help="Target tier for --propose; default: difficulty.target_tier, else band")
+            parser.add_argument("--held", type=float, action="append", default=[],
+                                help="With --propose: source seconds of a held vocal the user named (repeatable); "
+                                     "it becomes an arc. The player profile's held_vocals for this project are added")
+            parser.add_argument("--draft", type=Path,
+                                help="With --propose: write the arrangement with the range's notes replaced by the "
+                                     "drafted rhythm-only notes (id and beat), ready to edit and `project save`")
             parser.add_argument("--layers", help="Comma-separated layers; default: every stem")
             parser.add_argument("--division", type=int, default=4, help="Grid cells per beat: 2, 3, 4, 6, 8 or 12")
             parser.add_argument("--output", type=Path)
@@ -97,7 +110,31 @@ def dispatch_musical(args, emit):
         layers = [name.strip() for name in args.layers.split(",") if name.strip()] if args.layers else None
         emit(project_view(directory, arrangement, report, run_id, start_beat=args.start, end_beat=args.end,
                           layers=layers, output=args.output, difficulty=args.difficulty))
+    elif args.music_action == "rhythm" and args.propose:
+        from .rhythm_proposal import propose_rhythm
+        from .revisions import arrangement_revision
+        with store.lock:
+            arrangement = read_json(store.arrangement_file(directory, args.difficulty))
+        run_id, report = _run(directory, args.run)
+        reference_path = store.root / "corpus" / "tier-reference.json"
+        profile_path = store.root / "player-profile.json"
+        named = [float(item["seconds"]) for item in (read_json(profile_path).get("held_vocals") or []
+                                                     if profile_path.exists() else [])
+                 if isinstance(item, dict) and item.get("project") == args.project and "seconds" in item]
+        result = propose_rhythm(arrangement, report, start=args.start, end=args.end, tier=args.tier,
+                                tier_reference=read_json(reference_path) if reference_path.exists() else None,
+                                held=sorted(set(named + args.held)))
+        draft = result.pop("draft")
+        if args.draft:
+            args.draft.parent.mkdir(parents=True, exist_ok=True)
+            with args.draft.open("x", encoding="utf-8") as stream:
+                import json
+                stream.write(json.dumps(draft, ensure_ascii=False, indent=1) + "\n")
+        emit({"run_id": run_id, "revision": arrangement_revision(arrangement),
+              "draft": str(args.draft) if args.draft else None, **result}, args.output)
     elif args.music_action == "rhythm":
+        if args.start is None or args.end is None:
+            raise ValueError("music rhythm needs --start and --end (or --propose)")
         with store.lock:
             arrangement = read_json(store.arrangement_file(directory, args.difficulty))
         run_id, report = _run(directory, args.run)

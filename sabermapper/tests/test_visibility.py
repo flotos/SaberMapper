@@ -1,12 +1,10 @@
-"""Hidden notes: a note too soon behind another in the same cell blocks, and the repairs clear it."""
+"""Hidden notes: a note too soon behind another in the same cell blocks; project check suggests the cell."""
 import copy
 import unittest
 from fractions import Fraction
 
-from sabermapper.audio_repair import insert_note
 from sabermapper.movement import analyze_movement
 from sabermapper.validation import validate_arrangement
-from sabermapper.visibility_repair import repair_hidden_notes
 
 
 def arrangement(notes, *, bpm=190, arcs=()):
@@ -41,7 +39,7 @@ class HiddenNoteCheckTests(unittest.TestCase):
         found = hidden(end_of_you())
         self.assertEqual([d["object_ids"] for d in found], [["s/note/a", "s/note/b"], ["s/note/b", "s/note/c"]])
         self.assertTrue(all(d["severity"] == "error" for d in found))
-        self.assertIn("repair-visibility", found[0]["message"])
+        self.assertIn("project check", found[0]["message"])
 
     def test_window_depends_on_the_line_of_sight(self):
         # (cell, gap in beats at 120 BPM, blocked): centre middle/top rows need 0.35 s, other cells 0.2 s.
@@ -72,54 +70,6 @@ class HiddenNoteCheckTests(unittest.TestCase):
         result = analyze_movement(notes, bpm=190, njs=18)
         self.assertEqual([(w["code"], w["note_ids"]) for w in result["warnings"]],
                          [("hidden_note", ["front", "back"])])
-
-
-class HiddenNoteRepairTests(unittest.TestCase):
-    def test_repair_moves_notes_without_changing_timing_or_direction(self):
-        source = end_of_you()
-        before = copy.deepcopy(source)
-        result = repair_hidden_notes(source)
-        self.assertEqual(source, before, "input is not mutated")
-        fixed = result["arrangement"]
-        self.assertEqual(errors(fixed), [])
-        self.assertEqual(result["unresolved"], [])
-        self.assertTrue(result["changes"] and all(c["action"] == "moved" for c in result["changes"]))
-        timing = lambda a: sorted((str(x["beat"]), x["color"], x["direction"]) for x in a["sections"][0]["notes"])
-        self.assertEqual(timing(fixed), timing(source))
-        cells = {x["id"]: (x["x"], x["y"]) for x in fixed["sections"][0]["notes"]}
-        self.assertEqual(cells["b"], (3, 1), "the left cut follows the saber out of the right cut")
-
-    def test_arc_anchor_moves_with_its_note(self):
-        source = end_of_you()
-        # Consecutive blue cuts: a blue note inside the hold would be an arc_note_conflict.
-        source["sections"][0]["arcs"] = [{"id": "arc", "color": 1, "beat": "9/2", "x": 2, "y": 1, "direction": 2,
-                                          "tail_beat": 5, "tail_x": 2, "tail_y": 1, "tail_direction": 3}]
-        self.assertEqual([d["code"] for d in errors(source)], ["hidden_note", "hidden_note"])
-        fixed = repair_hidden_notes(source)["arrangement"]
-        self.assertEqual(errors(fixed), [])
-        note = next(x for x in fixed["sections"][0]["notes"] if x["id"] == "b")
-        arc = fixed["sections"][0]["arcs"][0]
-        self.assertEqual((arc["x"], arc["y"]), (note["x"], note["y"]))
-
-    def test_locked_pairs_are_left_alone(self):
-        source = end_of_you()
-        source["sections"][0]["locked"] = True
-        result = repair_hidden_notes(source)
-        self.assertEqual(result["changes"], [])
-        self.assertEqual(result["arrangement"], source)
-
-
-class NewNotesStayVisibleTests(unittest.TestCase):
-    def test_audio_fill_never_hides_a_note(self):
-        # Blue swung within half a beat, so red takes the onset; its previous cut at (1,1) is
-        # 0.25 s earlier, and the nearest cell there would hide the new note.
-        source = arrangement([n("b0", 0, 3, 0, 1, 1), n("b1", "15/4", 3, 0, 1, 0),
-                              n("r0", "7/2", 1, 1, 0, 1), n("r8", 8, 0, 0, 0, 1)], bpm=120)
-        self.assertEqual(errors(source), [])
-        change = insert_note(source, Fraction(4), "new")
-        self.assertEqual((change["color"], change["direction"]), (0, 0))
-        self.assertNotEqual((change["x"], change["y"]), (1, 1))
-        self.assertEqual(errors(source), [])
 
 
 if __name__ == "__main__":

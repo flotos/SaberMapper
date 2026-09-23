@@ -57,6 +57,27 @@ def timing_mismatches(arrangements: dict[str, dict]) -> list[dict]:
             for name, item in items[1:] if timing(item) != timing(reference)]
 
 
+def lock_conflicts(original: dict, arrangement: dict) -> list[str]:
+    """Why saving ``arrangement`` over ``original`` would change a locked section (empty when it would not)."""
+    found = []
+    new_sections = {s["id"]: s for s in arrangement["sections"]}
+    if any(s["locked"] for s in original["sections"]):
+        if (any(original["song"].get(k) != arrangement["song"].get(k) for k in ("bpm", "audio_offset_seconds"))
+                or original.get("tempo_events", []) != arrangement.get("tempo_events", [])
+                or any(original["difficulty"].get(k) != arrangement["difficulty"].get(k)
+                       for k in ("njs", "spawn_offset_beats"))):
+            found.append("Global timing or jump settings would alter a locked section. Unlock it before editing.")
+    for section in original["sections"]:
+        if not section["locked"]:
+            continue
+        if new_sections.get(section["id"]) != section:
+            found.append(f"Section {section['id']} is locked. Unlock it before editing.")
+        for pattern in section["patterns"]:
+            if original["motifs"][pattern["motif"]] != arrangement["motifs"].get(pattern["motif"]):
+                found.append("A changed motif would alter a locked section")
+    return found
+
+
 def song_position(arrangement: dict, seconds: float) -> dict:
     """Beat and containing section of a source-audio time (honours audio offset and tempo events)."""
     from .arrangement import beat_fraction
@@ -315,52 +336,109 @@ class ProjectStore:
 
     def check_save(self, project_id: str, arrangement: dict, expected_revision: str,
                    difficulty: str | None = None) -> dict:
-        """Raise the conflict or validation error a save would raise; write nothing.
+        """Raise the conflict or blocking finding a save would raise; write nothing.
 
         Returns the current stored arrangement so callers can continue under the lock.
         """
+        return self.prepare_save(project_id, arrangement, expected_revision, difficulty)[0]
+
+    def prepare_save(self, project_id: str, arrangement: dict, expected_revision: str,
+                     difficulty: str | None = None) -> tuple[dict, dict, dict]:
+        """Place ``arrangement`` and apply the save gate; write nothing.
+
+        Returns (stored arrangement, placed arrangement, placement report). A save refuses exactly the
+        findings ``project check`` marks ``blocking`` (both go through :func:`check.gate`).
+        """
+        from .check import gate, placed_for_check
+        from .placement import pin_edits
         with self.lock:
             path = self.directory(project_id)
             original = read_json(self.arrangement_file(path, difficulty))
             old_revision = arrangement_revision(original)
             if expected_revision != old_revision:
                 raise ConflictError("This arrangement changed since you opened it. Reload before saving.")
-            errors = [d for d in validate_arrangement(arrangement) if d["severity"] == "error" and d["code"] != "unresolved_section"]
+            arrangement, placement, placement_errors = placed_for_check(pin_edits(original, arrangement))
+            errors = gate(placement_errors, validate_arrangement(arrangement), [])
             if errors:
-                raise ValueError("; ".join(d["message"] for d in errors[:10]))
+                raise ValueError(("Placement is infeasible (`project check ID --arrangement FILE` lists the "
+                                  "alternatives): " if placement_errors else "")
+                                 + "; ".join(d["message"] for d in errors[:10]))
             renamed = arrangement["difficulty"]["name"]
             if renamed != original["difficulty"]["name"] and renamed in self.difficulty_files(path):
                 raise ConflictError(f"The project already has a {renamed} difficulty; pick another name "
                                     "or save into that difficulty with --difficulty")
             # The map exists to follow the song: refuse long stretches of playing audio left unmapped.
             run_id, _, findings = project_audio_findings(path, arrangement)
-            blocking = [d for d in findings if d["severity"] == "error"]
+            blocking = gate([], [], findings)
             if blocking:
                 raise ValueError(f"Audio left unmapped (evidence run {run_id}): "
                                  + "; ".join(d["message"] for d in blocking[:10]))
-            new_sections = {s["id"]: s for s in arrangement["sections"]}
-            if any(s["locked"] for s in original["sections"]):
-                if (any(original["song"].get(k) != arrangement["song"].get(k) for k in ("bpm", "audio_offset_seconds"))
-                        or original.get("tempo_events", []) != arrangement.get("tempo_events", [])
-                        or any(original["difficulty"].get(k) != arrangement["difficulty"].get(k)
-                               for k in ("njs", "spawn_offset_beats"))):
-                    raise ConflictError("Global timing or jump settings would alter a locked section. Unlock it before editing.")
-            for section in original["sections"]:
-                if not section["locked"]:
-                    continue
-                if new_sections.get(section["id"]) != section:
-                    raise ConflictError(f"Section {section['id']} is locked. Unlock it before editing.")
-                for pattern in section["patterns"]:
-                    if original["motifs"][pattern["motif"]] != arrangement["motifs"].get(pattern["motif"]):
-                        raise ConflictError("A changed motif would alter a locked section")
-            return original
+            conflicts = lock_conflicts(original, arrangement)
+            if conflicts:
+                raise ConflictError(conflicts[0])
+            return original, arrangement, placement
+
+    def check(self, project_id: str, difficulty: str | None = None, *, run: str | None = None,
+              arrangement: dict | None = None, metrics: bool = False) -> dict:
+        """The read-only ``project check`` report for the stored arrangement, or for a draft of it.
+
+        A draft is placed and checked exactly as ``project save`` would, with nothing written. ``run`` picks a
+        musical evidence run; the default is the newest run of the current audio.
+        """
+        from .check import check_arrangement
+        from .placement import pin_edits
+        from .tier_fit import missing_reference_warning
+        with self.lock:
+            path = self.directory(project_id)
+            stored = read_json(self.arrangement_file(path, difficulty))
+            name = stored["difficulty"]["name"]
+            subject = stored if arrangement is None else pin_edits(stored, arrangement)
+            run_id, report = self.evidence(path, run)
+            siblings = {name: subject, **{other: read_json(file) for other, file in self.difficulty_files(path).items()
+                                          if other != name}}
+            extra = timing_mismatches(siblings)
+            reference_path = self.root / "corpus" / "tier-reference.json"
+            reference = read_json(reference_path) if reference_path.exists() else None
+            missing = None if reference else missing_reference_warning(subject)
+            extra += [missing] if missing else []
+            result = check_arrangement(subject, report, run_id=run_id, tier_reference=reference, extra=extra,
+                                       metrics=metrics)
+            if arrangement is not None:
+                try:
+                    from .placement import place_arrangement
+                    placed = place_arrangement(subject, strict=False)["arrangement"]
+                    for message in lock_conflicts(stored, placed):
+                        result["findings"].insert(0, {"code": "locked_section_changed", "severity": "error",
+                                                      "blocking": True, "source": "project", "section_id": None,
+                                                      "object_ids": [], "beats": [], "message": message,
+                                                      "suggestions": []})
+                except (KeyError, TypeError, ValueError):
+                    pass
+                result["blocking_count"] = sum(1 for f in result["findings"] if f["blocking"])
+            if missing and metrics:
+                result["warnings"].append(missing)
+            return {"project": project_id, "difficulty": name, "revision": arrangement_revision(stored),
+                    "subject": "stored revision" if arrangement is None else "draft (not saved)", **result}
+
+    def evidence(self, path: Path, run: str | None = None) -> tuple[str | None, dict | None]:
+        """(run ID, report) of the requested evidence run, else the newest run of the current audio."""
+        from .musical import latest_run
+        if not run:
+            return latest_run(path)
+        if not re.fullmatch(r"[a-f0-9]{32}", run):
+            raise ValueError("Invalid musical evidence run ID")
+        report = read_json(path / "musical" / run / "report.json")
+        from .audio import _hash
+        if report["source"]["sha256"] != _hash(path / "song.ogg"):
+            raise ValueError("Evidence belongs to different audio; analyze the current project audio again")
+        return run, report
 
     def save(self, project_id: str, arrangement: dict, expected_revision: str, *, request_id=None,
              difficulty: str | None = None) -> dict:
         with self.lock:
             path = self.directory(project_id)
             source = self.arrangement_file(path, difficulty)
-            original = self.check_save(project_id, arrangement, expected_revision, difficulty)
+            original, arrangement, placement = self.prepare_save(project_id, arrangement, expected_revision, difficulty)
             arrangement, lighting = self.refresh_lights(path, arrangement, original)
             old_revision = arrangement_revision(original)
             revision = arrangement_revision(arrangement)
@@ -397,7 +475,7 @@ class ProjectStore:
                         "difficulty": name, **({"previous_difficulty": previous_name} if name != previous_name else {}),
                         "request_id": request_id, "at": now(), "lighting": lighting["action"],
                         "diagnostics": validate_arrangement(arrangement)})
-            return {**self.get(project_id, None if primary else name), "lighting": lighting}
+            return {**self.get(project_id, None if primary else name), "lighting": lighting, "placement": placement}
 
     def refresh_lights(self, path: Path, arrangement: dict, original: dict, *, force=False) -> tuple[dict, dict]:
         """Carry over, regenerate when missing or stale, and check the lightshow a save will store."""

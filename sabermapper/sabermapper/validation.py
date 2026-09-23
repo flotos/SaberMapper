@@ -100,13 +100,19 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
             notes_ok[0] = False
 
     def _note_check(note, where, sid, origin, base):
-        if not keys(note, {"id", "beat", "x", "y", "color", "direction"}, where, sid):
+        if not keys(note, {"id", "beat", "x", "y", "color", "direction"}, where, sid, optional={"placed"}):
             return
         nid = note["id"]
         if not isinstance(nid, str) or not nid or "/" in nid:
             add("error", "invalid_id", f"{where}.id must be nonempty and contain no slash", sid)
             return
         oid = f"{origin}/{nid}"
+        placed = note.get("placed", [])
+        if (not isinstance(placed, list) or any(field not in ("x", "y", "color", "direction") for field in placed)
+                or len(set(placed)) != len(placed)):
+            add("error", "invalid_placed", f"{oid}.placed must list distinct fields among x, y, color and "
+                                           "direction (the ones the placer chose)", sid, [oid])
+            return
         try:
             beat = _beat(note["beat"])
         except (ValueError, TypeError, ZeroDivisionError, OverflowError):
@@ -331,9 +337,10 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
                 if note[3] != item["color"] or not head < note[0] < tail:
                     continue
                 severity, advice = "error", (f"give the note to the other hand, split the {kind[:-1]} at it, "
-                                             "or remove it (project repair-swings does this)")
+                                             "or remove it (project check lists the edits; an unpinned hand is "
+                                             "placed off the held saber)")
                 if sid in locked_ids and note[-2] in locked_ids:
-                    severity, advice = "warning", "section is locked, unlock it to repair"
+                    severity, advice = "warning", "section is locked, unlock it to change it"
                 add(severity, f"{kind[:-1]}_note_conflict",
                     f"{oid} holds color {item['color']} from beat {float(head):g} to {float(tail):g}, but note "
                     f"{note[-1]} of that color sits inside the hold at beat {float(note[0]):g}; {advice}",
@@ -402,7 +409,7 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
             severity, reason = warning.get("severity", "warning"), warning["reason"]
             if severity == "error" and all(section_by_id.get(oid) in locked for oid in ids):
                 # Locked sections are user-approved; report but do not block unrelated edits.
-                severity, reason = "warning", reason + "; section is locked, unlock it to repair"
+                severity, reason = "warning", reason + "; section is locked, unlock it to change it"
             add(severity, warning["code"], reason, section_by_id.get(ids[-1]), ids)
             findings[-1]["model_version"] = movement["model_version"]
             findings[-1]["confidence"] = warning["confidence"]

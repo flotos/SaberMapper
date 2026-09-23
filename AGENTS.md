@@ -16,7 +16,7 @@ Apply this contract when implementing features, writing documentation and skills
 
 ## Audio is the source of every note
 
-The goal is mapping the song's audio to notes, never applying notes for their own sake. Every note must sit on an identifiable sound in the project's musical evidence (drum hit, sung onset, pitch change, riff or bass attack), and every stretch where the song is playing must be mapped. Section labels, roles and position (intro, outro, "quiet") never override per-bar audio evidence. `sabermapper/sabermapper/audio_grounding.py` enforces this. `project save` refuses stretches of 8 s or more of active audio left unmapped (`audio_unmapped`). `project get` and `project critique` report shorter gaps and notes with no audio under them (`note_without_audio`, `low_audio_support`), using the newest evidence run for the current audio by default. Do not deliver a map whose audio findings are unresolved, and do not deliver one never checked against its audio (`audio_evidence_missing`). Lights follow the same rule: `project save` generates the lightshow from the evidence run automatically. Its pulses sit on sounds, and `light_*` findings report frozen lights over playing audio, pulses with no sound under them and heavy flashing. Strobing blocks saving. Agents tweak lights through overrides and cues (`sabermapper/skills/sabermapper-map/references/lightshow.md`).
+The goal is mapping the song's audio to notes, never applying notes for their own sake. Every note must sit on an identifiable sound in the project's musical evidence (drum hit, sung onset, pitch change, riff or bass attack), and every stretch where the song is playing must be mapped. Section labels, roles and position (intro, outro, "quiet") never override per-bar audio evidence. `sabermapper/sabermapper/audio_grounding.py` enforces this. `project save` refuses stretches of 8 s or more of active audio left unmapped (`audio_unmapped`). `project check` reports shorter gaps and notes with no audio under them (`note_without_audio`, `low_audio_support`), using the newest evidence run for the current audio by default. Do not deliver a map whose audio findings are unresolved, and do not deliver one never checked against its audio (`audio_evidence_missing`). Lights follow the same rule: `project save` generates the lightshow from the evidence run automatically. Its pulses sit on sounds, and `light_*` findings report frozen lights over playing audio, pulses with no sound under them and heavy flashing. Strobing blocks saving. Agents tweak lights through overrides and cues (`sabermapper/skills/sabermapper-map/references/lightshow.md`).
 
 ## Systematic fixes, never song-specific patches
 
@@ -24,12 +24,12 @@ Treat every defect found in one song's map, whether from user feedback, review, 
 
 1. **Name the root cause class.** Decide why the tools, defaults or guidance allowed the problem, not only where it occurred.
 2. **Encode the fix at the most automatic level that fits:**
-   - a verifier check in `sabermapper/sabermapper/validation.py` or `critique.py` that detects the pattern (blocking if it is always wrong, a diagnostic if context matters);
-   - an automated correction or safer default in analysis, compile or export;
+   - a `project check` finding: a verifier check in `sabermapper/sabermapper/validation.py`, the movement model or `critique.py` that detects the pattern (blocking if it is always wrong, a diagnostic if context matters), with suggestions that clear it;
+   - a build-time rule or safer default: a placement constraint in `placement.py` (so notes the placer chooses can never break it), a rule the rhythm draft (`music rhythm --propose`) follows, or a default in analysis, compile or export. Never a command that rewrites saved maps after the fact;
    - guidance in the canonical skills under `sabermapper/skills/` (then run `scripts/install_skills.py --update`) only when the issue requires judgment that cannot be checked mechanically.
    Add a regression test in `sabermapper/tests/` for any code change.
-3. **Apply it to every mapped song.** Run the new or updated check across all projects from `project list`, not only the song that prompted it. Correct every affected arrangement through revision-aware `project save` and re-export. Do not edit locked sections; report where a lock blocks the fix.
-4. **Report** the root cause, where the fix now lives (check, pipeline step or skill), the test, and which projects were checked and changed.
+3. **Apply it to every mapped song.** Run `project check` across all projects from `project list`, not only the song that prompted it. Correct every affected arrangement through revision-aware `project save` (unpinned fields are re-placed under the new rule) and re-export. Do not edit locked sections; report where a lock blocks the fix.
+4. **Report** the root cause, where the fix now lives (check, placement or draft rule, or skill), the test, and which projects were checked and changed.
 
 If a request is a purely musical choice for one song, such as emphasizing a specific instrument at a specific timestamp, apply it locally. If it expresses a reusable preference, also record it in the player profile so future maps apply it. Do not weaken or silence a check to make one song pass.
 
@@ -39,6 +39,8 @@ The application is in `sabermapper/`; run commands from there. On this Windows w
 
 - List projects: `.venv/Scripts/python -m sabermapper project list --workspace workspace`
 - Inspect a project: `.venv/Scripts/python -m sabermapper project get ID --workspace workspace`
+- Check everything a map breaks or misses, with suggested edits (read-only; `--arrangement DRAFT.json` checks a draft as save would): `.venv/Scripts/python -m sabermapper project check ID --workspace workspace`
+- Draft note times from the audio (notes need only id and beat; the placer chooses hand, cut and cell): `.venv/Scripts/python -m sabermapper music rhythm ID --workspace workspace --propose [--start A --end B] --draft DRAFT.json`
 - Save an authored arrangement: `.venv/Scripts/python -m sabermapper project save ID --workspace workspace --revision CURRENT_SHA --arrangement EDITED.json`
 - Rebuild or inspect lights: `.venv/Scripts/python -m sabermapper project lights ID --workspace workspace --revision CURRENT_SHA`, `project lights-inspect ID --workspace workspace --start BEAT --end BEAT`
 - Add a difficulty: `.venv/Scripts/python -m sabermapper project add-difficulty ID --workspace workspace --name ExpertPlus --target-tier challenge`. Every project command takes `--difficulty NAME`; the default is the primary difficulty.

@@ -27,6 +27,11 @@ BURST_SWINGS = 3
 # sit on the player's line of sight, where the hidden stretch lasts longest.
 HIDDEN_SECONDS = 0.2
 SIGHTLINE_HIDDEN_SECONDS = 0.35
+# Grid cells per second a hand may travel between consecutive cuts before reach_proxy reports it.
+REACH_SPEED = 12
+# Same-hand notes this close (in beats and seconds) with one cut direction are cut in one swing.
+CHORD_BEATS = 1 / 16
+CHORD_SECONDS = 0.06
 _VECTORS = {0: (0, 1), 1: (0, -1), 2: (-1, 0), 3: (1, 0),
             4: (-1, 1), 5: (1, 1), 6: (-1, -1), 7: (1, -1)}
 _OPPOSITE = {0: 1, 1: 0, 2: 3, 3: 2, 4: 7, 7: 4, 5: 6, 6: 5}
@@ -59,6 +64,13 @@ def _parity(direction, hand, angle):
     return ("forehand" if direction == 3 else "backhand") if hand == 0 else ("forehand" if direction == 2 else "backhand")
 
 
+def next_effective(effective, direction, reset):
+    """The direction a hand's next swing must flow from: a dot is cut as the reverse of the swing before it."""
+    if direction != 8:
+        return direction
+    return _OPPOSITE[effective] if effective is not None and effective != 8 and not reset else None
+
+
 def turn_degrees(previous, direction, previous_angle=0.0, angle=0.0):
     """Angle in degrees between two cut directions (0 = same, 180 = reversal)."""
     a, b = _vector(previous, previous_angle), _vector(direction, angle)
@@ -83,7 +95,8 @@ def flow_break(previous, direction, hand, gap_seconds, reset, previous_angle=0.0
         return ("fast_direction_break",
                 f"same-hand cut {gap_seconds:.3f}s after the previous one turns only {change:.0f} degrees; "
                 f"within {FAST_BREAK_SECONDS}s it must reverse by at least {REVERSAL_DEGREES} degrees. "
-                "Re-angle one cut or remove the weaker note (see project repair-swings)")
+                "Re-angle one cut, give it to the other hand or remove the weaker note; unpin the cut to let the "
+                "placer choose (project check lists edits that clear it)")
     same_parity = (not previous_angle and not angle
                    and _parity(previous, hand, 0) == _parity(direction, hand, 0))
     if change < MIN_TURN_DEGREES or (same_parity and change < REVERSAL_DEGREES):
@@ -91,7 +104,7 @@ def flow_break(previous, direction, hand, gap_seconds, reset, previous_angle=0.0
                 f"same-hand cut {gap_seconds:.3f}s after the previous one turns {change:.0f} degrees"
                 f"{' on the same forehand/backhand' if same_parity else ''}; each cut must start where "
                 f"the previous one left the saber: alternate parity and turn at least {MIN_TURN_DEGREES} "
-                f"degrees unless the hand rests {REST_SECONDS:g} s or more (see project repair-swings)")
+                f"degrees unless the hand rests {REST_SECONDS:g} s or more (project check lists edits that clear it)")
     return None
 
 
@@ -113,7 +126,7 @@ def one_hand_bursts(swings: list) -> list:
                               "reason": f"{'right' if hand else 'left'} hand swings {len(run)} times in {span:.3f}s, "
                                         f"each under {BURST_SECONDS}s after the last, while the other hand has "
                                         "nothing to cut; alternate hands or keep only the notes on the lead's "
-                                        "strongest sounds (see project repair-audio)"})
+                                        "strongest sounds (project check lists edits)"})
             run = [swing] if swing is not None else []
     return sorted(found, key=lambda w: w["beat"])
 
@@ -132,7 +145,8 @@ def hidden_note(gap_seconds, x, y):
     return ("hidden_note",
             f"note at ({x},{y}) arrives {gap_seconds:.3f}s behind the note in front of it in {where}, "
             f"which hides it until that note is cut; same-cell notes need {window}s here. "
-            "Move one to a free neighbouring cell (see project repair-visibility)")
+            "Move one to a free neighbouring cell, or unpin its cell to let the placer choose (project check "
+            "lists the free cells)")
 
 
 def _reaction_proxy(bpm, njs, spawn_offset_beats):
@@ -189,7 +203,7 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
         prior = previous[note["color"]]
         beat_gap = note["beat"] - prior["beat"] if prior else None
         gap = note["seconds"] - prior["seconds"] if prior else None
-        compatible = (prior and 0 <= beat_gap <= 1 / 16 and 0 <= gap <= 0.06
+        compatible = (prior and 0 <= beat_gap <= CHORD_BEATS and 0 <= gap <= CHORD_SECONDS
                       and note["direction"] == prior["direction"] and note["angle"] == prior["angle"])
         if compatible:
             count = len(prior["note_ids"])
@@ -229,7 +243,7 @@ def analyze_movement(notes: list, bpm: float = 120, *, njs=None,
             if found:
                 warnings.append({"code": found[0], "note_ids": [prior["note_ids"][-1], note["id"]],
                                  "beat": note["beat"], "confidence": "high", "severity": "error", "reason": found[1]})
-            if gap and distance / gap > 12:
+            if gap and distance / gap > REACH_SPEED:
                 warnings.append({"code": "reach_proxy", "note_ids": [prior["note_ids"][-1], note["id"]],
                                  "beat": note["beat"], "confidence": "low", "reason": "large grid displacement in short time"})
         swings.append(swing)

@@ -83,7 +83,7 @@ def tier_fit(arrangement: dict, reference: dict | None, warn) -> dict:
     target = arrangement.get("difficulty", {}).get("target_tier")
     if target is None:
         return {"checked": False, "reason": "difficulty.target_tier is not set"}
-    if reference is None:  # internal callers (repairs) never pass one; the critique commands report it missing
+    if reference is None:  # internal callers (the rhythm draft) never pass one; the check commands report it missing
         return {"checked": False, "target_tier": target, "reason": "no tier reference"}
     tiers = [t for t in reference["tiers"] if t.get("windows") and all(reference_features(t)[k] is not None for k in FEATURES)]
     order = [t["id"] for t in reference["tiers"]]

@@ -13,7 +13,7 @@ rules apply to each one independently.
 - `project add-difficulty ID --name ExpertPlus [--from Expert] [--njs 19] [--target-tier challenge]`
   copies an existing difficulty (default: primary) and clears its section locks.
   Then rewrite the copy at its own level. Never leave it as a relabelled clone.
-- `project save`, `restore`, `critique`, `repair-swings`, `repair-audio`, `review`,
+- `project save`, `restore`, `check`, `critique`, `review`,
   `feedback`, `music rhythm` and `music inspect` all take `--difficulty NAME`.
   Revisions are per difficulty, so pass the revision of the one you edit.
 - Saving another `difficulty.name` renames that difficulty, unless the name is already
@@ -57,7 +57,7 @@ and why.
    across layers, for example vocal on one hand and drums on the other. Add doubles
    on accents, crossovers and wider placement. Quiet passages stay light at every tier.
    `density_exceeds_audio` still applies, and so do the flow rules.
-4. Check with `project critique ID --difficulty NAME`. `metrics.tier_fit` compares the
+4. Check with `project check ID --difficulty NAME --metrics`. `metrics.tier_fit` compares the
    map's 4-beat windows with each tier's reference windows and names the closest
    tier. `tier_below_target` or `tier_above_target` warns when that is not the
    target, and `tier_fit.sections` shows which sections sit below the tier's floor.

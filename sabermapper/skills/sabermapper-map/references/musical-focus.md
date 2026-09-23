@@ -271,14 +271,9 @@ guitar gallop entered at beat 56 and the map followed only the drums, on quarter
   loud bars' median demand times (0.5 + 0.5 x loudness).
   `intensity_underplayed`: loud bars (0.9 or more) average less demand than the
   soft bars' 90th percentile.
-- `project repair-audio` raises flagged heavy runs first, toward the demand the
-  soft passages reach, so soft notes are removed only where the heavy passages
-  cannot be raised. It adds flow-safe notes on the lead's attacks, then on other
-  stems' attacks, and restores a bar where those notes would dilute the lead. Otherwise it moves vertical and diagonal
-  cuts to the far row (down cuts high, up cuts low), keeping the rhythm. It then
-  removes the weakest note times from flagged soft bars. Notes on salient vocal
-  and drum onsets go last, and a removal is kept only when no salience finding
-  appears. An unresolved heavy bar usually needs its riff declared as the lead.
+- `music rhythm --propose` drafts heavy runs with their attacks (the lead's sixteenths where it rolls) until
+  they reach the soft passages' peak, and eases soft bars to their allowance; `project check` suggests the
+  same additions and removals for a flagged bar.
 
 ## Follow the lead instrument's rhythm
 
@@ -310,18 +305,17 @@ guitar's sixteenth runs at 0:33-0:39.
 - Intensity sets the density; the lead sets the placement. In a thin, soft
   passage (`density_exceeds_audio` territory), take the lead's strongest attack
   per beat rather than every attack. `lead_rhythm_unmapped` does not fire there.
-- `critique` checks this. `lead_rhythm_unmapped`: fewer than 60% of an
-  instrument lead's strongest attacks per half-beat carry a note.
+  A soft bar (below 0.8 of the heavy passages' loudness) also takes the lead's
+  strongest attack per beat: softer audio plays easier, and the lead check judges
+  it per beat so it never asks for more than `difficulty_exceeds_intensity` allows.
+- `project check` checks this. `lead_rhythm_unmapped`: fewer than 60% of an
+  instrument lead's strongest attacks per half-beat (per beat in a soft bar)
+  carry a note.
   `lead_rhythm_diluted`: fewer than 75% of a bar's note times sit on a lead
   attack, in a lead gap, or under a held arc. Its `object_ids` name the filler
   notes. `metrics.lead_rhythm.bars` lists each bar's lead and counts.
-- `project repair-audio` rebuilds each diluted bar. It clears the bar's free
-  notes and places flow-safe notes on the lead's strongest attack per half-beat
-  and on strong sixteenth attacks, filling the lead's silent beats from other
-  stems. It keeps arcs, chains, locked sections and motif notes, and restores
-  any bar it cannot rebuild safely. It also fills `lead_rhythm_unmapped` onsets.
-  Its placements are mechanical: review hand positions for variety afterwards,
-  and re-author any bar it reports as unresolved.
+- `music rhythm --propose` drafts each bar on the lead's attacks, and `project check` suggests removing the
+  stray times of a diluted bar.
 - `grid_drift` warns when a 32-beat window's percussive onsets sit more than
   30 ms from the song-wide grid offset (`metrics.grid_alignment`). Fix the BPM,
   offset or tempo events before placing notes there.
@@ -376,7 +370,7 @@ played a strong pattern, and the notes sat between the drum hits.
 - A busy riff or loud guitar never outranks singing. "Drive" or "chorus" labels
   do not change the lead.
 - `focus_on_quiet_stem` checks every focus phrase's weighted stems against their
-  own usual level; `repair-audio` drops absent stems from the weights.
+  own usual level; `project check` suggests `set_weights` without the absent stems.
 - Separator bleed can put vocal or drum events into intros and instrumental
   passages. Confirm with the stem energy before trusting a quiet passage's
   "vocal" onsets. Demucs `htdemucs_6s` often routes a soft solo piano to `other`
@@ -391,7 +385,7 @@ played a strong pattern, and the notes sat between the drum hits.
   `metrics.salience.bars` lists each bar's salient layer. Both are warnings:
   fast melismas thinned for flow or real bleed can explain a flag. Resolve or
   justify every flagged range before saving.
-- When repairing flagged bars, re-author only those bars. Keep every existing
+- When fixing flagged bars, re-author only those bars. Keep every existing
   arc and its head and tail notes, keep a rewritten bar at no fewer than
   min(4, its old note count) notes, and fit each seam to the neighbouring notes
   under the blocking flow rule.

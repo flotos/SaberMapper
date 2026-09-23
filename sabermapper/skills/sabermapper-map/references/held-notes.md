@@ -35,10 +35,10 @@ blue arc. The validator blocks it with `arc_note_conflict` or
 Notes on the other hand inside the hold, and same-color chord notes on the
 head or tail beat, are fine. While the hold lasts, give every other sound to the
 other hand. When recoloring or moving a note, check whether a hold of its new color
-spans that beat. `project repair-swings` resolves remaining conflicts. It moves
-the note to the other hand when that hand is free. Otherwise it splits the arc
-at the cut, head to cut and cut to tail, so the held sound stays held around it.
-Pieces shorter than a beat are dropped, and the notes stay. For a chain it removes the inner note.
+spans that beat. The placer gives every unpinned note inside a hold to the free hand, so leave the hand
+open on the sounds inside it. A pinned same-color note inside a hold is a `placement_infeasible` error, and
+`project check` suggests the other hand or dropping the time. Split the arc yourself when the held sound
+really pauses at that cut.
 
 ## Held vocals take focus
 

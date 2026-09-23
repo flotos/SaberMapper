@@ -4,7 +4,7 @@ from __future__ import annotations
 from copy import deepcopy
 from pathlib import Path
 
-from .show import show_revision
+from .show import note_colors, show_revision
 from . import vivify
 
 
@@ -18,11 +18,15 @@ def vivified_entries(info: dict, by_rank: list, report: dict, vivid: dict, desti
     bundle = vivid["bundle"]
     beatmaps = info["_difficultyBeatmapSets"][0]["_difficultyBeatmaps"]
     requirements, provenance = {}, {}
-    for entry, (_, (_, row)) in zip(beatmaps, by_rank):
+    for entry, (arrangement, (_, row)) in zip(beatmaps, by_rank):
         names = row["vivify"]["requirements"]
         requirements[row["difficulty"]] = names
         if names:
-            entry["_customData"] = {"_requirements": names}
+            entry.setdefault("_customData", {})["_requirements"] = names
+        colors = note_colors(arrangement) if arrangement.get("schema_version") == "0.2" else None
+        if colors:
+            entry.setdefault("_customData", {}).update(
+                {"_colorLeft": {k: colors["left"][k] for k in "rgb"}, "_colorRight": {k: colors["right"][k] for k in "rgb"}})
         provenance[row["difficulty"]] = row.pop("_provenance")
     needs_vivify = any("Vivify" in names for names in requirements.values())
     shipped, warnings = [], []
@@ -34,7 +38,7 @@ def vivified_entries(info: dict, by_rank: list, report: dict, vivid: dict, desti
         if not shipped:
             raise ExportError("bundle_files_missing: bundleinfo.json lists CRCs but no bundle*.vivify file sits "
                               f"beside it in {bundle['directory']}")
-        info["_customData"] = {"_assetBundle": {key: bundle["crcs"][key] for key in shipped}}
+        info.setdefault("_customData", {})["_assetBundle"] = {key: bundle["crcs"][key] for key in shipped}
         if bundle["missing_files"]:
             warnings.append({"severity": "warning", "code": "bundle_platform_missing",
                              "message": f"bundleinfo.json has CRCs for {', '.join(bundle['missing_files'])} but no "

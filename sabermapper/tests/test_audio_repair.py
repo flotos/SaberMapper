@@ -79,6 +79,22 @@ class GroundNotesTests(unittest.TestCase):
         result = ground_notes(arrangement(list(range(8)) + [8.5] + list(range(10, 30))), report(drums))
         self.assertEqual([(c["beat"], c["to_beat"]) for c in result["changes"]], [(8.5, float(Fraction(26, 3)))])
 
+    def test_a_move_never_makes_the_hand_travel_too_fast(self):
+        # Onsets at 10.5 and 11 are equally near the late note at 10.75. Moving it to 10.5 would carry the left
+        # hand from (0,0) to (3,2) in 0.25 s (reach_proxy), so it takes 11 instead.
+        drums = sorted(list(range(64)) + [10.5])
+        source = arrangement([])
+        source["sections"][0]["notes"] = [
+            {"id": "a", "beat": 9, "x": 2, "y": 0, "color": 1, "direction": 1},
+            {"id": "b", "beat": 10, "x": 0, "y": 0, "color": 0, "direction": 1},
+            {"id": "c", "beat": "43/4", "x": 3, "y": 2, "color": 0, "direction": 0},
+            {"id": "d", "beat": 12, "x": 2, "y": 0, "color": 1, "direction": 0},
+            {"id": "e", "beat": 13, "x": 0, "y": 0, "color": 0, "direction": 1}]
+        self.assertEqual([d for d in validate_arrangement(source) if d["code"] == "reach_proxy"], [])
+        result = ground_notes(source, report(drums))
+        self.assertEqual([(c["beat"], c.get("to_beat")) for c in result["changes"]], [(10.75, 11.0)])
+        self.assertEqual([d for d in validate_arrangement(result["arrangement"]) if d["code"] == "reach_proxy"], [])
+
     def test_arc_anchors_move_with_their_arc(self):
         source = arrangement(list(range(10)) + [10.25] + list(range(12, 30)))
         anchor = source["sections"][0]["notes"][10]

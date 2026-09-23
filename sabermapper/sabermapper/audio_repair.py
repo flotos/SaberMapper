@@ -17,8 +17,8 @@ Two passes, both judged against one musical evidence run:
    neighbouring swing of that hand; otherwise the onset is reported unresolved.
 
 Locked sections, chain anchors and motif-expanded notes are never changed.
-Every change is re-validated; one that introduces a blocking diagnostic is
-reverted. The input arrangement is not mutated.
+Every change is re-validated; one that introduces a blocking diagnostic or a
+``reach_proxy`` warning is reverted. The input arrangement is not mutated.
 """
 
 from __future__ import annotations
@@ -63,8 +63,14 @@ def _relative(beat: Fraction):
     return int(beat) if beat.denominator == 1 else str(beat)
 
 
+# Warnings a repair must not introduce either: a move that shortens a gap can make the hand's travel too fast.
+AVOIDED_WARNINGS = ("reach_proxy",)
+
+
 def _errors(arrangement):
-    return {(d["code"], tuple(d["object_ids"])) for d in validate_arrangement(arrangement) if d["severity"] == "error"}
+    """Blocking diagnostics plus avoided warnings, keyed by (code, object IDs)."""
+    return {(d["code"], tuple(d["object_ids"])) for d in validate_arrangement(arrangement)
+            if d["severity"] == "error" or d["code"] in AVOIDED_WARNINGS}
 
 
 def _culprits(arrangement, baseline, changes):
@@ -207,6 +213,8 @@ def ground_notes(arrangement: dict, report: dict) -> dict:
                 continue
             if not all(_arc_ok(arc, role, start, target) for _, _, arc, role in anchors):
                 continue
+            if not _reach_after_move(result, group, beat, target):
+                continue
             options.append((abs(target - beat), -strength, target))  # nearest, then strongest
         if options:
             target = min(options)[2]
@@ -225,9 +233,27 @@ def ground_notes(arrangement: dict, report: dict) -> dict:
             for s, n in group:
                 s["notes"].remove(n)
             changes.append({**record, "action": "removed",
-                            "reason": f"no audio onset within {SNAP_BEATS} beat to move it onto"})
+                            "reason": f"no audio onset within {SNAP_BEATS} beat that the hand can reach in time"})
     _revert_breaking(result, arrangement, changes, unresolved, baseline)
     return {"arrangement": result, "changes": changes, "unresolved": unresolved}
+
+
+def _reach_after_move(arrangement, group, beat, target):
+    """True when moving ``group`` from ``beat`` to ``target`` keeps each hand's travel under REACH_SPEED."""
+    moving = {f'{s["id"]}/note/{n["id"]}' for s, n in group}
+    seconds = beat_to_seconds(target, arrangement)
+    for _, note in group:
+        others = [n for n in expanded_notes(arrangement) if n["color"] == note["color"] and n["id"] not in moving]
+        before = [n for n in others if n["beat"] < target]
+        after = [n for n in others if n["beat"] > target]
+        for neighbour in (before[-1] if before else None, after[0] if after else None):
+            if neighbour is None:
+                continue
+            gap = abs(seconds - beat_to_seconds(neighbour["beat"], arrangement))
+            distance = ((neighbour["x"] - note["x"]) ** 2 + (neighbour["y"] - note["y"]) ** 2) ** 0.5
+            if gap and distance / gap > REACH_SPEED:
+                return False
+    return True
 
 
 def _arc_ok(arc, role, start, target):
@@ -267,7 +293,7 @@ def _revert_breaking(result, original, changes, unresolved, baseline):
             changes.remove(change)
             unresolved.append({"beat": change["beat"], "object_ids": change["object_ids"],
                                "code": change.get("code", "note_without_audio"),
-                               "reason": f'{change["action"]} note would add a blocking diagnostic; reverted'})
+                               "reason": f'{change["action"]} note would add a blocking diagnostic or reach_proxy; reverted'})
     raise ValueError("Audio repair did not converge; inspect the reported findings")
 
 

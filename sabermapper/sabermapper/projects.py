@@ -41,6 +41,25 @@ def repair_mojibake(text: str) -> str:
     return text
 
 
+def source_album(source: str | Path | None, artist: str | None) -> str | None:
+    """Album of the imported source file: its embedded tag, else an Artist/Album/Song folder layout."""
+    if not source:
+        return None
+    source = Path(source)
+    try:
+        import soundfile as sf
+        with sf.SoundFile(source) as handle:
+            tagged = (handle.album or "").strip()
+        if tagged:
+            return repair_mojibake(tagged)
+    except Exception:  # missing file or a format without tags
+        pass
+    folder = source.parent
+    if artist and folder.name and folder.parent.name.casefold() == artist.strip().casefold():
+        return folder.name
+    return None
+
+
 class ProjectStore:
     def __init__(self, root: str | Path):
         self.root = Path(root).resolve()
@@ -62,10 +81,22 @@ class ProjectStore:
         for path in self.projects.glob("*/project.json"):
             try:
                 item = read_json(path)
-                result.append({k: item.get(k) for k in ("id", "title", "artist", "created_at", "updated_at", "origin", "duration_seconds")})
+                entry = {k: item.get(k) for k in ("id", "title", "artist", "created_at", "updated_at", "origin", "duration_seconds")}
+                entry["album"] = item.get("album") or source_album((item.get("audio") or {}).get("source_path"),
+                                                                    item.get("artist"))
+                result.append(entry)
             except (OSError, ValueError):
                 continue
         return sorted(result, key=lambda x: x["updated_at"] or "", reverse=True)
+
+    def set_album(self, project_id: str, album: str | None) -> dict:
+        """Record the album shown in the studio's artist/album tree; empty restores the source-derived album."""
+        with self.lock:
+            path = self.directory(project_id)
+            meta = read_json(path / "project.json")
+            meta["album"] = repair_mojibake(album.strip()) if album and album.strip() else None
+            write_json(path / "project.json", meta)
+        return next(item for item in self.list() if item["id"] == project_id)
 
     def find_by_source(self, source_sha256: str) -> dict | None:
         """Return the most recently updated project imported from the exact same source audio."""
@@ -80,9 +111,12 @@ class ProjectStore:
         return max(matches, key=lambda x: x.get("updated_at") or "", default=None)
 
     def create(self, source: str | Path | None = None, *, title="Untitled track", artist="Unknown artist",
-               bpm: float | None = None, demo=False, allow_duplicate=False) -> dict:
+               album: str | None = None, bpm: float | None = None, demo=False, allow_duplicate=False) -> dict:
         from .audio import _hash, analyze_audio, generate_demo_audio, prepare_audio
         title, artist = repair_mojibake(title), repair_mojibake(artist)
+        album = repair_mojibake(album.strip()) if album and album.strip() else None
+        if album is None and not demo:
+            album = source_album(source, artist)
         if not demo and source is not None and not allow_duplicate:
             existing = self.find_by_source(_hash(Path(source)))
             if existing:
@@ -107,7 +141,7 @@ class ProjectStore:
             chosen_bpm = float(bpm or report_bpm)
             arrangement = starting_arrangement(title.strip() or "Untitled track", artist.strip() or "Unknown artist",
                                                 chosen_bpm, duration, demo=demo)
-            metadata = {"schema_version": "1.0", "id": project_id, "title": title, "artist": artist,
+            metadata = {"schema_version": "1.0", "id": project_id, "title": title, "artist": artist, "album": album,
                         "created_at": now(), "updated_at": now(), "origin": "original-demo" if demo else "local-audio",
                         "composition_origin": "deterministic demonstration" if demo else "rules-only starting arrangement",
                         "duration_seconds": duration, "audio": audio_meta, "timing_reviewed": False,

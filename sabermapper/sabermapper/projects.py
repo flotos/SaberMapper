@@ -746,15 +746,22 @@ class ProjectStore:
                         "scope": "One-rater qualitative observation; no population-level or automatic quality claim"})
             return self.get(project_id, data.get("difficulty"))
 
-    def export(self, project_id: str) -> dict:
-        """Export every difficulty of the project into one map ZIP."""
-        from .export import export_arrangements
+    def export_filename(self, project_id: str) -> str:
+        """A fresh export name, `map-<revision digest>-<unique>.zip`, for the project's current revisions."""
         with self.lock:
             path = self.directory(project_id)
             arrangements = [read_json(file) for file in self.difficulty_files(path).values()]
             revisions = {a["difficulty"]["name"]: arrangement_revision(a) for a in arrangements}
             revision = next(iter(revisions.values())) if len(revisions) == 1 else digest(revisions)
-            filename = f"map-{revision[:10]}-{uuid.uuid4().hex[:6]}.zip"
+            return f"map-{revision[:10]}-{uuid.uuid4().hex[:6]}.zip"
+
+    def export(self, project_id: str, filename: str | None = None) -> dict:
+        """Export every difficulty of the project into one map ZIP (named by `export_filename` unless given)."""
+        from .export import export_arrangements
+        with self.lock:
+            path = self.directory(project_id)
+            arrangements = [read_json(file) for file in self.difficulty_files(path).values()]
+            filename = filename or self.export_filename(project_id)
             from .musical import latest_run
             from .show import bundle_directory, load_show
             run_id, evidence = latest_run(path)

@@ -12,6 +12,8 @@ from pathlib import Path
 import re
 import secrets
 import tempfile
+import threading
+import time
 from urllib.parse import parse_qs, unquote, urlparse, urlencode
 
 from .projects import ConflictError, ProjectStore
@@ -93,6 +95,76 @@ def game_action(game, store: ProjectStore, action: str, data: dict):
     raise ValueError("Unknown game operation; use play, pause, resume, restart, seek or stop")
 
 
+class PreviewExports:
+    """Background exports for studio previews, so ArcViewer boots in its tab while the map ZIP is written.
+
+    `wait` blocks until an export finishes and returns its result, or raises its error. A running
+    export counts as an in-flight request, so a code reload drains it before the worker stops. A job
+    this worker never started (it began before a reload) resolves from the finished files on disk.
+    """
+
+    KEEP = 16
+
+    def __init__(self, store: ProjectStore, control: WorkerControl):
+        self.store, self.control = store, control
+        self.jobs: dict[tuple[str, str], dict] = {}
+        self.guard = threading.Lock()
+
+    def start(self, project_id: str, filename: str, difficulty: str | None, revision: str) -> str:
+        job = filename.removesuffix(".zip")
+        entry = {"done": threading.Event(), "result": None, "error": None, "started": time.monotonic()}
+        with self.guard:
+            self.jobs[(project_id, job)] = entry
+            for key in sorted(self.jobs, key=lambda k: self.jobs[k]["started"])[:-self.KEEP]:
+                if self.jobs[key]["done"].is_set():
+                    del self.jobs[key]
+        counted = threading.Event()
+
+        def run():
+            with self.control.request():
+                counted.set()
+                try:
+                    with self.store.lock:
+                        if self.store.get(project_id, difficulty)["revision"] != revision:
+                            raise ConflictError("Project changed. Reload it before previewing.")
+                        entry["result"] = self.store.export(project_id, filename)
+                except Exception as exc:
+                    entry["error"] = exc
+                finally:
+                    entry["done"].set()
+
+        threading.Thread(target=run, name=f"preview-{job}", daemon=True).start()
+        counted.wait(5)  # the export is in flight before the request that started it ends
+        return job
+
+    def wait(self, project_id: str, job: str, timeout: float = 600.0) -> dict:
+        with self.guard:
+            entry = self.jobs.get((project_id, job))
+        if entry is None:
+            exports = self.store.directory(project_id) / "exports"
+            if not (exports / f"{job}.zip").is_file():
+                raise FileNotFoundError("Preview export was not found; start the preview again")
+            result = {"filename": f"{job}.zip", "url": f"/api/projects/{project_id}/files/exports/{job}.zip"}
+            if (exports / f"{job}-vanilla.zip").is_file():
+                result["vanilla_twin"] = f"{job}-vanilla.zip"
+            return result
+        if not entry["done"].wait(timeout):
+            raise ValueError("The preview export is still running; try again shortly")
+        if entry["error"] is not None:
+            raise entry["error"]
+        return entry["result"]
+
+
+def warm_up():
+    """Import the export pipeline (SciPy included) in the background, so the first preview skips it."""
+    def run():
+        try:
+            from . import export, musical, placement, show  # noqa: F401
+        except Exception:
+            pass
+    threading.Thread(target=run, name="studio-warm-up", daemon=True).start()
+
+
 def make_server(workspace: str | Path, port: int = 8765, game=None, token: str | None = None,
                 control: WorkerControl | None = None) -> ThreadingHTTPServer:
     """Build the studio server. `game` is the game API (sabermapper.game.api); None imports it on first use.
@@ -114,6 +186,7 @@ def make_server(workspace: str | Path, port: int = 8765, game=None, token: str |
         return games[0]
     token = token or secrets.token_urlsafe(32)
     arc_root = Path(os.environ.get("SABERMAPPER_ARCVIEWER", str(Path(__file__).resolve().parents[1] / "vendor" / "arcviewer"))).resolve()
+    previews = PreviewExports(store, control)
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "SaberMapper/0.2"
@@ -134,7 +207,16 @@ def make_server(workspace: str | Path, port: int = 8765, game=None, token: str |
         def _file(self, path: Path, viewer=False):
             if not path.is_file():
                 raise FileNotFoundError("File was not found")
-            size = path.stat().st_size
+            stat = path.stat()
+            size = stat.st_size
+            # ArcViewer's 53 MB engine revalidates to a 304, so the browser reuses its download and compiled code.
+            tag = f'"{stat.st_mtime_ns:x}-{size:x}"' if viewer else None
+            if tag and tag in {t.strip() for t in self.headers.get("If-None-Match", "").split(",")}:
+                self.send_response(304)
+                self.send_header("ETag", tag)
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                return
             start, end = 0, size - 1
             range_header = self.headers.get("Range")
             partial = False
@@ -155,6 +237,8 @@ def make_server(workspace: str | Path, port: int = 8765, game=None, token: str |
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Cache-Control", "no-cache")
+            if tag:
+                self.send_header("ETag", tag)
             if viewer:
                 self.send_header("Content-Security-Policy", "default-src 'self' blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'")
             else:
@@ -239,6 +323,13 @@ def make_server(workspace: str | Path, port: int = 8765, game=None, token: str |
                 elif re.fullmatch(r"/api/projects/[\w-]+", path):
                     difficulty = parse_qs(urlparse(self.path).query).get("difficulty", [None])[0]
                     self._json(store.get(path.split("/")[3], difficulty or None))
+                elif match := re.fullmatch(r"/api/projects/([\w-]+)/previews/(map-[0-9a-f]{10}-[0-9a-f]{6})\.(zip|json)", path):
+                    project_id, job, kind = match.groups()
+                    result = previews.wait(project_id, job)
+                    if kind == "json":
+                        self._json(result)
+                    else:  # ArcViewer cannot render Vivify: a vivified export previews its vanilla twin.
+                        self._file(store.directory(project_id) / "exports" / (result.get("vanilla_twin") or result["filename"]))
                 elif path.startswith("/api/projects/") and "/files/" in path:
                     pieces = path.split("/", 5)
                     folder = store.directory(pieces[3])
@@ -342,9 +433,12 @@ def make_server(workspace: str | Path, port: int = 8765, game=None, token: str |
                             current = store.get(project_id, difficulty)
                             if data.get("revision") != current["revision"]:
                                 raise ConflictError("Project changed. Reload it before previewing.")
-                            result = store.export(project_id)
-                        # ArcViewer cannot render Vivify: a vivified export previews its vanilla twin.
-                        local_url = f"http://{self.headers['Host']}{result.get('vanilla_twin_url', result['url'])}"
+                            filename = store.export_filename(project_id)
+                        # The export runs while the viewer tab boots ArcViewer; the viewer's map request waits for it.
+                        job = previews.start(project_id, filename, difficulty, current["revision"])
+                        result = {"filename": filename, "url": f"/api/projects/{project_id}/files/exports/{filename}",
+                                  "status_url": f"/api/projects/{project_id}/previews/{job}.json"}
+                        local_url = f"http://{self.headers['Host']}/api/projects/{project_id}/previews/{job}.zip"
                         result["viewer_url"] = "/arcviewer/?" + urlencode({
                             "url": local_url, "noProxy": "true", "t": min(start, current["project"]["duration_seconds"]),
                             "mode": "Standard", "difficulty": current["difficulty"]})
@@ -443,6 +537,7 @@ def serve(workspace: str | Path, port=8765, game=None, worker=False):
     server = make_server(workspace, port, game, token=os.environ.get(TOKEN_ENV) if worker else None, control=control)
     if worker:
         control.listen(server)
+    warm_up()
     print(f"SaberMapper Studio: http://127.0.0.1:{server.server_port}", flush=True)
     print(f"Workspace: {Path(workspace).resolve()}", flush=True)
     try:

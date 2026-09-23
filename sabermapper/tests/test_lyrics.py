@@ -103,6 +103,16 @@ class TranscribeTests(unittest.TestCase):
                                evidence_context(self.directory, self.run_id, self.report, None))
         self.assertEqual([(i["id"], i["seconds"], i["label"]) for i in items], [("lyr-001/0", 22.0, "Light")])
 
+    def test_weights_download_to_a_plain_folder_without_symlinks(self):
+        # Windows refuses the Hugging Face cache's symlinks without admin rights (WinError 1314).
+        models = Path(self.temp.name) / "models"
+        with patch("sabermapper.lyrics.whisper_backend", return_value="faster_whisper"), \
+                patch.dict("os.environ", {"SABERMAPPER_MODEL_DIR": str(models)}):
+            transcribe(self.directory, self.run_id, self.report, python=Path("p"), runner=self.fake_runner)
+        self.assertEqual(self.config["model_dir"], str(models))
+        from sabermapper.lyrics import RUNNER
+        self.assertIn("download_model(config[\"model\"], output_dir=path)", RUNNER)
+
     def test_runner_failure_points_to_the_log(self):
         with patch("sabermapper.lyrics.whisper_backend", return_value="whisper"):
             with self.assertRaises(ListenError) as raised:

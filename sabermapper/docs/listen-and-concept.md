@@ -113,35 +113,28 @@ holds:
   which is what the show's `{"source": "lyrics", "words": [...]}` pulses read;
 - `provenance`.
 
-**Status on this machine (2026-09-23).** Neither package is installed. The permission system
-blocked the install, so the command returns this structured error:
-
-```json
-{"error": {"code": "whisper_missing",
-  "message": "Neither faster-whisper nor openai-whisper is importable in ...\\.venv-separation\\Scripts\\python.exe",
-  "fix": "...python.exe -m pip install faster-whisper   (needs the user's approval; ...)",
-  "install_command": "C:/Users/floto/Documents/SaberMapper/sabermapper/.venv-separation/Scripts/python.exe -m pip install faster-whisper"}}
-```
-
-The exit code is 2. To enable Whisper, the user runs or approves:
+**Status on this machine (2026-09-23).** faster-whisper 1.2.1 is installed in `.venv-separation`
+(user-approved), with:
 
 ```
 C:/Users/floto/Documents/SaberMapper/sabermapper/.venv-separation/Scripts/python.exe -m pip install faster-whisper
 ```
 
-That environment already has torch 2.8.0+cu128 with CUDA available. If CTranslate2 still cannot
-load cuDNN, add `nvidia-cublas-cu12 nvidia-cudnn-cu12`. Alternatively, `openai-whisper` reuses
-that torch directly.
+CTranslate2 finds cuBLAS/cuDNN in that environment's torch 2.8.0+cu128, so it runs on the GPU
+(`device: cuda`, `compute_type: float16`). Without faster-whisper or openai-whisper the command
+returns `whisper_missing` (exit code 2) with that install command.
 
-Model weights are downloaded on first use:
+Model weights are downloaded on first use into a plain folder, `%LOCALAPPDATA%/SaberMapper/models/
+faster-whisper-<model>` (override with `SABERMAPPER_MODEL_DIR`; large-v3 is about 3 GB). The
+Hugging Face hub cache is not used for faster-whisper, because it links files with symlinks, which
+Windows refuses without Developer Mode or admin rights (`WinError 1314`). openai-whisper keeps its
+own cache in `%USERPROFILE%\.cache\whisper`.
 
-- faster-whisper: the Hugging Face hub cache, `%USERPROFILE%\.cache\huggingface\hub`
-  (`models--Systran--faster-whisper-large-v3`, about 3 GB);
-- openai-whisper: `%USERPROFILE%\.cache\whisper`.
-
-Word-timestamp quality on real songs has **not been observed** yet, because no model has run. The
-stored note describes Whisper's known behaviour: usually within a few tenths of a second, worse on
-melisma, held notes, backing vocals and ad-libs, and words can be misheard.
+First real run (2026-09-23, large-v3 on the Demucs vocal stem of a 3-minute English pop song, in a
+temp copy of the project): 22 s including model load, 39 segments, 258 words, language detected as
+`en` (p 0.92); repeated hooks came out as separate lines. Nobody has checked the words against a listen, so treat individual
+words as possibly misheard and timestamps as good to a few tenths of a second, worse on melisma,
+held notes, backing vocals and ad-libs.
 
 **Lyric sheets without a model (`--from-file`).**
 

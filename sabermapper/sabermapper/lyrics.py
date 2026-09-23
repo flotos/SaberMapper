@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -134,7 +135,15 @@ if backend == "faster_whisper":
     if device == "auto":
         device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
     compute = "float16" if device == "cuda" else "int8"
-    model = faster_whisper.WhisperModel(config["model"], device=device, compute_type=compute)
+    # Download into a plain folder: the Hugging Face cache needs symlinks, which Windows refuses
+    # without Developer Mode or admin rights (WinError 1314).
+    path = config["model"]
+    if config.get("model_dir") and not os.path.isdir(path):
+        path = os.path.join(config["model_dir"], "faster-whisper-" + config["model"])
+        if not os.path.isfile(os.path.join(path, "model.bin")):
+            from faster_whisper.utils import download_model
+            download_model(config["model"], output_dir=path)
+    model = faster_whisper.WhisperModel(path, device=device, compute_type=compute)
     segments, info = model.transcribe(audio, language=language, word_timestamps=True, vad_filter=True,
                                       beam_size=5, condition_on_previous_text=False)
     for s in segments:
@@ -157,6 +166,14 @@ else:
 with open(config["output"], "w", encoding="utf-8") as stream:
     json.dump(result, stream)
 '''
+
+
+def model_directory() -> Path:
+    """Where Whisper weights are kept: ``SABERMAPPER_MODEL_DIR``, else %LOCALAPPDATA%/SaberMapper/models."""
+    if os.environ.get("SABERMAPPER_MODEL_DIR"):
+        return Path(os.environ["SABERMAPPER_MODEL_DIR"])
+    base = os.environ.get("LOCALAPPDATA") or str(Path.home() / ".cache")
+    return Path(base) / "SaberMapper" / "models"
 
 
 def whisper_python(python=None):
@@ -221,7 +238,7 @@ def transcribe(project_dir, run_id, report, arrangement=None, *, python=None, mo
         np.save(temp / "audio.npy", audio)
         (temp / "runner.py").write_text(RUNNER, encoding="utf-8")
         config = {"audio": str(temp / "audio.npy"), "output": str(temp / "result.json"), "backend": backend,
-                  "model": model, "device": device, "language": language}
+                  "model": model, "device": device, "language": language, "model_dir": str(model_directory())}
         (temp / "config.json").write_text(json.dumps(config), encoding="utf-8")
         command = [str(python), str(temp / "runner.py"), str(temp / "config.json")]
         log = run_dir / "lyrics.log"

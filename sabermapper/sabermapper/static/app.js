@@ -4,11 +4,16 @@ const state = {token: '', project: null, view: 'studio', section: null, zoom: 24
 const arrows = ['↑', '↓', '←', '→', '↖', '↗', '↙', '↘', '●'];
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const time = seconds => `${Math.floor(Math.max(0,seconds)/60)}:${String(Math.floor(Math.max(0,seconds)%60)).padStart(2,'0')}`;
+const clock = seconds => `${time(seconds)}.${Math.floor(Math.max(0,Number(seconds)||0)*10)%10}`;
 function toast(message, error = false) { $('toast').textContent = message; $('toast').className = error ? 'error' : ''; $('toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').hidden = true, error ? 10000 : 5000); }
 async function api(path, data) {
   const response = await fetch(path, data === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json','X-SaberMapper-Token':state.token},body:JSON.stringify(data)});
   const value = await response.json();
-  if (!response.ok) throw new Error(value.error || `Request failed (${response.status})`);
+  if (!response.ok) {
+    const e=value.error, error=new Error((typeof e==='string'?e:e?.message)||`Request failed (${response.status})`);
+    if (e && typeof e==='object') Object.assign(error,{code:e.code,details:e.details,fix:e.fix});
+    error.status=response.status; throw error;
+  }
   return value;
 }
 async function run(label, callback) {
@@ -83,12 +88,12 @@ function renderProject(audioChanged=false) {
   $('diagnostics').innerHTML=d.diagnostics.length?d.diagnostics.map(x=>`<div class="diagnostic ${esc(x.severity)}"><strong>${esc(x.code.replaceAll('_',' '))}</strong><br>${esc(x.message)}${x.section_id?`<br><small>${esc(x.section_id)}</small>`:''}</div>`).join(''):'<div class="diagnostic good">✓ No issues.</div>';
   const metrics=Object.entries(d.movement.metrics||{}).filter(([,v])=>typeof v==='number').slice(0,7);
   $('movement').innerHTML=metrics.length?metrics.map(([k,v])=>`<div><span>${esc(k.replaceAll('_',' '))}</span><strong>${Number(v.toFixed(2))}</strong></div>`).join(''):'<div>No notes yet.</div>';
-  $('feedback-list').innerHTML=d.feedback.map(f=>`<div class="feedback-item"><small>BEATS ${esc(f.start_beat)}–${esc(f.end_beat)} · ${f.object_ids.length} notes · ${esc(f.revision.slice(0,8))} <a href="/api/projects/${currentId()}/files/feedback/${f.id}.json" download>JSON ↓</a></small><p>${esc(f.text)}</p></div>`).join('');
+  $('feedback-list').innerHTML=d.feedback.map(f=>`<div class="feedback-item"><small>${f.kind==='note'?`NOTE ${esc(clock(f.song_time))} · BEAT ${esc(f.beat)}${f.section?` · ${esc(f.section)}`:''}${f.stale?' · older revision':''}`:`BEATS ${esc(f.start_beat)}–${esc(f.end_beat)} · ${(f.object_ids||[]).length} notes`} · ${esc(String(f.revision||'').slice(0,8))} <a href="/api/projects/${currentId()}/files/feedback/${f.id}.json" download>JSON ↓</a></small><p>${esc(f.text)}</p></div>`).join('');
   $('history').innerHTML=d.history.map(h=>`<option value="${h}" ${h===d.revision?'selected':''}>${h.slice(0,12)} ${h===d.revision?'· current':''}</option>`).join('');
   $('review-count').textContent=(d.reviews||[]).filter(r=>r.playtested).length;
   $('arrangement-editor').value=JSON.stringify(a,null,2);$('editor-state').textContent=`Saved ${d.revision.slice(0,10)}`;
   if(audioChanged){$('audio').src=`/api/projects/${d.project.id}/files/song.ogg`;$('play').textContent='▶';$('play').setAttribute('aria-label','Play');}
-  renderMusicRuns(audioChanged);drawTimeline();requestAnimationFrame(drawWaveform);renderStage();
+  renderMusicRuns(audioChanged);drawTimeline();requestAnimationFrame(drawWaveform);renderStage();renderConsole();
 }
 function drawTimeline() {
   if(!state.project)return;
@@ -174,3 +179,119 @@ $('preview-map').onclick=()=>{
     }catch(error){if(viewer && !viewer.closed)viewer.close();throw error;}
   });
 };
+
+// Verification console: play the chosen revision in Beat Saber, scrub, and leave timestamped notes.
+// Every control calls the same HTTP API as the agent's CLI twins (`game ...`, `project feedback add|list`).
+const verify={status:null,poll:null,dragging:false,seekTimer:null,noteTime:null,pending:null,key:''};
+function verifyRevision(){return $('verify-revision').value||state.project.revision;}
+function sliderSeconds(){return Number($('song-slider').value)||0;}
+function gameActive(){const s=verify.status;return !!(s&&s.running&&s.bridge&&s.bridge.level);}
+function consoleActive(){return !!state.project&&state.view==='studio'&&!document.hidden&&!$('project-view').hidden;}
+function sectionAt(seconds){const beat=secondsBeat(seconds);return {beat,section:state.project.arrangement.sections.find(s=>beat>=beatNumber(s.start_beat)&&beat<beatNumber(s.start_beat)+beatNumber(s.length_beats))};}
+function projectMoments(d){
+  const raw=d.moments??d.project?.moments??d.analysis?.moments, list=Array.isArray(raw)?raw:Array.isArray(raw?.moments)?raw.moments:[];
+  return list.map(m=>{const beat=m.beat??m.start_beat,seconds=Number(m.seconds??m.song_time??m.time??m.start_seconds??(beat!=null?beatSeconds(beatNumber(beat)):NaN));return {seconds,label:m.label||m.name||m.kind||m.type||'Key moment'};}).filter(m=>Number.isFinite(m.seconds));
+}
+function revisionNotes(){const d=state.project,revision=verifyRevision();return d.feedback.filter(f=>f.kind==='note'&&f.difficulty===d.difficulty&&f.revision===revision).sort((a,b)=>a.song_time-b.song_time);}
+function renderConsole(){
+  const d=state.project,duration=d.project.duration_seconds,key=`${d.project.id}/${d.difficulty}`,previous=$('verify-revision').value;
+  const revisions=[d.revision,...d.history.filter(h=>h!==d.revision)];
+  $('verify-revision').innerHTML=revisions.map(h=>`<option value="${esc(h)}">${esc(h.slice(0,10))}${h===d.revision?' · current':''}</option>`).join('');
+  $('verify-revision').value=key===verify.key&&revisions.includes(previous)?previous:d.revision;
+  $('song-slider').max=String(duration);$('slider-duration').textContent=time(duration);
+  if(key!==verify.key){verify.key=key;setSlider(0);closeNote();refreshGame();}
+  renderMarkers();
+}
+function renderMarkers(){
+  const d=state.project,duration=d.project.duration_seconds||1;
+  const sections=d.arrangement.sections.map(s=>{const seconds=beatSeconds(beatNumber(s.start_beat));return `<span class="marker-section" data-at="${seconds}" title="${esc(s.id)} · ${esc(time(seconds))} · ${esc(s.intent)}"></span>`;});
+  const moments=projectMoments(d).map(m=>`<span class="marker-moment" data-at="${m.seconds}" title="${esc(m.label)} · ${esc(time(m.seconds))}"></span>`);
+  const notes=revisionNotes();
+  const pins=notes.map(n=>`<button type="button" class="marker-note${n.stale?' stale':''}" data-at="${n.song_time}" data-jump="${n.song_time}" aria-label="Note at ${esc(clock(n.song_time))}: ${esc(n.text)}" title="${esc(clock(n.song_time))} · ${esc(n.text)}"></button>`);
+  const box=$('slider-markers');box.innerHTML=[...sections,...moments,...pins].join('');
+  // style-src 'self' blocks style attributes in markup; positions are set through the CSSOM instead.
+  box.querySelectorAll('[data-at]').forEach(el=>el.style.left=`${Math.min(100,Math.max(0,Number(el.dataset.at)/duration*100)).toFixed(3)}%`);
+  $('note-list').innerHTML=notes.length?notes.map(n=>`<div class="feedback-item"><small><button type="button" data-jump="${n.song_time}">${esc(clock(n.song_time))} ↦</button> · BEAT ${esc(n.beat)}${n.section?` · ${esc(n.section)}`:''} · ${esc(n.source)}${n.stale?' · older revision':''}</small><p>${esc(n.text)}</p></div>`).join(''):'<p class="hint">No notes on this revision yet. Press Note (N) while playing.</p>';
+  document.querySelectorAll('#slider-markers [data-jump], #note-list [data-jump]').forEach(b=>b.onclick=()=>jumpTo(Number(b.dataset.jump)));
+}
+function setSlider(seconds){$('song-slider').value=String(seconds);$('slider-time').textContent=time(seconds);}
+function jumpTo(seconds){setSlider(seconds);if(gameActive())gameCall('seek',{seconds});else $('audio').currentTime=seconds;}
+function leaseText(s){
+  if(!s)return ['Game: checking…',''];
+  if(!s.available)return ['Game bridge missing','missing'];
+  const lease=s.lease;
+  if(!lease)return [s.running?'Game running · no lease':'Game free',''];
+  if(lease.holder_kind==='human')return ['Game: you (studio)','you'];
+  return [`Agent: ${lease.holder||'unknown'}${lease.purpose?` · ${lease.purpose}`:''}`,'agent'];
+}
+function renderGame(){
+  const s=verify.status,[label,kind]=leaseText(s),indicator=$('lease-indicator');
+  indicator.textContent=label;indicator.className=`badge ${kind}`;
+  const bridge=s?.bridge,level=bridge?.level;
+  let line='';
+  if(s?.error)line=`${s.error.message||s.error.code}${s.error.fix?` — ${s.error.fix}`:''}`;
+  else if(level)line=`In game · ${level.difficulty||''} ${bridge.paused?'paused':'playing'} · ${clock(bridge.song_time||0)} / ${time(bridge.song_length||state.project?.project.duration_seconds||0)}${bridge.speed&&bridge.speed!==1?` · ${bridge.speed}×`:''}${bridge.fps?` · ${Math.round(bridge.fps)} fps`:''}`;
+  else if(s?.running)line=`Beat Saber is running${bridge?.scene?` (${bridge.scene})`:''}; no level loaded.`;
+  else if(s)line='Beat Saber is not running. Play in game starts it.';
+  $('game-status').textContent=line;
+  for(const id of ['game-pause','game-resume','game-restart'])$(id).disabled=!gameActive();
+  for(const id of ['game-play-start','game-play-playhead','game-watch'])$(id).disabled=s?.available===false;
+  if(gameActive()&&!verify.dragging&&Number.isFinite(bridge.song_time))setSlider(bridge.song_time);
+}
+async function refreshGame(){
+  clearTimeout(verify.poll);
+  try{verify.status=await api('/api/game/status');}catch(e){verify.status={available:true,running:false,lease:null,bridge:null,error:{message:e.message}};}
+  renderGame();
+  // Poll fast only while the console is visible and the game runs; otherwise refresh on focus and after actions.
+  if(verify.status.running&&consoleActive())verify.poll=setTimeout(refreshGame,400);
+}
+function gameError(error){$('game-status').textContent=`${error.message}${error.fix?` — ${error.fix}`:''}`;toast(error.message,true);}
+async function gameCall(action,body={}){try{const result=await api(`/api/game/${action}`,body);await refreshGame();return result;}catch(error){gameError(error);}}
+function playInGame(seconds,mode='play',confirm=false){
+  if(!state.project)return;
+  const body={project:currentId(),revision:verifyRevision(),difficulty:state.project.difficulty,seconds,mode,...(confirm?{confirm_preempt:true}:{})};
+  return run(mode==='watch'?'Starting Watch…':'Starting the game…',async()=>{
+    let result;
+    try{result=await api('/api/game/play',body);}
+    catch(error){
+      if(error.code==='game_busy'&&error.details?.preemptable){verify.pending=()=>playInGame(seconds,mode,true);$('preempt-message').textContent=error.message;$('preempt-dialog').showModal();return;}
+      gameError(error);return;
+    }
+    $('audio').pause();
+    if(result&&result.watch==='unavailable'){const why=result.message||result.reason||'ghost autoplay is not built yet';$('game-status').textContent=`Watch is not available yet: ${why}.`;toast('Watch is not available yet.');}
+    else toast(`${mode==='watch'?'Watching':'Playing'} ${body.revision.slice(0,8)} in game from ${time(seconds)}.`);
+    await refreshGame();
+  });
+}
+function openNote(){
+  if(!state.project)return;
+  const duration=state.project.project.duration_seconds,live=gameActive()&&Number.isFinite(verify.status.bridge.song_time);
+  verify.noteTime=Math.min(duration,Math.max(0,live?verify.status.bridge.song_time:sliderSeconds()));
+  const {beat,section}=sectionAt(verify.noteTime);
+  $('note-time').textContent=clock(verify.noteTime);$('note-where').textContent=`beat ${beat.toFixed(2)}${section?` · ${section.id}`:''} · revision ${verifyRevision().slice(0,8)}`;
+  $('note-form').hidden=false;$('note-text').focus();
+}
+function closeNote(){$('note-form').hidden=true;$('note-text').value='';verify.noteTime=null;}
+$('game-play-start').onclick=()=>playInGame(0);
+$('game-play-playhead').onclick=()=>playInGame(sliderSeconds());
+$('game-watch').onclick=()=>playInGame(sliderSeconds(),'watch');
+$('game-pause').onclick=()=>gameCall('pause');$('game-resume').onclick=()=>gameCall('resume');$('game-restart').onclick=()=>gameCall('restart');
+$('verify-revision').onchange=()=>{closeNote();renderMarkers();};
+$('song-slider').addEventListener('input',()=>{
+  verify.dragging=true;const seconds=sliderSeconds();$('slider-time').textContent=time(seconds);
+  if(!gameActive())$('audio').currentTime=seconds;
+  clearTimeout(verify.seekTimer);
+  verify.seekTimer=setTimeout(()=>{verify.dragging=false;if(gameActive())gameCall('seek',{seconds:sliderSeconds()});},300);
+});
+$('audio').addEventListener('timeupdate',()=>{if(state.project&&!gameActive()&&!verify.dragging)setSlider($('audio').currentTime);});
+$('note-button').onclick=openNote;$('note-cancel').onclick=closeNote;
+$('note-text').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();closeNote();}else if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();$('note-form').requestSubmit();}});
+$('note-form').onsubmit=e=>{e.preventDefault();const seconds=verify.noteTime,revision=verifyRevision();if(seconds===null)return;run('Saving note…',async()=>{
+  const note=await api(`/api/projects/${currentId()}/note`,{song_time:seconds,text:$('note-text').value,revision,difficulty:state.project.difficulty});
+  closeNote();state.project=await api(projectUrl(currentId(),state.project.difficulty));renderProject();$('verify-revision').value=revision;renderMarkers();
+  toast(`Note saved at ${clock(note.song_time)} · beat ${note.beat}${note.section?` · ${note.section}`:''}${note.stale?' (older revision)':''}.`);
+});};
+$('confirm-preempt').onclick=()=>{$('preempt-dialog').close();const next=verify.pending;verify.pending=null;if(next)next();};
+$('cancel-preempt').onclick=$('close-preempt').onclick=()=>{verify.pending=null;$('preempt-dialog').close();};
+document.addEventListener('keydown',e=>{if(e.key?.toLowerCase()==='n'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)&&!document.querySelector('dialog[open]')&&consoleActive()){e.preventDefault();openNote();}});
+document.addEventListener('visibilitychange',()=>{if(consoleActive())refreshGame();});window.addEventListener('focus',()=>{if(consoleActive())refreshGame();});

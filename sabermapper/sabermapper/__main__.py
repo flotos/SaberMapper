@@ -136,13 +136,15 @@ def main(argv=None):
             leaf.add_argument("--minutes", type=float)
             leaf.add_argument("--decision", choices=("pending", "go", "revise", "stop"))
             leaf.add_argument("--variant", choices=("initial", "revised", "baseline"))
+    from .feedback_cli import register_feedback, dispatch_feedback
+    register_feedback(project_commands)
     from .musical_cli import register_musical, dispatch_musical
     register_musical(commands)
     from .research_cli import register_subcommands, dispatch
     register_subcommands(commands)
     args = parser.parse_args(argv)
     try:
-        if dispatch_musical(args, emit):
+        if dispatch_musical(args, emit) or dispatch_feedback(args, emit):
             return 0
         if dispatch(args):
             return 0

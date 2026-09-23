@@ -317,7 +317,7 @@ class PitchAndPassageTests(unittest.TestCase):
         self.assertGreater(report["passages"][-1]["drum_onset_density"], 5)
         self.assertEqual(report["passage_thresholds"]["window_seconds"], 2.0)
         self.assertIn(report["passage_thresholds"]["drum_layer"], report["layers"])
-        self.assertEqual(report["schema_version"], "1.1")
+        self.assertEqual(report["schema_version"], "1.2")
 
     def test_slice_returns_sustains_passages_and_one_layer(self):
         arrangement = copy.deepcopy(self.initial["arrangement"])

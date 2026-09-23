@@ -16,7 +16,13 @@ python -m sabermapper music analyze ID --workspace workspace --backend demucs --
 python -m sabermapper music analyze ID --workspace workspace --backend import --manifest stems.json
 python -m sabermapper music list ID --workspace workspace
 python -m sabermapper music inspect ID --workspace workspace --run RUN_ID --start 64 --end 80
+python -m sabermapper music rhythm ID --workspace workspace --start 64 --end 96 [--layers guitar,drums] [--division 3]
+python -m sabermapper music analyze ID --workspace workspace --from-run RUN_ID
 ```
+
+`--from-run` (backend `rerun`) re-analyzes the stems an earlier run already
+separated with the current detectors, without separating again. Use it when a
+project's newest run predates schema 1.2 (no `chord_change` events).
 
 Each analysis creates an immutable `musical/RUN_ID/report.json` beside the project
 arrangement. `music inspect` returns only the selected absolute beat range, with
@@ -109,6 +115,15 @@ and `strength` (0..1, relative loudness). `music inspect` adds `start_beat` and
 `end_beat`. Held vocals are authored as arcs; see
 [held notes](held-notes.md).
 
+Schema 1.2 adds `method: "chord_change"` events on every separated layer except
+drums and percussive (and on the mix). They mark where the pitch-class content
+changes: strummed chord changes and riff note changes that the monophonic
+`pitch_change` tracker cannot follow on polyphonic guitar, keys or pads. Each
+carries `novelty` (0..1, raw), `from_pitch_classes` and `to_pitch_classes` (the
+three strongest classes, not chord names) and sits on the layer's own attack when
+one is within 80 ms. Use them as placement triggers and as cues for a direction
+or position change: a new chord is a natural point to change the hand's figure.
+
 Each layer also emits events with `method: "pitch_change"` carrying `from_midi`,
 `to_midi` and `semitone_delta`, where the smoothed pitch moves at least 0.8
 semitone and holds the new value for at least 100 ms. A layer's `attack_profile`
@@ -150,11 +165,14 @@ intro as "regularly spaced notes that just do the beat". Both maps put most
 notes on an even half-beat grid (about 2.8 NPS) and ignored syncopated drum,
 bass and synth figures that were plainly present in the stems.
 
-- Before authoring, print each passage's onset strength on a quarter-beat grid
-  per layer. Normalize strength within the passage so quiet intros still show
-  their figure. Then place notes on the strongest actual attacks, including
-  off-beat sixteenths such as dotted 3-3-2 kick/snare placements and bass or
-  synth pickups.
+- Before authoring, run `music rhythm ID --start A --end B` for the passage.
+  It prints, per 4-beat bar, each layer's attacks on a sixteenth grid (digits
+  1-9, normalized within the requested range so quiet intros still show their
+  figure) beside the mapped notes, the bar's lead, and pattern letters that show
+  where a riff repeats. `grid_fit` says whether a layer sits on sixteenths or
+  triplets; use `--division 3` or `6` for a triplet feel. Then place notes on
+  the strongest actual attacks, including off-beat sixteenths such as dotted
+  3-3-2 kick/snare placements and bass or synth pickups.
 - Break long runs of identical gaps. Six or more equal gaps in a row need a
   musical reason, such as a real straight hi-hat or a sung eighth-note line.
   Otherwise, rest or move to the nearest off-grid attack.
@@ -172,6 +190,42 @@ bass and synth figures that were plainly present in the stems.
   Carry hand state across section seams and check the first notes of the next
   section.
 
+## Follow the lead instrument's rhythm
+
+Standing user rule (2026-09-23, `lead_rhythm` in `player-profile.json`), from
+Fireflies feedback: "should map way more to the rhythm of the guitar being
+played; the pacing is very regular". The drive sections declared the guitar as
+lead, but notes filled every eighth: the guitar's offbeat figure was merged with
+the kick into an even stream, so its syncopation disappeared. It also missed the
+guitar's sixteenth runs at 0:33-0:39.
+
+- The bar's lead is the voice in a singing bar. Otherwise it is the
+  `musical_focus` lead when that lead is an analyzed stem other than `mix`.
+  Declare an instrument lead wherever a riff carries the rhythm. `mix` and gaps
+  declare no lead, so nothing checks the rhythm there. Declare the stem that
+  actually plays: check `music rhythm` before calling a stretch "drums" or "mix".
+- Put the notes on the lead's attacks and keep its rests and syncopation. Add
+  another layer's hits only where the lead is silent for about a beat or more.
+  A lead playing every beat leaves no room for filler; its figure *is* the map.
+- Follow the lead's density changes. A riff that moves from offbeat eighths to
+  sixteenth runs should read that way. Short sixteenth bursts are within the
+  player's band; flow rules still apply.
+- `critique` checks this. `lead_rhythm_unmapped`: fewer than 60% of an
+  instrument lead's strongest attacks per half-beat carry a note.
+  `lead_rhythm_diluted`: fewer than 75% of a bar's note times sit on a lead
+  attack, in a lead gap, or under a held arc. Its `object_ids` name the filler
+  notes. `metrics.lead_rhythm.bars` lists each bar's lead and counts.
+- `project repair-audio` rebuilds each diluted bar. It clears the bar's free
+  notes and places flow-safe notes on the lead's strongest attack per half-beat
+  and on strong sixteenth attacks, filling the lead's silent beats from other
+  stems. It keeps arcs, chains, locked sections and motif notes, and restores
+  any bar it cannot rebuild safely. It also fills `lead_rhythm_unmapped` onsets.
+  Its placements are mechanical: review hand positions for variety afterwards,
+  and re-author any bar it reports as unresolved.
+- `grid_drift` warns when a 32-beat window's percussive onsets sit more than
+  30 ms from the song-wide grid offset (`metrics.grid_alignment`). Fix the BPM,
+  offset or tempo events before placing notes there.
+
 ## Salience: who leads, bar by bar
 
 Standing user rule (2026-09-22, `salience_lead` in `player-profile.json`), from
@@ -183,8 +237,9 @@ played a strong pattern, and the notes sat between the drum hits.
   leads**: vocal sustains cover at least a quarter of the bar and at least two
   vocal `spectral_flux` onsets start in it. Place notes on those vocal onsets.
   Add only strong drum accents where the voice leaves a gap of a beat or more.
-- **When the voice holds or rests, the drums lead.** Put the notes on the drum
-  pattern and carry the held vocal as an arc on the other hand
+- **When the voice holds or rests, the drums lead**, unless a `musical_focus`
+  phrase declares another instrument stem as lead (see above). Put the notes on
+  the drum pattern and carry the held vocal as an arc on the other hand
   ([held notes](held-notes.md)).
 - A busy riff or loud guitar never outranks singing. "Drive" or "chorus" labels
   do not change the lead.
@@ -195,7 +250,8 @@ played a strong pattern, and the notes sat between the drum hits.
 - `python -m sabermapper critique ARRANGEMENT.json --report musical/RUN/report.json`
   checks this. `vocal_line_unmapped` means fewer than half the vocal onsets in a
   singing bar carry a note. `drum_rhythm_unmapped` means fewer than 60% of a
-  strong drum pattern's hits carry a note while the voice holds or rests. Only
+  strong drum pattern's hits carry a note while the voice holds or rests and no
+  other instrument lead is declared. Only
   the strongest hit per half-beat counts, so dense sixteenth hats never demand
   a stream.
   `metrics.salience.bars` lists each bar's salient layer. Both are warnings:

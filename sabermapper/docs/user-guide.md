@@ -15,7 +15,8 @@ The CLI can create a real project with `python -m sabermapper import-audio TRACK
 ## Author, validate and export
 
 For instrument-led phrasing and whole-mix accents, the agent uses `music backends`,
-`music analyze`, `music list`, and `music inspect`. The studio's **Music layers**
+`music analyze` (with `--from-run RUN_ID` to re-analyze existing stems), `music list`, `music inspect`,
+and `music rhythm` (per-bar attack grids per layer beside the mapped notes). The studio's **Music layers**
 panel is an optional agent-operated inspection surface. See [musical analysis and agent composition](musical-analysis.md)
 for separation options, phrase focus weights, and listening controls. Codex or
 Claude Code authors the rhythms and movements from this evidence.

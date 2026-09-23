@@ -15,6 +15,15 @@ Two passes, both judged against one musical evidence run:
    ``density_collapse`` (strong stem onsets inside the sparse window). A new
    note takes the hand and cut direction that add no flow break with either
    neighbouring swing of that hand; otherwise the onset is reported unresolved.
+   ``lead_rhythm_unmapped`` adds notes on the declared lead's strongest attack
+   per half-beat.
+3. **Follow the lead.** Each bar flagged ``lead_rhythm_diluted`` (notes filling
+   the space between the lead's attacks) is rebuilt: its free notes are cleared,
+   then flow-safe notes go on the lead's strongest attack per half-beat (and
+   on sixteenth attacks of strength 0.6 or more), and
+   another stem's strongest attack fills each beat where the lead is silent. A
+   rebuilt bar that adds a blocking diagnostic, a ``reach_proxy`` warning, or
+   keeps fewer than min(4, old count) notes is restored.
 
 Locked sections, chain anchors and motif-expanded notes are never changed.
 Every change is re-validated; one that introduces a blocking diagnostic or a
@@ -29,8 +38,10 @@ from fractions import Fraction
 
 from .arrangement import expanded_notes
 from .audio_grounding import SUPPORT_BEATS, SUPPORT_STRENGTH, ONSET_METHODS, ONSET_STRENGTH, _stem_onsets
-from .critique import (ACCENT_STRENGTH, DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT, SALIENCE_MATCH_BEATS,
-                       VOCAL_ONSET_STRENGTH, beat_to_seconds, critique_arrangement)
+from .critique import (ACCENT_STRENGTH, DRUM_ONSET_STRENGTH, DRUM_SLOTS_PER_BEAT, LEAD_ONSET_STRENGTH,
+                       LEAD_SUPPORT_STRENGTH, SALIENCE_BAR_BEATS, SALIENCE_MATCH_BEATS, VOCAL_ONSET_STRENGTH,
+                       _sections, beat_to_seconds, critique_arrangement, focus_lead, lead_onsets,
+                       strongest_per_slot)
 from .movement import turn_degrees, _OPPOSITE
 from .swing_repair import _count_breaks, _hand_swings
 from .validation import _beat, validate_arrangement
@@ -45,7 +56,10 @@ MIN_GAP_BEATS = Fraction(1, 4)
 HAND_GAP_BEATS = Fraction(1, 2)
 REACH_SPEED = 12  # grid cells per second; above this the movement model reports reach_proxy
 MAX_ROUNDS = 12
-FILL_CODES = ("vocal_line_unmapped", "drum_rhythm_unmapped", "boundary_accent_unmapped", "density_collapse")
+FILL_CODES = ("vocal_line_unmapped", "drum_rhythm_unmapped", "lead_rhythm_unmapped", "boundary_accent_unmapped",
+              "density_collapse")
+REBUILD_MIN_NOTES = 4
+LEAD_RUN_STRENGTH = 0.6
 LANES = {0: (0, 1), 1: (2, 3)}
 UP_CUTS, DOWN_CUTS = (0, 4, 5), (1, 6, 7)
 
@@ -412,6 +426,10 @@ def _fill_targets(arrangement, report, warning):
             if slot not in strongest or strongest[slot][0] < strength:
                 strongest[slot] = (strength, beat)
         found = list(strongest.values())
+    elif code == "lead_rhythm_unmapped":
+        lead = focus_lead(_sections(arrangement), start + SALIENCE_BAR_BEATS / 2, layers)
+        found = [(strength, beat) for beat, strength in
+                 strongest_per_slot(lead_onsets(layers, lead, arrangement, LEAD_ONSET_STRENGTH))] if lead else []
     elif code == "boundary_accent_unmapped":
         return [(1.0, start)]
     else:
@@ -460,6 +478,90 @@ def fill_findings(arrangement: dict, report: dict) -> dict:
     return {"arrangement": result, "changes": changes, "unresolved": unresolved}
 
 
+def _free_notes(view, first, last):
+    """Literal notes in [first, last) the rebuild may clear, or None when motif notes are there."""
+    expanded = {}
+    for note in expanded_notes(view.arrangement):
+        expanded[note["beat"]] = expanded.get(note["beat"], 0) + 1
+    free, literal = [], {}
+    for section, note, beat in view.entries():
+        if not first <= beat < last:
+            continue
+        literal[beat] = literal.get(beat, 0) + 1
+        start = view.section_at(beat)[1]
+        if section["locked"] or view.arcs_at(section, start, note, beat) or view.chain_anchored(section, start, note, beat):
+            continue  # arcs, chains and locked notes stay; the rebuilt rhythm fits around them
+        free.append((section, note, beat))
+    inside = {beat: count for beat, count in expanded.items() if first <= beat < last}
+    if any(literal.get(beat, 0) != count for beat, count in inside.items()):
+        return None  # motif-expanded notes: edit the motif instead
+    return free
+
+
+def _lead_targets(arrangement, report, lead, first, last):
+    """Beats for a rebuilt bar: the lead's strongest attack per half-beat, then fills where it is silent."""
+    layers = report.get("layers") or {}
+    found = lead_onsets(layers, lead, arrangement, LEAD_SUPPORT_STRENGTH)
+    targets = [(beat, strength) for beat, strength in strongest_per_slot(found)
+               if strength >= LEAD_ONSET_STRENGTH and first <= beat < last]
+    # A strong sixteenth run in the lead is part of its rhythm: keep those attacks too.
+    targets += [(beat, strength) for beat, strength in strongest_per_slot(found, 4)
+                if strength >= LEAD_RUN_STRENGTH and first <= beat < last
+                and all(abs(beat - other) > 1e-6 for other, _ in targets)]
+    heard = [beat for beat, _ in found]
+    fills = []
+    for beat in range(int(first), int(last)):
+        if any(beat - 0.25 <= b < beat + 1.25 for b in heard):
+            continue
+        others = [(s, b) for name in layers if name not in ("mix", lead)
+                  for b, s in lead_onsets(layers, name, arrangement, LEAD_ONSET_STRENGTH) if beat <= b < beat + 1]
+        if others:
+            strength, onset = max(others)
+            fills.append((onset, strength))
+    return targets, fills
+
+
+def follow_lead(arrangement: dict, report: dict) -> dict:
+    """Pass 3: rebuild bars whose notes bury the lead's rhythm in filler."""
+    result = copy.deepcopy(arrangement)
+    changes, unresolved, counter = [], [], 0
+    critique = critique_arrangement(result, report)
+    leads = {bar["start_beat"]: bar["lead"] for bar in critique["metrics"]["lead_rhythm"]["bars"]}
+    bars = sorted({bar for w in critique["warnings"] if w["code"] == "lead_rhythm_diluted"
+                   for bar in range(int(w["beats"][0]), int(w["beats"][1]), SALIENCE_BAR_BEATS)})
+    baseline = _errors(result)
+    for bar in bars:
+        first, last = Fraction(bar), Fraction(bar + SALIENCE_BAR_BEATS)
+        snapshot = copy.deepcopy(result)
+        view = _Map(result)
+        free = _free_notes(view, first, last)
+        record = {"beat": float(first), "code": "lead_rhythm_diluted", "object_ids": []}
+        if free is None:
+            unresolved.append({**record, "reason": "motif-expanded notes in the bar; edit the motif"})
+            continue
+        old = len({beat for _, _, beat in free})
+        removed = [f'{section["id"]}/note/{note["id"]}' for section, note, _ in free]
+        for section, note, _ in free:
+            section["notes"].remove(note)
+        targets, fills = _lead_targets(result, report, leads[bar], float(first), float(last))
+        added = []
+        for onset, _ in targets + fills:
+            counter += 1
+            change = insert_note(result, _grid_beat(onset), f"lead-{counter:03d}")
+            if change is not None:
+                added.append(change)
+        times = {n["beat"] for n in expanded_notes(result) if first <= n["beat"] < last}
+        if len(times) < min(REBUILD_MIN_NOTES, old) or _errors(result) - baseline:
+            result.clear()
+            result.update(snapshot)
+            unresolved.append({**record, "reason": "no flow-safe rebuild on the lead's attacks; re-author by hand"})
+            continue
+        changes.append({**record, "action": "rebuilt", "lead": leads[bar], "removed_ids": removed,
+                        "object_ids": [i for c in added for i in c["object_ids"]],
+                        "reason": f'notes follow the {leads[bar]} attacks instead of filling between them'})
+    return {"arrangement": result, "changes": changes, "unresolved": unresolved}
+
+
 def repair_audio(arrangement: dict, report: dict | None) -> dict:
     """Return ``{"arrangement", "changes", "unresolved", "remaining"}`` without mutating the input."""
     if not report:
@@ -469,8 +571,9 @@ def repair_audio(arrangement: dict, report: dict | None) -> dict:
         raise ValueError("Fix blocking diagnostics before repairing audio findings: "
                          + "; ".join(d["message"] for d in blocking[:5]))
     grounded = ground_notes(arrangement, report)
-    filled = fill_findings(grounded["arrangement"], report)
+    led = follow_lead(grounded["arrangement"], report)
+    filled = fill_findings(led["arrangement"], report)
     remaining = [{k: w[k] for k in ("code", "message", "section_id")}
                  for w in critique_arrangement(filled["arrangement"], report)["warnings"]]
-    return {"arrangement": filled["arrangement"], "changes": grounded["changes"] + filled["changes"],
-            "unresolved": grounded["unresolved"] + filled["unresolved"], "remaining": remaining}
+    return {"arrangement": filled["arrangement"], "changes": grounded["changes"] + led["changes"] + filled["changes"],
+            "unresolved": grounded["unresolved"] + led["unresolved"] + filled["unresolved"], "remaining": remaining}

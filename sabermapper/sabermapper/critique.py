@@ -47,6 +47,18 @@ VOCAL_MAPPED_THRESHOLD = 0.5
 DRUM_MAPPED_THRESHOLD = 0.6
 SALIENCE_MIN_BARS = 1
 DRUM_SLOTS_PER_BEAT = 2
+LEAD_ONSET_METHODS = ("spectral_flux", "pitch_change", "chord_change")
+LEAD_ONSET_STRENGTH = 0.3
+LEAD_SUPPORT_STRENGTH = 0.2
+LEAD_MIN_ONSETS = 3
+LEAD_MIN_NOTES = 4
+LEAD_GAP_BEATS = 0.75
+LEAD_MAPPED_THRESHOLD = 0.6
+LEAD_CONSISTENT_THRESHOLD = 0.75
+GRID_WINDOW_BEATS = 32
+GRID_MIN_ONSETS = 8
+GRID_ON_GRID_BEATS = 0.1
+GRID_DRIFT_SECONDS = 0.03
 
 DEFINITIONS = {
     "rolling_nps": "Notes per second inside 4-second windows hopped every 1 second from the first note to the last.",
@@ -71,7 +83,12 @@ DEFINITIONS = {
     "boundary_accent_unmapped": "A non-energy_rise musical event of strength 0.7 or more sits within 0.25 beat of a section seam that carries no note within 0.25 beat.",
     "singing_bar": "A 4-beat bar (absolute beats 0, 4, 8...) where vocals sustains cover at least 25% and at least 2 vocals spectral_flux events of strength 0.25 or more start: articulated singing.",
     "vocal_line_unmapped": "One or more consecutive singing bars where fewer than 50% of those vocal onsets have a note within 0.13 beat or sit inside a vocal sustain held by an arc: the map follows another layer while the voice is the focal point.",
-    "drum_rhythm_unmapped": "One or more consecutive non-singing bars (voice holding or resting) with at least 6 drums spectral_flux events of strength 0.3 or more (only the strongest per half-beat slot counts), fewer than 60% of which have a note within 0.13 beat.",
+    "drum_rhythm_unmapped": "One or more consecutive non-singing bars (voice holding or resting) without a declared non-drum instrument lead (bar_lead), with at least 6 drums spectral_flux events of strength 0.3 or more (only the strongest per half-beat slot counts), fewer than 60% of which have a note within 0.13 beat.",
+    "bar_lead": "The layer whose rhythm a 4-beat bar follows: vocals in a singing bar, otherwise the lead of the musical_focus phrase covering the bar's middle when that lead is an analyzed stem other than mix. Other bars have no declared lead and skip the lead checks.",
+    "lead_rhythm_unmapped": "One or more consecutive bars led by an instrument stem (not vocals, which vocal_line_unmapped covers) with at least 3 lead onsets (spectral_flux, pitch_change or chord_change of strength 0.3 or more, strongest per half-beat slot), fewer than 60% of which have a note within 0.13 beat.",
+    "lead_rhythm_diluted": "One or more consecutive bars with a declared lead, at least 3 lead onsets and at least 4 note times, where fewer than 75% of the note times follow the lead: a note follows it when a lead onset of strength 0.2 or more sits within 0.13 beat, when the lead is silent within 0.75 beat (a gap another layer may fill), or when an arc is held through it. Filler between the lead's attacks flattens its syncopation into a metronome stream.",
+    "grid_alignment": "For each 32-beat window, the median signed offset in milliseconds of strong drums (else percussive, low or mix) spectral_flux onsets of strength 0.3 or more from the nearest quarter beat, counting only onsets within 0.1 beat of it; windows need at least 8 such onsets.",
+    "grid_drift": "Some grid_alignment window's median offset differs from the song-wide median by more than 30 ms: the tempo or offset drifts there, so notes placed on the grid miss the audio.",
     **AUDIO_DEFINITIONS,
 }
 
@@ -315,14 +332,18 @@ def _salience(arrangement, spans, notes, report, warn):
         hits = [b for b in drums if start <= b < stop]
         coverage = sum(max(0.0, min(e, stop) - max(s, start)) for s, e in sustains) / SALIENCE_BAR_BEATS
         singing = coverage >= SINGING_SUSTAIN_COVERAGE and len(sung) >= SINGING_MIN_ONSETS
-        onsets_in = sung if singing else hits
+        # A declared instrument lead (a guitar riff, a synth line) outranks the drums while the voice rests;
+        # lead_rhythm_unmapped and lead_rhythm_diluted judge those bars instead.
+        declared = None if singing else focus_lead(spans, start + SALIENCE_BAR_BEATS / 2, layers)
+        declared = None if declared == "drums" else declared
+        onsets_in = sung if singing else [] if declared else hits
         mapped = sum(1 for b in onsets_in if near(b) or (singing and held(b)))
         code = None
         if singing and mapped < VOCAL_MAPPED_THRESHOLD * len(sung):
             code = "vocal_line_unmapped"
-        elif not singing and len(hits) >= DRUM_PATTERN_MIN_ONSETS and mapped < DRUM_MAPPED_THRESHOLD * len(hits):
+        elif not singing and len(onsets_in) >= DRUM_PATTERN_MIN_ONSETS and mapped < DRUM_MAPPED_THRESHOLD * len(hits):
             code = "drum_rhythm_unmapped"
-        bars.append({"start_beat": start, "salient": "vocals" if singing else "drums" if hits else None,
+        bars.append({"start_beat": start, "salient": "vocals" if singing else declared or ("drums" if hits else None),
                      "onsets": len(onsets_in), "mapped": mapped, "code": code})
     runs, current = [], []
     for bar in bars:
@@ -345,6 +366,156 @@ def _salience(arrangement, spans, notes, report, warn):
              section_id=section, value=_round(mapped / total, 4), beats=[first, last],
              threshold=VOCAL_MAPPED_THRESHOLD if code == "vocal_line_unmapped" else DRUM_MAPPED_THRESHOLD)
     return {"checked": True, "bars": bars}
+
+
+def focus_lead(spans, beat, layers):
+    """The instrument stem a musical_focus phrase declares as lead at ``beat``, if analyzed and not mix."""
+    for span in spans:
+        if not span["start_beat"] <= beat < span["end_beat"]:
+            continue
+        for phrase in span["section"].get("musical_focus") or []:
+            left = span["start_beat"] + float(Fraction(str(phrase["start_beat"])))
+            right = span["start_beat"] + float(Fraction(str(phrase["end_beat"])))
+            lead = phrase.get("lead")
+            if left <= beat < right and lead != "mix" and isinstance(layers.get(lead), dict):
+                return lead
+    return None
+
+
+def lead_onsets(layers, name, arrangement, threshold):
+    """Sorted (beat, strength) lead events of one layer at or above ``threshold``."""
+    from .musical import seconds_to_beat
+    return sorted((seconds_to_beat(e["seconds"], arrangement), e["strength"])
+                  for e in (layers.get(name) or {}).get("events", [])
+                  if e.get("method") in LEAD_ONSET_METHODS and e.get("strength", 0) >= threshold)
+
+
+def strongest_per_slot(onsets, slots=DRUM_SLOTS_PER_BEAT):
+    """Keep the strongest (beat, strength) per 1/slots-beat slot, so a dense figure is judged at a mappable rate."""
+    strongest = {}
+    for beat, strength in onsets:
+        slot = math.floor(beat * slots + 0.5)
+        if slot not in strongest or strongest[slot][1] < strength:
+            strongest[slot] = (beat, strength)
+    return sorted(strongest.values())
+
+
+def _lead_rhythm(arrangement, spans, notes, report, salience, warn):
+    """Flag bars whose notes miss the declared lead's attacks or bury them in filler."""
+    layers = (report or {}).get("layers") or {}
+    if not layers or not spans:
+        return {"checked": False, "bars": []}
+    singing = {bar["start_beat"] for bar in salience.get("bars", []) if bar["salient"] == "vocals"}
+    arcs = [(span["start_beat"] + float(Fraction(str(arc["beat"]))),
+             span["start_beat"] + float(Fraction(str(arc["tail_beat"]))))
+            for span in spans for arc in span["section"].get("arcs") or []]
+    times = sorted({float(n["beat"]) for n in notes})
+    ids = {}
+    for n in notes:
+        ids.setdefault(float(n["beat"]), []).append(n["id"])
+    cache, bars = {}, []
+
+    def events(name):
+        if name not in cache:
+            cache[name] = lead_onsets(layers, name, arrangement, LEAD_SUPPORT_STRENGTH)
+        return cache[name]
+
+    def within(values, beat, reach):
+        index = bisect_left(values, beat - reach)
+        return index < len(values) and values[index] <= beat + reach
+
+    end = max(s["end_beat"] for s in spans)
+    for start in range(0, math.ceil(end), SALIENCE_BAR_BEATS):
+        stop = start + SALIENCE_BAR_BEATS
+        lead = ("vocals" if start in singing and isinstance(layers.get("vocals"), dict)
+                else focus_lead(spans, start + SALIENCE_BAR_BEATS / 2, layers))
+        if lead is None:
+            continue
+        found = events(lead)
+        support = [b for b, _ in found]
+        strong = [b for b, s in strongest_per_slot(found) if s >= LEAD_ONSET_STRENGTH and start <= b < stop]
+        inside = [t for t in times if start <= t < stop]
+        if len(strong) < LEAD_MIN_ONSETS:
+            continue
+        mapped = sum(1 for b in strong if within(times, b, SALIENCE_MATCH_BEATS))
+        stray = [t for t in inside if within(support, t, LEAD_GAP_BEATS) and not within(support, t, SALIENCE_MATCH_BEATS)
+                 and not any(head <= t <= tail for head, tail in arcs)]
+        code = None
+        if lead != "vocals" and mapped < LEAD_MAPPED_THRESHOLD * len(strong):
+            code = "lead_rhythm_unmapped"
+        elif len(inside) >= LEAD_MIN_NOTES and len(inside) - len(stray) < LEAD_CONSISTENT_THRESHOLD * len(inside):
+            code = "lead_rhythm_diluted"
+        bars.append({"start_beat": start, "lead": lead, "lead_onsets": len(strong), "mapped": mapped,
+                     "note_times": len(inside), "off_lead": len(stray), "code": code,
+                     "stray_beats": [_round(t, 4) for t in stray]})
+    runs = []
+    for bar in bars:
+        if (runs and bar["code"] and runs[-1][-1]["code"] == bar["code"] and runs[-1][-1]["lead"] == bar["lead"]
+                and runs[-1][-1]["start_beat"] + SALIENCE_BAR_BEATS == bar["start_beat"]):
+            runs[-1].append(bar)
+        elif bar["code"]:
+            runs.append([bar])
+    for run in runs:
+        code, lead = run[0]["code"], run[0]["lead"]
+        first, last = run[0]["start_beat"], run[-1]["start_beat"] + SALIENCE_BAR_BEATS
+        section = next((s["id"] for s in spans if s["start_beat"] <= first < s["end_beat"]), None)
+        if code == "lead_rhythm_unmapped":
+            total, mapped = sum(b["lead_onsets"] for b in run), sum(b["mapped"] for b in run)
+            warn(code, f"Beats {first:g}-{last:g}: {lead} leads, but only {mapped} of its {total} attacks carry a "
+                       "note; place the notes on its rhythm (see `music rhythm`).",
+                 section_id=section, value=_round(mapped / total, 4), threshold=LEAD_MAPPED_THRESHOLD,
+                 beats=[first, last])
+        else:
+            total, stray = sum(b["note_times"] for b in run), sum(b["off_lead"] for b in run)
+            warn(code, f"Beats {first:g}-{last:g}: {lead} leads, but {stray} of {total} note times sit between its "
+                       "attacks, flattening its rhythm into an even stream. Keep the notes on its attacks and fill "
+                       "only its gaps of a beat or more (see `music rhythm`).",
+                 section_id=section, value=_round((total - stray) / total, 4),
+                 threshold=LEAD_CONSISTENT_THRESHOLD, beats=[first, last],
+                 object_ids=[i for b in run for t in b["stray_beats"] for i in ids.get(t, [])])
+    return {"checked": True, "bars": bars}
+
+
+def grid_alignment(arrangement, report):
+    """Median signed offset of strong percussive onsets from the quarter-beat grid, per window."""
+    from .musical import seconds_to_beat
+    layers = (report or {}).get("layers") or {}
+    name = next((n for n in ("drums", "percussive", "low", "mix") if isinstance(layers.get(n), dict)), None)
+    if name is None:
+        return {"checked": False, "windows": []}
+    offsets = []
+    for event in layers[name].get("events", []):
+        if event.get("method") != "spectral_flux" or event.get("strength", 0) < DRUM_ONSET_STRENGTH:
+            continue
+        beat = seconds_to_beat(event["seconds"], arrangement)
+        nearest = round(beat * 4) / 4
+        if beat >= 0 and abs(beat - nearest) <= GRID_ON_GRID_BEATS:
+            offsets.append((beat, event["seconds"] - beat_to_seconds(nearest, arrangement)))
+    windows = {}
+    for beat, offset in offsets:
+        windows.setdefault(int(beat // GRID_WINDOW_BEATS), []).append(offset)
+    rows = [{"start_beat": key * GRID_WINDOW_BEATS, "end_beat": (key + 1) * GRID_WINDOW_BEATS,
+             "onsets": len(values), "median_offset_ms": _round(median(values) * 1000, 2),
+             "median_abs_offset_ms": _round(median(abs(v) for v in values) * 1000, 2)}
+            for key, values in sorted(windows.items()) if len(values) >= GRID_MIN_ONSETS]
+    overall = median(v for _, v in offsets) if offsets else 0.0
+    return {"checked": bool(rows), "layer": name, "median_offset_ms": _round(overall * 1000, 2), "windows": rows}
+
+
+def _grid(arrangement, report, warn):
+    alignment = grid_alignment(arrangement, report)
+    drifting = [w for w in alignment["windows"]
+                if abs(w["median_offset_ms"] - alignment["median_offset_ms"]) > GRID_DRIFT_SECONDS * 1000]
+    if drifting:
+        worst = max(drifting, key=lambda w: abs(w["median_offset_ms"] - alignment["median_offset_ms"]))
+        spread = worst["median_offset_ms"] - alignment["median_offset_ms"]
+        warn("grid_drift",
+             f'{alignment["layer"]} onsets drift off the beat grid in {len(drifting)} window(s); worst beats '
+             f'{worst["start_beat"]}-{worst["end_beat"]} sit {spread:+.1f} ms from the song-wide '
+             f'{alignment["median_offset_ms"]:+.1f} ms. Check the BPM and offset there, or add tempo events.',
+             value=_round(abs(spread) / 1000, 4), threshold=GRID_DRIFT_SECONDS,
+             beats=[worst["start_beat"], worst["end_beat"]])
+    return alignment
 
 
 def _movement_objects(arrangement, spans, report):
@@ -396,6 +567,8 @@ def critique_arrangement(arrangement: dict, report: dict | None = None) -> dict:
                "movement_objects": _movement_objects(arrangement, spans, report),
                "boundary_accents": _boundary_accents(arrangement, spans, notes, report, warn),
                "salience": _salience(arrangement, spans, notes, report, warn)}
+    metrics["lead_rhythm"] = _lead_rhythm(arrangement, spans, notes, report, metrics["salience"], warn)
+    metrics["grid_alignment"] = _grid(arrangement, report, warn)
     # Audio grounding: blocking spans are save errors elsewhere; here every finding stays a warning.
     metrics["audio"], findings = audio_findings(arrangement, report)
     for finding in findings:

@@ -71,6 +71,16 @@ Per layer:
   5–7 Hz does not qualify. Besides the usual `id`, `seconds`, `method` and
   `strength` (`min(1, |semitone_delta|/12)`, a size, not a confidence) they carry
   `from_midi`, `to_midi` and a signed `semitone_delta`.
+- `chord_change` events (schema 1.2), on the mix and every separated layer except
+  `drums` and `percussive`. A 12-class chroma is built from linear STFT
+  magnitudes between 65 and 2100 Hz, minus each frame's weakest class. Novelty is
+  1 − cosine similarity between the mean chroma of the 0.2 s before and after a
+  frame; both sides must be above 10% of the layer's peak power. Peaks of at
+  least 0.2 novelty, 0.15 s apart, become events, moved onto the layer's own
+  `spectral_flux` attack when one is within 80 ms. They carry `novelty` (raw),
+  `strength` (normalized within the layer) and the three strongest
+  `from_pitch_classes` / `to_pitch_classes`. They follow strummed chords and
+  polyphonic riffs that the monophonic f0 track cannot; they are not chord names.
 - `attack_profile` — `{"sustained_fraction", "sustained_layer"}`. Over frames
   above 10% of the layer's peak power, `sustained_fraction` is the share still
   within 6 dB of their maximum power over the preceding 250 ms, i.e. holding
@@ -89,6 +99,15 @@ Windows are clock time, not musical phrases.
 on the current grid, plus `attack_profile` and `passage_thresholds`. Use
 `--layer NAME` to restrict the excerpt to a single analyzed layer. Reports
 written by schema 1.0 runs still slice; the new fields are simply absent.
+`music analyze ID --from-run RUN_ID` (backend `rerun`) re-analyzes the stems an
+earlier run separated, so a new detector reaches old projects without another
+separation; the report records `producer.rerun_of`.
+
+`music rhythm ID --start BEAT --end BEAT [--layers a,b] [--division 4]` renders
+each 4-beat bar as one string per layer (`.` or a 1-9 strength digit per cell,
+normalized within the range) beside the mapped notes (`x`), with the bar's lead
+and pattern letters for repeated figures. `grid_fit` gives each layer's share of
+strong attacks on the sixteenth and triplet grids.
 
 Limitations: the f0 track is monophonic. Layered, choral or chordal material
 gives `unstable` shapes and low confidence, and the estimate follows whichever

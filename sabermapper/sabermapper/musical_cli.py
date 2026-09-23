@@ -10,17 +10,29 @@ def register_musical(commands):
     root = commands.add_parser("music", help="Instrument and mix evidence for the authoring agent")
     actions = root.add_subparsers(dest="music_action", required=True)
     actions.add_parser("backends", help="List techniques, dependencies, and authoring boundaries")
-    for action in ("analyze", "list", "inspect"):
-        parser = actions.add_parser(action)
+    helps = {"analyze": "Create an immutable evidence run (stems, onsets, pitch and chord changes)",
+             "list": "List evidence runs", "inspect": "Evidence and mapped notes for a beat range",
+             "rhythm": "Per-bar onset grids per layer beside the mapped notes, with the bar's lead"}
+    for action in ("analyze", "list", "inspect", "rhythm"):
+        parser = actions.add_parser(action, help=helps[action])
         parser.add_argument("project")
         parser.add_argument("--workspace", type=Path, default=Path("workspace"))
         if action == "analyze":
             parser.add_argument("--backend", choices=BACKENDS, default="bands")
-            parser.add_argument("--preset", choices=PRESETS, default="balanced")
+            parser.add_argument("--preset", choices=PRESETS, help="Default: balanced, or the source run's preset")
+            parser.add_argument("--from-run", dest="from_run",
+                                help="Re-analyze the stems this run already separated (backend rerun)")
             parser.add_argument("--manifest", type=Path, help="Aligned stems and producer/model provenance")
             parser.add_argument("--python", type=Path, help="Python environment with Demucs installed")
             parser.add_argument("--model", default="htdemucs")
             parser.add_argument("--device", default="cpu")
+        if action == "rhythm":
+            parser.add_argument("--run", help="Evidence run ID; default: newest run for the current audio")
+            parser.add_argument("--start", type=float, required=True, help="Absolute start beat")
+            parser.add_argument("--end", type=float, required=True, help="Exclusive end beat")
+            parser.add_argument("--layers", help="Comma-separated layers; default: every stem")
+            parser.add_argument("--division", type=int, default=4, help="Grid cells per beat: 2, 3, 4, 6, 8 or 12")
+            parser.add_argument("--output", type=Path)
         if action == "inspect":
             parser.add_argument("--run", required=True)
             parser.add_argument("--start", type=float, required=True, help="Absolute start beat")
@@ -43,18 +55,34 @@ def dispatch_musical(args, emit):
              "setup": "Install Demucs in a compatible environment; pass its executable with --python",
              "models": ["htdemucs", "htdemucs_ft", "htdemucs_6s", "hdemucs_mmi"]},
             {"id": "import", "available": True,
-             "setup": "Run any separator (e.g. BS-RoFormer) externally, then provide --manifest with source_sha256, producer and stems"}],
+             "setup": "Run any separator (e.g. BS-RoFormer) externally, then provide --manifest with source_sha256, producer and stems"},
+            {"id": "rerun", "available": True,
+             "setup": "Pass --from-run RUN_ID to re-analyze that run's separated stems with the current detectors"}],
             "presets": PRESETS, "authoring": "An independently invoked Codex or Claude Code agent authors all notes and focus changes."})
         return True
-    from .musical import analyze_project, evidence_slice, project_runs
+    from .musical import analyze_project, evidence_slice, latest_run, project_runs, rhythm_grid
     from .projects import ProjectStore
     store = ProjectStore(args.workspace)
     directory = store.directory(args.project)
     if args.music_action == "analyze":
         emit(analyze_project(store, args.project, **{key: getattr(args, key) for key in
-             ("backend", "preset", "manifest", "python", "model", "device")}))
+             ("backend", "preset", "manifest", "python", "model", "device", "from_run")}))
     elif args.music_action == "list":
         emit(project_runs(directory))
+    elif args.music_action == "rhythm":
+        with store.lock:
+            arrangement = read_json(directory / "arrangement.json")
+        if args.run is None:
+            run_id, report = latest_run(directory)
+            if report is None:
+                raise ValueError("No evidence run matches the current audio; run `music analyze` first")
+        else:
+            if not re.fullmatch(r"[a-f0-9]{32}", args.run):
+                raise ValueError("Invalid musical evidence run ID")
+            run_id, report = args.run, read_json(directory / "musical" / args.run / "report.json")
+        layers = [name.strip() for name in args.layers.split(",") if name.strip()] if args.layers else None
+        emit({"run_id": run_id, **rhythm_grid(report, arrangement, args.start, args.end,
+                                              layers=layers, division=args.division)}, args.output)
     else:
         if not re.fullmatch(r"[a-f0-9]{32}", args.run):
             raise ValueError("Invalid musical evidence run ID")

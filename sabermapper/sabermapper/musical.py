@@ -26,7 +26,7 @@ from .storage import now, read_json, write_json
 RATE = 22050
 HOP = 220
 WINDOW = 1024
-BACKENDS = ("bands", "hpss", "demucs", "import")
+BACKENDS = ("bands", "hpss", "demucs", "import", "rerun")
 # Monophonic f0 search range and YIN geometry; the comparison window is centred on the frame.
 MINIMUM_HZ, MAXIMUM_HZ = 70.0, 1100.0
 MAXIMUM_LAG, MINIMUM_LAG = int(RATE / MINIMUM_HZ), max(2, int(RATE / MAXIMUM_HZ))
@@ -55,6 +55,18 @@ PASSAGE_ONSET_STRENGTH = .35
 PASSAGE_DENSITY_REFERENCE = 2.0
 LOW_INTENSITY_DENSITY = .5
 LOW_INTENSITY_ENERGY_RATIO = .6
+# Chord changes: pitch-class (chroma) novelty between the windows before and after a frame.
+CHROMA_HZ = (65.0, 2100.0)
+CHORD_WINDOW_SECONDS = .2
+CHORD_MIN_NOVELTY = .2
+CHORD_SNAP_SECONDS = .08
+CHORD_MIN_GAP_SECONDS = .15
+CHORD_FLOOR = .1
+NON_HARMONIC_LAYERS = ("drums", "percussive")
+PITCH_CLASSES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+RHYTHM_DIVISIONS = (2, 3, 4, 6, 8, 12)
+RHYTHM_METHODS = ("spectral_flux", "pitch_change", "chord_change")
+RHYTHM_PATTERN_STRENGTH = .3
 PRESETS = {
     "balanced": {"minimum_gap_seconds": .09, "prominence": .10},
     "metal": {"minimum_gap_seconds": .065, "prominence": .12},
@@ -277,6 +289,56 @@ def _passages(layers, duration):
     return passages, thresholds
 
 
+def _chord_changes(name, frequencies, times, magnitude, power, duration, attacks=()):
+    """Frames where the pitch-class content changes: chord and note changes in polyphonic material.
+
+    The monophonic f0 tracker cannot follow strummed chords; chroma novelty can. Each frame
+    compares the mean pitch-class profile of the CHORD_WINDOW_SECONDS before it with the one
+    after it (1 - cosine similarity); both windows must be audible. The windows smear the
+    change, so it moves onto the layer's own attack (``attacks``, seconds) within
+    CHORD_SNAP_SECONDS when there is one.
+    """
+    keep = (frequencies >= CHROMA_HZ[0]) & (frequencies < CHROMA_HZ[1])
+    if not keep.any() or magnitude.shape[1] < 3 or float(np.max(power)) <= 0:
+        return []
+    classes = np.round(12 * np.log2(frequencies[keep] / 440.0) + 69).astype(int) % 12
+    chroma = np.zeros((12, magnitude.shape[1]))
+    np.add.at(chroma, classes, magnitude[keep])
+    chroma -= chroma.min(axis=0, keepdims=True)  # broadband noise and bleed raise every class alike
+    span = max(1, round(CHORD_WINDOW_SECONDS * RATE / HOP))
+    running = np.concatenate([np.zeros((12, 1)), np.cumsum(chroma, axis=1)], axis=1)
+    count = chroma.shape[1]
+    index = np.arange(count)
+    left, right = np.maximum(index - span, 0), np.minimum(index + span, count)
+    before = (running[:, index] - running[:, left]) / np.maximum(index - left, 1)
+    after = (running[:, right] - running[:, index]) / np.maximum(right - index, 1)
+    norms = np.linalg.norm(before, axis=0) * np.linalg.norm(after, axis=0)
+    similarity = np.divide(np.sum(before * after, axis=0), norms, out=np.ones(count), where=norms > 1e-12)
+    novelty = np.clip(1 - similarity, 0, 1)
+    loud = power >= CHORD_FLOOR * float(np.max(power))
+    audible = loud[np.clip(index - span // 2, 0, count - 1)] & loud[np.clip(index + span // 2, 0, count - 1)]
+    novelty = np.where(audible & (index >= span) & (index < count - span), novelty, 0)
+    peaks, _ = find_peaks(novelty, height=CHORD_MIN_NOVELTY, prominence=CHORD_MIN_NOVELTY / 2,
+                          distance=max(1, round(CHORD_MIN_GAP_SECONDS * RATE / HOP)))
+    ceiling = float(np.max(novelty[peaks])) if len(peaks) else 0.0
+
+    attacks = np.sort(np.asarray(attacks, dtype=float))
+
+    def profile(vector):
+        return [PITCH_CLASSES[i] for i in np.argsort(vector)[::-1][:3]]
+
+    def snapped(seconds):
+        if not len(attacks):
+            return seconds
+        nearest = attacks[np.argmin(np.abs(attacks - seconds))]
+        return float(nearest) if abs(nearest - seconds) <= CHORD_SNAP_SECONDS else seconds
+    return [{"id": f"{name}:chord_change:{int(p)}", "seconds": round(snapped(float(times[p])), 6),
+             "method": "chord_change", "strength": round(float(novelty[p]) / ceiling, 5),
+             "novelty": round(float(novelty[p]), 4),
+             "from_pitch_classes": profile(before[:, p]), "to_pitch_classes": profile(after[:, p])}
+            for p in peaks if times[p] < duration]
+
+
 def _lane(samples, name, settings, band=None):
     frequencies, times, spectrum = _spectrum(samples)
     magnitude = np.abs(spectrum)
@@ -305,6 +367,9 @@ def _lane(samples, name, settings, band=None):
     track = _pitch_track(samples) if band is None else None
     sustains = [] if track is None else _segments(name, track)
     events += [] if track is None else _pitch_changes(name, track, duration)
+    if band is None and name not in NON_HARMONIC_LAYERS:
+        attacks = [e["seconds"] for e in events if e["method"] == "spectral_flux"]
+        events += _chord_changes(name, frequencies, times, magnitude, power, duration, attacks)
     return {"kind": "frequency_band" if band else "audio_layer", "band_hz": band,
             "events": sorted(events, key=lambda e: (e["seconds"], e["method"])),
             "energy_contour": contour, "sustains": sustains,
@@ -325,12 +390,18 @@ def _hpss(samples):
 
 
 def analyze_layers(audio, output, *, backend="bands", preset="balanced", manifest=None,
-                   python=None, model="htdemucs", device="cpu"):
-    """Write an immutable run, publishing report.json only after full success."""
+                   python=None, model="htdemucs", device="cpu", source_run=None):
+    """Write an immutable run, publishing report.json only after full success.
+
+    ``rerun`` re-analyzes the stems an earlier run (``source_run``, its directory) already
+    separated, so detector upgrades reach existing projects without separating again.
+    """
     if backend not in BACKENDS or preset not in PRESETS:
         raise ValueError("Unknown musical analysis backend or preset")
     if (manifest is not None) != (backend == "import"):
         raise ValueError("Only the import backend requires --manifest")
+    if (source_run is not None) != (backend == "rerun"):
+        raise ValueError("Only the rerun backend requires --from-run")
     audio, output = Path(audio).resolve(), Path(output).resolve()
     if output.exists():
         raise ValueError("Choose a new output directory for each evidence run")
@@ -348,7 +419,7 @@ def analyze_layers(audio, output, *, backend="bands", preset="balanced", manifes
     if backend == "demucs" and model not in {"htdemucs", "htdemucs_ft", "htdemucs_6s", "hdemucs_mmi"}:
         raise ValueError("Unsupported Demucs model")
     output.mkdir(parents=True)
-    report = {"schema_version": "1.1", "created_at": now(), "backend": backend,
+    report = {"schema_version": "1.2", "created_at": now(), "backend": backend,
               "preset": preset, "settings": PRESETS[preset], "source": source,
               "analysis_sample_rate": RATE, "hop_seconds": HOP/RATE,
               "window_seconds": WINDOW/RATE, "layers": {},
@@ -364,6 +435,9 @@ def analyze_layers(audio, output, *, backend="bands", preset="balanced", manifes
                               "maximum; on a sustained layer energy_rise peaks are envelope wobble, not attacks.",
                               f"Passages are fixed {PASSAGE_SECONDS:g}-second windows in audio seconds, not musical "
                               "phrases; passage_thresholds records every constant used.",
+                              "chord_change events come from pitch-class (chroma) novelty over 0.2 s windows, moved onto "
+                              "the layer's own attack within 80 ms; they mark harmony changes, not chord names, and "
+                              "separator bleed can trigger them.",
                               "No human timing review or playtest is implied."]}
     settings = PRESETS[preset]
     report["layers"]["mix"] = _lane(samples, "mix", settings)
@@ -390,6 +464,17 @@ def analyze_layers(audio, output, *, backend="bands", preset="balanced", manifes
             names = ["drums", "bass", "other", "vocals"] + (["guitar", "piano"] if model == "htdemucs_6s" else [])
             stems = {name: folder / f"{name}.wav" for name in names}
             report["producer"] = {"model": model, "command": command}
+        elif backend == "rerun":
+            source_run = Path(source_run).resolve()
+            previous = read_json(source_run / "report.json")
+            if previous.get("source", {}).get("sha256") != source["sha256"]:
+                raise ValueError("The source run analyzed different audio; separate the current audio instead")
+            stems = {name: source_run / layer["audio_file"] for name, layer in previous["layers"].items()
+                     if name != "mix" and layer.get("audio_file") and layer.get("kind") == "audio_layer"}
+            if not stems:
+                raise ValueError("The source run has no separated stems to re-analyze")
+            report["producer"] = {"rerun_of": source_run.name, "backend": previous["backend"],
+                                  "producer": previous.get("producer")}
         else:
             stems = {}
             for name, relative in imported["stems"].items():
@@ -517,6 +602,93 @@ def evidence_slice(report, arrangement, start, end, layer=None):
             "authoring": "Agent selects rhythms and rests, then authors movement. Weights express intent, not note density."}
 
 
+def rhythm_grid(report, arrangement, start, end, *, layers=None, division=4):
+    """Per-bar onset grids for each layer beside the mapped notes, for authoring rhythm.
+
+    Each 4-beat bar becomes one string per layer with ``division`` cells per beat: ``.`` for
+    no attack, else a digit 1-9 giving the strongest attack in that cell, normalized to the
+    layer's strongest attack inside the requested range, so quiet passages still show their
+    figure. Only spectral_flux, pitch_change and chord_change count as attacks; energy_rise is
+    envelope evidence. Bars with the same strong cells (normalized strength 0.3 or more) share
+    a pattern letter per layer, exposing recurring riffs.
+    """
+    from .arrangement import expanded_notes
+    from .critique import SALIENCE_BAR_BEATS, _sections, focus_lead
+    from .revisions import arrangement_revision
+    if division not in RHYTHM_DIVISIONS:
+        raise ValueError(f"Choose a division of {', '.join(map(str, RHYTHM_DIVISIONS))} cells per beat")
+    if not math.isfinite(start) or not math.isfinite(end) or not 0 <= start < end:
+        raise ValueError("Choose a finite increasing beat range")
+    available = report.get("layers") or {}
+    names = list(layers) if layers else [n for n in available if n != "mix"] or list(available)
+    unknown = [n for n in names if n not in available]
+    if unknown:
+        raise ValueError(f"Unknown layer {', '.join(unknown)}; this run has {', '.join(sorted(available))}")
+    first = math.floor(start / SALIENCE_BAR_BEATS) * SALIENCE_BAR_BEATS
+    last = math.ceil(end / SALIENCE_BAR_BEATS) * SALIENCE_BAR_BEATS
+    cells = SALIENCE_BAR_BEATS * division
+
+    def cell(beat):
+        return math.floor((beat - first) * division + .5)
+
+    attacks, fit = {}, {}
+    for name in names:
+        found = [(seconds_to_beat(e["seconds"], arrangement), e["strength"]) for e in available[name]["events"]
+                 if e.get("method") in RHYTHM_METHODS]
+        found = [(b, s) for b, s in found if first - .5 / division <= b < last - .5 / division]
+        ceiling = max((s for _, s in found), default=0) or 1
+        attacks[name] = [(b, s / ceiling) for b, s in found]
+        strong = [b for b, s in attacks[name] if s >= RHYTHM_PATTERN_STRENGTH]
+        fit[name] = {"attacks": len(strong),
+                     "on_sixteenth_grid": round(sum(abs(b * 4 - round(b * 4)) / 4 <= .05 for b in strong) / len(strong), 3)
+                     if strong else None,
+                     "on_triplet_grid": round(sum(abs(b * 3 - round(b * 3)) / 3 <= .05 for b in strong) / len(strong), 3)
+                     if strong else None}
+    notes = sorted({float(n["beat"]) for n in expanded_notes(arrangement) if first <= float(n["beat"]) < last})
+    spans = _sections(arrangement)
+    from .critique import critique_arrangement
+    singing = {b["start_beat"] for b in critique_arrangement(arrangement, report)["metrics"]["salience"]["bars"]
+               if b["salient"] == "vocals"}
+    letters = {name: {} for name in names}
+    bars = []
+    for bar in range(first, last, SALIENCE_BAR_BEATS):
+        row = {"start_beat": bar, "seconds": round(_beat_seconds(bar, arrangement), 3),
+               "lead": "vocals" if bar in singing else focus_lead(spans, bar + SALIENCE_BAR_BEATS / 2, available),
+               "notes": "", "layers": {}, "patterns": {}}
+        grid = ["."] * cells
+        for beat in notes:
+            index = cell(beat) - (bar - first) * division
+            if 0 <= index < cells:
+                grid[index] = "x"
+        row["notes"] = "".join(grid)
+        for name in names:
+            strength = [0.0] * cells
+            for beat, value in attacks[name]:
+                index = cell(beat) - (bar - first) * division
+                if 0 <= index < cells:
+                    strength[index] = max(strength[index], value)
+            row["layers"][name] = "".join("." if v <= 0 else str(max(1, min(9, int(v * 9 + .5)))) for v in strength)
+            key = tuple(i for i, v in enumerate(strength) if v >= RHYTHM_PATTERN_STRENGTH)
+            if key:
+                row["patterns"][name] = letters[name].setdefault(key, chr(ord("A") + len(letters[name]) % 26))
+        bars.append(row)
+    return {"start_beat": first, "end_beat": last, "division": division, "cells_per_bar": cells,
+            "revision": arrangement_revision(arrangement), "layers": names, "grid_fit": fit, "bars": bars,
+            "legend": {"notes": "x = mapped note time", "layers": ". = no attack; 1-9 = strongest attack in the cell, "
+                       "normalized to the layer's strongest attack in this range",
+                       "patterns": "bars sharing a letter repeat the same strong cells (0.3 or more)",
+                       "lead": "vocals in a singing bar, else the musical_focus lead stem; null means undeclared",
+                       "grid_fit": "share of strong attacks within 0.05 beat of the sixteenth or triplet grid; "
+                                   "a higher triplet share means author on 1/3 or 1/6 beats"},
+            "authoring": "Put notes on the lead's attacks, keep its rests and syncopation, and fill only the lead's "
+                         "gaps of a beat or more from another layer."}
+
+
+def _beat_seconds(beat, arrangement):
+    from .critique import beat_to_seconds
+    return beat_to_seconds(beat, arrangement)
+
+
 def project_runs(directory):
     result = []
     for path in sorted((Path(directory) / "musical").glob("*/report.json")):
@@ -538,8 +710,15 @@ def latest_run(directory):
     return max(matching, key=lambda item: item[1].get("created_at", "")) if matching else (None, None)
 
 
-def analyze_project(store, project_id, **options):
+def analyze_project(store, project_id, from_run=None, **options):
     directory = store.directory(project_id)
+    if from_run is not None:
+        if not re.fullmatch(r"[a-f0-9]{32}", from_run) or not (directory / "musical" / from_run / "report.json").exists():
+            raise ValueError(f"Unknown evidence run {from_run}; list runs with `music list`")
+        previous = read_json(directory / "musical" / from_run / "report.json")
+        options.update(backend="rerun", source_run=directory / "musical" / from_run,
+                       preset=options.get("preset") or previous["preset"])
+    options["preset"] = options.get("preset") or "balanced"
     run_id = uuid.uuid4().hex
     report = analyze_layers(directory / "song.ogg", directory / "musical" / run_id, **options)
     return {"id": run_id, "path": str(directory / "musical" / run_id / "report.json"),

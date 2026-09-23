@@ -52,14 +52,15 @@ silence at the 25–38% mark is the map's central dropout — the horror beat, n
 
 14–15 tracks: `playerTrack`, `corpse0`, `corpse1`, `fall`, `tumble`, `everythingParent`.
 
-Assets: `vhs.mat`, `staticnotebody.mat`, `staticnotearrow.mat`, `br.prefab`, `tumble.prefab`, and on
-Lawless only `jaroslav.prefab` and `imagpaste.mat`.
+Assets: `vhs.mat`, `staticnotebody.mat`, `staticnotearrow.mat`, `br.prefab`, `tumble.prefab`,
+`jaroslav.prefab` and `imagpaste.mat`. All three difficulties use `jaroslav.prefab` and `imagpaste.mat`
+(rechecked 2026-09-23); only the Standard sets use the two static-note materials.
 
 ## What is distinctive
 
 **It is the only map in the pack whose show differs per difficulty.** Everywhere else the visual
-program is copied verbatim between difficulties; here the Lawless set drops a camera and two blits and
-swaps in two assets the Standard set never touches. The Lawless characteristic exists precisely so the
+program is copied verbatim between difficulties; here the Lawless set drops a camera and the two
+static-note blits (`staticnotebody.mat`, `staticnotearrow.mat`) that the Standard sets use. The Lawless characteristic exists precisely so the
 "unstable build" can misbehave differently.
 
 **It is the only map that ships its Vivify bundles inside the BeatSaver zip.** All three —
@@ -93,6 +94,34 @@ start and then moves the player through it.
 - Diegetic framing ("this is a corrupted old build") lets visual glitching read as intentional. Worth
   noting as a category of concept, but it depends on the player trusting the map — it is not a
   technique to reuse casually.
+
+## How the idea follows from the song
+
+**Song.** Breezer is track 6 of Jaroslav Beck's 2018 Beat Saber soundtrack, an instrumental
+electronic dance track and one of the game's original songs. The premise comes from that history
+more than from the audio: Droobix presents the map as a recovered, unstable early build.
+
+**Verified in the files (Hard).** One `AssignPlayerToTrack` at beat 0 onto `playerTrack`, no target:
+possession `player`. At beats 73–75.7 (~39–40 s) `fall` and `playerTrack` drop the player 3 units and
+tilt them. At beat 80.48 (42.9 s) `everythingParent` moves the vanilla environment to y = -696969,
+`br.prefab` and `tumble.prefab` have just spawned, and a `vhs.mat` Blit starts that lasts 213 beats.
+No notes fall in beats 80–111. At 110–114 two cameras render arrows and note bodies to textures and
+two static-noise Blits run for 160 beats. Bombs rise from 2 to 9 per 16 beats across 128–271.
+`jaroslav.prefab` spawns at 284.3 and spins, a `lifeform` track sweeps past at 290, and at 298.23
+(159 s), after a last VHS burst and a 0.6-beat `imagpaste.mat` flash, every track returns to the
+origin and the prefabs are destroyed. All three difficulties carry this sequence; Lawless drops the
+static-note Blits and one camera.
+
+**Interpretation.** With Kane Pixels credited, `br` and `lifeform` read as The Backrooms: the player
+trips, noclips out of Beat Saber, plays on inside VHS found footage and is passed by the entity.
+Motifs: VHS degradation, notes turned to static, a world that can be removed and restored. The
+moment held for the end is the entity pass and the snap back into the normal game at beats 290–298.
+
+Sources: [BeatSaver 43a47](https://beatsaver.com/maps/43a47) ·
+[Breezer on SoundCloud](https://soundcloud.com/jaroslavbeck/6-breezer) ·
+[Beat Saber OST (Discogs)](https://www.discogs.com/release/14333527-Jaroslav-Beck-Beat-Saber-Original-Game-Soundtrack) ·
+[The Backrooms (Found Footage)](https://kane-pixels-backrooms.fandom.com/wiki/The_Backrooms_(Found_Footage)) ·
+[droobix/map-source-files](https://github.com/droobix/map-source-files)
 
 ## Required assets
 

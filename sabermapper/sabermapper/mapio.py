@@ -306,4 +306,15 @@ def parse_map(data: dict, *, bpm=120.0, audio_offset_seconds=0.0, provenance=Non
                 result[target].append(obj)
                 if item.get("customData"):
                     unknown(path + ".customData", "modded arc/chain data", item["customData"])
+        # Vivify/Heck/Chroma data is also normalized (still preserved above as unsupported evidence).
+        from .vivify import parse_custom
+        custom = parse_custom(data.get("customData"), seconds_at)
+        if custom is not None:
+            fields = {}
+            for key in ("colorNotes", "bombNotes", "obstacles", "sliders", "burstSliders"):
+                for item in _array(data, key):
+                    for name in (item.get("customData") or {}) if isinstance(item, dict) else ():
+                        fields.setdefault(key, {}).setdefault(name, 0)
+                        fields[key][name] += 1
+            result["custom"] = {**custom, "object_custom_fields": fields}
     return result

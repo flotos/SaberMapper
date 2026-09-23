@@ -1,10 +1,10 @@
-# Movement model 1.5 and implementation survey
+# Movement model 1.6 and implementation survey
 
 The shared `analyze_movement(notes, bpm, njs=..., spawn_offset_beats=...)` result contains versioned swings,
 aggregate proxies, review warnings, and an explicit unsupported-motion list.
 Validation calls this function; it does not maintain a second parity rule.
 This implementation groups same-hand notes within 1/16 beat when their cut
-directions agree, treats a long timing gap as a possible reset, and flags a rapid
+directions agree, treats a rest of 2 s or more as a reset, and flags a rapid
 same-hand cut in a broadly similar direction as a review question. Ordinary
 directions suggest a medium-confidence forehand/backhand posture; dot notes and
 angle offsets retain ambiguous parity. Native `seconds` fields, when present on
@@ -14,14 +14,16 @@ crossover count, reaction-time estimate from NJS/spawn offset, and recovery
 time are descriptive proxies, not comfort, injury, ranked difficulty, or star
 ratings. Walls, bombs, arcs, chains and complex rotations are not inferred.
 
-Model 1.4 has two blocking flow rules, both defined once in `movement.flow_break`.
-They apply to consecutive same-hand swings without a reset (a reset is a gap of a
-full beat or more):
+Model 1.6 has two blocking flow rules, both defined once in `movement.flow_break`.
+They apply to consecutive same-hand swings unless the hand rested: every cut must
+start where the previous one left the saber. A rest (`movement.is_rest`) is an idle
+gap of `REST_SECONDS` (2 s) or more on that hand, measured in seconds and never in
+beats:
 
 - `fast_direction_break`: a cut less than 0.3 s (`FAST_BREAK_SECONDS`) after the
   previous swing must turn at least 135 degrees (`REVERSAL_DEGREES`). A 90-degree
   turn this fast forces a wrist reset.
-- `flow_parity_break`: at any non-reset gap, the swings must turn at least 90
+- `flow_parity_break`: at any gap short of a rest, the swings must turn at least 90
   degrees (`MIN_TURN_DEGREES`), and they must not stay on the same
   forehand/backhand unless they turn 135 degrees or more.
 
@@ -36,7 +38,16 @@ reports. The Revival 1:03 had an arc tail cutting right into the top-right
 corner and then a down-cut from the same cell 0.24 s later. Living a Lie 1:38
 had a down-right cut followed by a right cut, 45 degrees apart. The player asked
 for a systematic fix, with half-beat 90-degree turns at 0.3 s or less blocked
-everywhere.
+everywhere. Model 1.6 (2026-09-23) followed a report on Borrowed Waters: many
+cuts repeated the direction of the same hand's previous cut. Model 1.5 excused any
+pair a full beat apart as a reset, which is 0.33 s at 180 BPM and too short for the
+player to raise the saber without swinging. The player asked that notes always start
+from the position the previous note left. Only a 2 s rest now resets a hand.
+
+The placer (see Placement below) keeps these rules for every cut it chooses. A rhythm edit that
+adds or removes a time inside a phrase changes the parity of the hand's later cuts, so placement re-chooses
+those placed cuts up to the hand's next rest. `project check` suggests a cut, hand or removal for a pinned
+pair that breaks the rule.
 
 Model 1.4 adds a blocking sight-line rule, `hidden_note`. It is defined once in
 `movement.hidden_note` and `movement.hidden_window`. Notes of either hand are

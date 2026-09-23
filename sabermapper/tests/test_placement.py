@@ -222,6 +222,19 @@ class PinsLocalityAndDeterminismTests(unittest.TestCase):
         self.assertEqual(codes(replaced), set())
         self.assertEqual(place_arrangement(edited)["report"]["rechosen"], [])
 
+    def test_a_time_added_inside_a_phrase_rechooses_the_cuts_after_it(self):
+        # Borrowed Waters (2026-09-23): a note added inside a phrase flips the parity of the hand's later cuts.
+        beats = [i / 2 for i in range(0, 16)]
+        placed = place_arrangement(arrangement(rhythm(beats)))["arrangement"]
+        edited = copy.deepcopy(placed)
+        edited["sections"][0]["notes"].append({"id": "added", "beat": "13/4"})
+        result = place_arrangement(edited)
+        self.assertEqual(codes(result["arrangement"]), set())
+        before = notes_by_id(placed)
+        after = notes_by_id(result["arrangement"])
+        early = [i for i, n in before.items() if Fraction(str(n["beat"])) < 3]
+        self.assertTrue(all(after[i] == before[i] for i in early), "cuts before the added time stay")
+
     def test_retiming_a_note_rechooses_only_what_breaks(self):
         placed = place_arrangement(arrangement(rhythm(self.BEATS)))["arrangement"]
         edited = copy.deepcopy(placed)
@@ -248,7 +261,8 @@ class PinsLocalityAndDeterminismTests(unittest.TestCase):
         self.assertEqual(pin_edits(stored, edited)["sections"][0]["notes"][0]["placed"], ["x"])
 
     def test_fully_specified_arrangements_compile_unchanged(self):
-        notes = [{"id": f"n{i}", "beat": i, "x": i % 2 * 3, "y": 0, "color": i % 2, "direction": 1} for i in range(8)]
+        notes = [{"id": f"n{i}", "beat": i, "x": i % 2 * 3, "y": 0, "color": i % 2, "direction": (1, 0)[i // 2 % 2]}
+                 for i in range(8)]
         draft = arrangement(notes)
         self.assertIs(place_arrangement(draft)["arrangement"], draft)
         self.assertEqual([n["b"] for n in compile_arrangement(draft)["colorNotes"]], list(map(float, range(8))))

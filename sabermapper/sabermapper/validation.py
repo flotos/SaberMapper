@@ -56,11 +56,13 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
             add("error", "unsupported_field", f"{where}.{name} is unsupported", section_id)
         return not missing
 
+    # Arrangement 0.2 adds the optional Vivify storyboard: map-level and per-section `presentation`.
+    presented = isinstance(arrangement, dict) and arrangement.get("schema_version") == "0.2"
     if not keys(arrangement, {"schema_version", "song", "difficulty", "motifs", "sections"}, "arrangement",
-                optional={"tempo_events", "mapper", "lightshow"}):
+                optional={"tempo_events", "mapper", "lightshow"} | ({"presentation"} if presented else set())):
         return findings
-    if arrangement["schema_version"] != "0.1":
-        add("error", "schema_version", "schema_version must be 0.1")
+    if arrangement["schema_version"] not in ("0.1", "0.2"):
+        add("error", "schema_version", "schema_version must be 0.1 (or 0.2 with presentation blocks)")
     if "mapper" in arrangement and (not isinstance(arrangement["mapper"], str) or not arrangement["mapper"].strip()):
         add("error", "invalid_metadata", "mapper must be a nonempty string when present")
     song = arrangement["song"]
@@ -214,7 +216,7 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
             continue
         sid = section.get("id")
         if not keys(section, {"id", "start_beat", "length_beats", "intent", "locked", "resolved", "notes", "patterns"}, "section", sid,
-                    optional={"bombs", "obstacles", "arcs", "chains", "musical_focus"}):
+                    optional={"bombs", "obstacles", "arcs", "chains", "musical_focus"} | ({"presentation"} if presented else set())):
             continue
         if not isinstance(sid, str) or not sid or "/" in sid or sid in section_ids:
             add("error", "invalid_id", "section ID must be nonempty, unique, and contain no slash", str(sid))
@@ -362,6 +364,10 @@ def validate_arrangement(arrangement: dict) -> list[dict]:
                     add("error", "invalid_tempo", f"tempo_events[{index}] beats must increase")
                 if not _finite_number(event["bpm"]) or event["bpm"] <= 0:
                     add("error", "invalid_tempo", f"tempo_events[{index}].bpm must be positive")
+
+    if presented:
+        from .show import validate_presentation
+        validate_presentation(arrangement, add)
 
     if "lightshow" in arrangement:
         from .lighting import validate_lightshow

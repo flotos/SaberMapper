@@ -292,6 +292,13 @@ guitar's sixteenth runs at 0:33-0:39.
 - Put the notes on the lead's attacks and keep its rests and syncopation. Add
   another layer's hits only where the lead is silent for about a beat or more.
   A lead playing every beat leaves no room for filler; its figure *is* the map.
+- A metal gallop riff, with kick triplets locked to guitar chugs, reads as the
+  union of guitar and kick attacks on a sixteenth grid. The guitar's strongest
+  attack per half beat always carries a note. A kick between two chugs (no
+  guitar attack within 0.13 beat, one within 0.75 beat) stays unmapped, so the
+  riff's bar-end rests stay audible in the map. Living a Lie (2026-09-23) read
+  this way at 10-14 notes per bar with doubles on the crash accents, where an
+  even sixteenth stream had filled every rest.
 - Follow the lead's density changes. A riff that moves from offbeat eighths to
   sixteenth runs should read that way. Short sixteenth bursts are within the
   player's band; flow rules still apply.
@@ -336,6 +343,14 @@ feel the whole song weight in addition of tracked thing."
   supporting stems part of the weight (for example `{"vocals": 0.7, "drums": 0.2, "bass": 0.1}`).
 - `lead_rhythm_diluted` accepts one note per bar on the bar's heaviest ensemble
   accent. More than that competes with the lead's rhythm and still counts as filler.
+- While the voice holds a note as an arc, its hand is busy and the other hand
+  carries the band: the strongest kick, snare, guitar or bass attack per half
+  beat with a mix attack under it. Notes under a held arc never dilute the
+  lead. The same band attacks fill the voice's gaps of 0.75 beat or more.
+  Elsewhere in a sung bar they stay below a quarter of its note times.
+- A double reads as one accent only when both hands arrive on the same parity.
+  Leave the sixteenth before it empty, and give the last single note before it
+  to the hand that leaves both hands cutting the same way.
 
 ## Salience: who leads, bar by bar
 

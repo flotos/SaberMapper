@@ -6,7 +6,7 @@ SaberMapper is a local Beat Saber mapping studio. It analyzes audio, stores edit
 
 ## Agent-first product contract
 
-All map work is performed by an agent in Codex or Claude Code, never by a human operator. The agent owns audio import and analysis, reference research, composition, editing, validation, revision management, and export. It translates the user's textual feedback into map changes. Agents do not open ArcViewer, the studio or any browser preview, and do not hand revisions over for review, unless the user explicitly asks; the agent cannot see the rendered view, so opening it is never a check.
+All map work is performed by an agent in Codex or Claude Code, never by a human operator. The agent owns audio import and analysis, reference research, composition, editing, validation, revision management, and export. It translates the user's textual feedback into map changes. Agents do not open ArcViewer, the studio or any browser preview, and do not hand revisions over for review, unless the user explicitly asks; the agent cannot see the rendered view, so opening it is never a check. One exception (user decision, 2026-09-23): agents may open Beat Saber to capture frames, only through the leased `game capture`, `game launch` and `game play` commands. The machine-wide lease (`sabermapper/docs/game-lease.md`) refuses with `game_busy` when another agent or the user has the game, the agent never takes over a game it did not launch, it closes the game it launched, and `game_preempted` (the user took the game) means retry later, never a map defect. Before handing a vivified revision to the user, `project verify ID --record` must report `ready_for_human`.
 
 The user's mapping workflow is limited to reviewing saved revisions in the studio and ArcViewer whenever they choose, and giving textual requests and feedback in Codex or Claude Code. Do not require the user to edit JSON, place notes, run commands, copy diagnostics, manage revisions, or click export controls. The agent performs those operations; it ends a task with the saved revision ID, export status and the checks it actually ran.
 
@@ -46,13 +46,16 @@ The application is in `sabermapper/`; run commands from there. On this Windows w
 - Add a difficulty: `.venv/Scripts/python -m sabermapper project add-difficulty ID --workspace workspace --name ExpertPlus --target-tier challenge`. Every project command takes `--difficulty NAME`; the default is the primary difficulty.
 - Export (every difficulty in one ZIP): `.venv/Scripts/python -m sabermapper project export ID --workspace workspace`
 - Player star tiers and their reference metrics: `.venv/Scripts/python -m sabermapper corpus tiers --workspace workspace`
+- Capture a revision in the game (leased, FPFC, closes the game afterwards): `.venv/Scripts/python -m sabermapper game capture ID --workspace workspace`
+- Handover gate (structure, audio, show, capture, frames, game log): `.venv/Scripts/python -m sabermapper project verify ID --workspace workspace --record`
+- Timestamped user notes from the studio: `.venv/Scripts/python -m sabermapper project feedback list ID --workspace workspace`
 - Verify code changes: `.venv/Scripts/python -m unittest discover -s tests -q`
 
 Use `--help` for audio import and other commands. The studio's **3D preview** button exports the saved revision and opens local ArcViewer at the playhead. It is for the user; agents do not use it unless asked.
 
 ## Skills and project files
 
-Use `sabermapper-map` for composition, `sabermapper-review` for scoped feedback/revisions, and `sabermapper-research` for corpus work. Canonical skills live in `sabermapper/skills/`; root `.agents/skills/` and `.claude/skills/` contain complete discovery copies. After editing canonical skills, run `.venv/Scripts/python scripts/install_skills.py --update` from the application directory.
+Use `sabermapper-map` for composition, `sabermapper-review` for scoped feedback/revisions, `sabermapper-research` for corpus work, and `sabermapper-vivify` for vivified maps (listen, concept, assets, show, in-game capture, verify). Canonical skills live in `sabermapper/skills/`; root `.agents/skills/` and `.claude/skills/` contain complete discovery copies. After editing canonical skills, run `.venv/Scripts/python scripts/install_skills.py --update` from the application directory.
 
 Code is in `sabermapper/sabermapper/`, tests in `sabermapper/tests/`, and usage guidance in `sabermapper/docs/user-guide.md`. Projects and local audio live in `sabermapper/workspace/`; treat them as user data. The 31-ticket implementation record is `sabermapper/docs/ticket-coverage.json`.
 

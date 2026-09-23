@@ -78,6 +78,26 @@ def lock_conflicts(original: dict, arrangement: dict) -> list[str]:
     return found
 
 
+def song_position(arrangement: dict, seconds: float) -> dict:
+    """Beat and containing section of a source-audio time (honours audio offset and tempo events)."""
+    from .arrangement import beat_fraction
+    from .musical import seconds_to_beat
+    beat = seconds_to_beat(float(seconds), arrangement)
+    section = None
+    for item in arrangement.get("sections", []):
+        try:
+            start = float(beat_fraction(item["start_beat"]))
+            end = start + float(beat_fraction(item["length_beats"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if start <= beat < end:
+            section = item
+            break
+    return {"song_time": round(float(seconds), 3), "beat": round(beat, 3),
+            "section": section["id"] if section else None,
+            "section_label": (section.get("label") or section.get("name") or section.get("intent")) if section else None}
+
+
 class DuplicateProjectError(ValueError):
     def __init__(self, project_id: str, title: str):
         super().__init__(f"This audio was already imported as project {project_id} ({title}); "
@@ -306,7 +326,13 @@ class ProjectStore:
                     "reviews": [read_json(p) for p in sorted((path / "reviews").glob("*.json"))],
                     "history": [p.stem for p in sorted((path / "history").glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
                                 if _history_difficulty(p) in (name, None)],
-                    "exports": [p.name for p in sorted((path / "exports").glob("*.zip"))]}
+                    "exports": [p.name for p in sorted((path / "exports").glob("*.zip"))],
+                    "show": self.show(path, siblings)}
+
+    def show(self, path: Path, arrangements: dict[str, dict]) -> dict:
+        """The project's Vivify show record (document, revision, what it was written against, bundle)."""
+        from .show import show_record
+        return show_record(path, arrangements)
 
     def check_save(self, project_id: str, arrangement: dict, expected_revision: str,
                    difficulty: str | None = None) -> dict:
@@ -552,7 +578,98 @@ class ProjectStore:
                          expected_revision, difficulty=difficulty)
 
     def feedback(self, project_id: str) -> list[dict]:
-        return [read_json(p) for p in sorted((self.directory(project_id) / "feedback").glob("*.json"))]
+        """Every feedback record: beat ranges (kind "range") and timestamped notes (kind "note")."""
+        return [{"kind": "range", **read_json(p)} for p in sorted((self.directory(project_id) / "feedback").glob("*.json"))]
+
+    def revision_arrangement(self, path: Path, revision, difficulty: str | None) -> dict | None:
+        """The stored arrangement of one saved revision of this difficulty, or None when it is unknown."""
+        if not isinstance(revision, str) or not re.fullmatch(r"[a-f0-9]{64}", revision):
+            return None
+        file = path / "history" / (revision + ".json")
+        if not file.is_file() or _history_difficulty(file) not in (difficulty, None):
+            return None
+        return read_json(file)
+
+    def add_note(self, project_id: str, *, song_time: float, text: str, revision: str | None = None,
+                 difficulty: str | None = None, source: str = "cli") -> dict:
+        """Record a timestamped verification note; its beat and section come from the reviewed revision.
+
+        A note on an older saved revision is kept (the human may verify an earlier version) and marked
+        ``stale`` with both the reviewed ``revision`` and the ``current_revision`` recorded.
+        """
+        if source not in {"studio", "cli"}:
+            raise ValueError("Note source must be studio or cli")
+        with self.lock:
+            path = self.directory(project_id)
+            current = read_json(self.arrangement_file(path, difficulty))
+            name = current["difficulty"]["name"]
+            current_revision = arrangement_revision(current)
+            revision = revision or current_revision
+            arrangement = current if revision == current_revision else self.revision_arrangement(path, revision, name)
+            if arrangement is None:
+                raise ValueError(f"Revision {revision!r} is not a saved {name} revision of this project; use the "
+                                 f"current revision {current_revision} or one listed in `project get` history")
+            duration = float(read_json(path / "project.json").get("duration_seconds") or 0)
+            if isinstance(song_time, bool) or not isinstance(song_time, (int, float)) or not math.isfinite(song_time) \
+                    or not 0 <= song_time <= duration:
+                raise ValueError(f"Note time must be between 0 and the song duration ({duration:.3f} s)")
+            text = str(text or "").strip()
+            if not text or len(text) > 2000:
+                raise ValueError("Enter a note between 1 and 2,000 characters")
+            stale = revision != current_revision
+            result = {"schema_version": "1.0", "id": uuid.uuid4().hex[:12], "kind": "note", "project": project_id,
+                      "revision": revision, "difficulty": name, "stale": stale,
+                      **({"current_revision": current_revision} if stale else {}),
+                      **song_position(arrangement, float(song_time)), "text": text, "created_at": now(),
+                      "source": source, "status": "recorded", "reviewer": "local user"}
+            write_json(path / "feedback" / (result["id"] + ".json"), result)
+            return result
+
+    def list_feedback(self, project_id: str, *, difficulty: str | None = None, revision: str | None = None,
+                      kind: str | None = None, since: str | None = None) -> dict:
+        """Notes and beat-range feedback sorted by song time, each with beat, section and revision status."""
+        from datetime import datetime, timezone
+        from .critique import beat_to_seconds
+        if kind not in (None, "note", "range"):
+            raise ValueError("Kind must be note or range")
+        if difficulty is not None and difficulty not in DIFFICULTY_RANKS:
+            raise ValueError(f"Unknown difficulty {difficulty!r}; use one of {', '.join(DIFFICULTY_RANKS)}")
+
+        def moment(value):
+            stamp = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            return stamp if stamp.tzinfo else stamp.replace(tzinfo=timezone.utc)
+        try:
+            after = moment(since) if since else None
+        except ValueError as exc:
+            raise ValueError("since must be an ISO date or time, e.g. 2026-09-23 or 2026-09-23T18:00:00+00:00") from exc
+        with self.lock:
+            path = self.directory(project_id)
+            current = {name: read_json(file) for name, file in self.difficulty_files(path).items()}
+            primary = next(iter(current))
+            revisions = {name: arrangement_revision(a) for name, a in current.items()}
+            rows = []
+            for item in self.feedback(project_id):
+                name = item.get("difficulty") or primary
+                if (difficulty and name != difficulty) or (kind and item["kind"] != kind) \
+                        or (revision and not str(item.get("revision", "")).startswith(revision)):
+                    continue
+                if after and moment(item.get("created_at") or "1970-01-01") < after:
+                    continue
+                row = {**item, "difficulty": name, "on_current_revision": item.get("revision") == revisions.get(name)}
+                if item["kind"] == "range":
+                    source = (current.get(name) if row["on_current_revision"] else
+                              self.revision_arrangement(path, item.get("revision"), name) or current.get(name))
+                    if source is not None:
+                        seconds = beat_to_seconds(item["start_beat"], source)
+                        position = song_position(source, seconds)
+                        row.update(song_time=position["song_time"], beat=item["start_beat"],
+                                   section=position["section"], section_label=position["section_label"],
+                                   end_song_time=round(beat_to_seconds(item["end_beat"], source), 3))
+                rows.append(row)
+        rows.sort(key=lambda r: (r.get("song_time") is None, r.get("song_time") or 0, r.get("created_at") or ""))
+        return {"project": project_id, "count": len(rows), "current_revisions": revisions,
+                "filters": {"difficulty": difficulty, "revision": revision, "kind": kind, "since": since},
+                "feedback": rows}
 
     def add_feedback(self, project_id: str, data: dict) -> dict:
         with self.lock:
@@ -630,8 +747,18 @@ class ProjectStore:
             revisions = {a["difficulty"]["name"]: arrangement_revision(a) for a in arrangements}
             revision = next(iter(revisions.values())) if len(revisions) == 1 else digest(revisions)
             filename = f"map-{revision[:10]}-{uuid.uuid4().hex[:6]}.zip"
+            from .musical import latest_run
+            from .show import bundle_directory, load_show
+            run_id, evidence = latest_run(path)
             report = export_arrangements(arrangements, path / "song.ogg", path / "cover.png",
-                                         path / "exports" / filename)
+                                         path / "exports" / filename, show=load_show(path),
+                                         bundle_dir=bundle_directory(path),
+                                         evidence={"project_dir": path, "run_id": run_id, "report": evidence})
             report["review"] = read_json(path / "project.json")
             write_json(path / "exports" / (filename + ".json"), report)
-            return {"filename": filename, "report": report, "url": f"/api/projects/{project_id}/files/exports/{filename}"}
+            result = {"filename": filename, "report": report, "url": f"/api/projects/{project_id}/files/exports/{filename}"}
+            if "vivify" in report:  # vivified: the ArcViewer twin and the provenance sidecar sit beside the map
+                result["vanilla_twin"] = Path(report["vivify"]["vanilla_twin"]).name
+                result["vanilla_twin_url"] = f"/api/projects/{project_id}/files/exports/{result['vanilla_twin']}"
+                result["provenance_file"] = Path(report["vivify"]["provenance_file"]).name
+            return result

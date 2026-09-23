@@ -214,3 +214,22 @@ comfort or feel not backed by the user's own playtest.
 - Late-start event state in Heck/Vivify may make scrubbing inexact (checked in M0).
 - Bridge must be rebuilt on game updates; pin the game version in `installed-game-target.json`.
 - 2D captures do not show VR scale, comfort or performance; the human playtest remains ground truth.
+
+## Implementation status (2026-09-23)
+
+The game changed under the ticket: it is now **1.40.8_7379** (Unity 2022.3.33) with the full mod
+stack installed (SongCore, SiraUtil, BSML, CustomJSONData, Heck, Noodle, Chroma, Vivify, Camera2...).
+The bridge is built with the VS Build Tools' Roslyn `csc` instead of `dotnet build` (no .NET SDK).
+
+| Milestone | State | Where |
+|---|---|---|
+| M0 bridge | Done, verified in the game: vanilla map started at 60 s, `game status` within 10 ms; EXSII Vivify map renders in FPFC (2021 bundle loads in 2022.3, SPI shaders fine on the desktop camera); late start replays spawns but not finished animations, so seek = restart at time and Vivify captures play from 0. WebSocket replaced by polling (Mono HttpListener). | `sabermapper/game-bridge/`, `docs/game-bridge.md`, `Plugins/SaberMapperBridge.dll` |
+| M1 studio console | Done (UI checked by markup tests only; human VR path covered by fakes, not run live). Notes with beat/section, `project feedback list/add`. | `server.py`, `static/`, `feedback_cli.py` |
+| M2 agent verification | Done: machine-wide lease, `game capture`, `game logs`, contact sheets, frame metrics, `project verify` handover gate. CLAUDE.md/AGENTS.md carry the leased-game exception. | `game/`, `frames*.py`, `frame_metrics.py`, `verify.py`, `docs/game-lease.md`, `docs/frame-review.md` |
+| M3 compile/export | Done: arrangement 0.2 presentation, `show.json` (separate `show` command group), compiler, validation, bundles in ZIP, vanilla twin. | `show*.py`, `vivify*.py`, `docs/vivify-show.md` |
+| M4 asset forge | Built, **never run against Unity** (not installed): builder, tier-1 library (13 shaders, 9 mesh generators), lint, `assets build` returns `unity_missing`. Needs Unity 2021.3.16f1 (researched: Vivify on 1.40 still loads `_windows2021`). Tier 3 returns `generator_unavailable` (local backend chosen). | `assets/`, `forge*.py`, `docs/asset-forge.md` |
+| M5 listen/concept | Done: moments, heuristic mood, lyrics via faster-whisper large-v3 on the local GPU (installed with the user's approval), concept artifact, EXSII concept corpus. | `listen*.py`, `moments.py`, `mood.py`, `lyrics.py`, `concept*.py`, `docs/listen-and-concept.md` |
+| M6 ghost autoplay | Not built. Investigation: BeatLeader (installed) can play a replay in-game; plan is to synthesize a BSOR from the saber path and have the bridge launch it. Watch returns `unavailable`. | `docs/game-bridge.md` |
+| M7 skill + first map | Skill `sabermapper-vivify` written. First vivified map blocked on Unity (no bundle, so no export or capture of a show). | `skills/sabermapper-vivify/` |
+
+Decisions taken: PCVR only; generative models run locally on the 5070 Ti.

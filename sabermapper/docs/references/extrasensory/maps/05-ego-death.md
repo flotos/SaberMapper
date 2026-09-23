@@ -92,6 +92,31 @@ program and the note stream run at full intensity simultaneously for the whole r
 - Both difficulties sharing one show while differing by 137 notes (181 vs 318) is the pack's standard
   downmapping model, and the cleanest example of it.
 
+## How the idea follows from the song
+
+**Song.** Xtrullor's Ego Death (2019, album *1st Era*) is harsh, orchestral-leaning dubstep with no
+lyrics. The original runs 3:56; the map's audio is 126 s. The title names the dissolution of the
+self; Sands frames the map as malware (labels install "BS Antivirus" and "Vivify.dll").
+
+**Verified in the files (Expert+).** No `AssignPlayerToTrack`: possession `none`. Beat 0: a
+platform; beat 6: `introanim` with id `download`. Notes run 35–287. Beat 57.5 (19 s): `boss.prefab`,
+never destroyed. Blits start at 65 and hold at 4–14 per 16 beats until 287; `warp.mat` and `umm.mat`
+appear only in 65–191, `brightness.mat` from 128, `kick.mat` throughout. Beats 172–180 (57–60 s): the
+platform scales, rain and four `electricfuzz` prefabs spawn, the platform is destroyed, and note
+animation moves from the `ScaleNotes` group (63–171) to `endNotes` (175–286). At 287 (95.7 s) the fuzz
+is removed and a second platform spawns; beats 288–342 have no notes and no events. At 342.8
+(114.3 s) `reddeath.prefab`, a `hit` prefab and a final kick Blit fire and the rain is removed.
+
+**Interpretation.** The show reads as an infection: a download installs itself, a boss takes the
+scene, the second half turns to storm. Motifs: a kick-locked post-process pulse, notes that scale
+and dissolve as groups, the platform under the player (built, destroyed, rebuilt). Held for the end
+is the red "death" after a long empty stretch: the title's event arrives as one image once the chart
+has stopped. The flat density profile follows a track that stays near full intensity.
+
+Sources: [BeatSaver 43a2e](https://beatsaver.com/maps/43a2e) ·
+[Ego Death on Bandcamp](https://xtrullor.bandcamp.com/track/ego-death) ·
+[Ego Death on Apple Music](https://music.apple.com/us/song/ego-death/1482323593)
+
 ## Required assets
 
 Not in the BeatSaver zip (except where noted) — Vivify fetches these from LunarRepo at play

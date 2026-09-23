@@ -110,14 +110,27 @@ def _beat_seconds(beat: float, base_bpm: float, events: list[dict]) -> float:
 STANDARD_RANKS = {"Easy": 1, "Normal": 3, "Hard": 5, "Expert": 7, "ExpertPlus": 9}
 
 
-def _compile_difficulty(arrangement: dict, audio_duration: float) -> tuple[dict, dict]:
-    """Compile one difficulty with the audio offset baked in; return the beatmap and its report row."""
+def _compile_difficulty(arrangement: dict, audio_duration: float, vivid: dict | None = None) -> tuple[dict, dict]:
+    """Compile one difficulty with the audio offset baked in; return the beatmap and its report row.
+
+    ``vivid`` ({show, bundle, evidence, envelope}) merges the Vivify show into customData.
+    """
     song, difficulty = arrangement["song"], arrangement["difficulty"]
     name = difficulty.get("name", "Expert")
     if name not in STANDARD_RANKS:
         raise ExportError("difficulty name must be a built-in Standard difficulty")
     offset_seconds = float(song.get("audio_offset_seconds", 0))
-    beatmap = compile_arrangement(arrangement)
+    shown = None
+    if vivid is None:
+        beatmap = compile_arrangement(arrangement)
+    else:
+        from .show_validation import compile_difficulty
+        beatmap, shown = compile_difficulty(vivid["show"], arrangement, bundle=vivid["bundle"],
+                                            evidence=vivid["evidence"], envelope=vivid["envelope"])
+        errors = [d for d in shown["diagnostics"] if d["severity"] == "error"]
+        if errors:
+            raise ExportError(f"{name} show checks failed: " + "; ".join(f"{d['code']}: {d['message']}"
+                                                                         for d in errors[:10]))
     if beatmap.get("version") != "3.3.0" or not isinstance(beatmap.get("colorNotes"), list):
         raise ExportError(f"{name}: compiler did not return a v3.3.0 beatmap with colorNotes")
     if not beatmap["colorNotes"]:
@@ -130,6 +143,8 @@ def _compile_difficulty(arrangement: dict, audio_duration: float) -> tuple[dict,
                 item["b"] = round(float(item["b"]) + beat_shift, 9)
                 if collection in ("sliders", "burstSliders"):
                     item["tb"] = round(float(item["tb"]) + beat_shift, 9)
+        for item in (beatmap.get("customData") or {}).get("customEvents", []):
+            item["b"] = round(float(item["b"]) + beat_shift, 9)
     latest_note = max(float(note["b"]) for note in beatmap["colorNotes"])
     latest_time = _beat_seconds(latest_note, float(song["bpm"]), beatmap.get("bpmEvents", []))
     if latest_time >= audio_duration - 0.05:
@@ -156,6 +171,12 @@ def _compile_difficulty(arrangement: dict, audio_duration: float) -> tuple[dict,
                         "environment": _environment(arrangement),
                         "basic_events": len(beatmap["basicBeatmapEvents"]),
                         "boost_events": len(beatmap.get("colorBoostBeatmapEvents", []))}}
+    if shown is not None:
+        row["vivify"] = {"requirements": shown["requirements"], "custom_events": shown["event_count"],
+                         "object_custom_data": shown["object_custom_data"], "assets": shown["assets"],
+                         "evidence_run": shown["evidence_run"],
+                         "warnings": [d for d in shown["diagnostics"] if d["severity"] != "error"]}
+        row["_provenance"] = shown["provenance"]
     return beatmap, row
 
 
@@ -168,11 +189,16 @@ def export_arrangement(arrangement: dict, audio: str | Path, cover: str | Path, 
     return export_arrangements([arrangement], audio, cover, output)
 
 
-def export_arrangements(arrangements: list[dict], audio: str | Path, cover: str | Path, output: str | Path) -> dict:
+def export_arrangements(arrangements: list[dict], audio: str | Path, cover: str | Path, output: str | Path, *,
+                        show: dict | None = None, bundle_dir: str | Path | None = None,
+                        evidence: dict | None = None) -> dict:
     """Export several Standard difficulties of one song into a single map ZIP.
 
     The first arrangement is the primary one: it supplies the song metadata. Every
     difficulty shares the audio, so song BPM, offset and tempo events must match.
+    A show (or any arrangement 0.2 presentation) makes the export vivified: customData,
+    ``_requirements``, ``_assetBundle`` and bundle files, plus a ``-vanilla.zip`` twin with all
+    customData stripped and a ``.show.json`` provenance sidecar. Plain projects export unchanged.
     """
     if not arrangements:
         raise ExportError("no difficulty to export")
@@ -215,7 +241,8 @@ def export_arrangements(arrangements: list[dict], audio: str | Path, cover: str 
         raise ExportError("output must differ from input assets")
     if destination.exists():
         raise ExportError(f"output already exists: {destination}")
-    compiled = [_compile_difficulty(arrangement, audio_metadata["duration_seconds"]) for arrangement in arrangements]
+    vivid = _vivid(arrangements, show, bundle_dir, evidence)
+    compiled = [_compile_difficulty(arrangement, audio_metadata["duration_seconds"], vivid) for arrangement in arrangements]
     by_rank = sorted(zip(arrangements, compiled), key=lambda item: item[1][1]["rank"])
     # Each difficulty names its lightshow's environment; Info.dat lists them once and indexes them.
     environments = list(dict.fromkeys([_environment(primary)] + [_environment(a) for a in arrangements]))
@@ -254,14 +281,39 @@ def export_arrangements(arrangements: list[dict], audio: str | Path, cover: str 
         "lighting": rows[0]["lighting"],
         "checks": "Vorbis and cover decoded; gameplay duration and structure checked for every difficulty. Musical timing, editor import and in-game playback require separate review.",
     }
+    if vivid is None:
+        entries = [("Info.dat", _json_bytes(info))]
+        entries += [(row["beatmap_filename"], _json_bytes(beatmap)) for _, (beatmap, row) in by_rank]
+        entries += [("song.ogg", audio_bytes), (cover_name, cover_bytes),
+                    ("SaberMapper-report.json", _json_bytes(report))]
+        _write_zip(destination, entries)
+        return report
+    from .vivify_export import vivified_entries
+    entries, twin, sidecar = vivified_entries(info, by_rank, report, vivid, destination)
+    common = [("song.ogg", audio_bytes), (cover_name, cover_bytes)]
+    entries += common + [("SaberMapper-report.json", _json_bytes(report))]
+    twin += common + [("SaberMapper-report.json", _json_bytes({**report, "variant": "vanilla twin: every customData, "
+                                                                "requirement and bundle removed for ArcViewer"}))]
+    twin_path, sidecar_path = Path(report["vivify"]["vanilla_twin"]), Path(report["vivify"]["provenance_file"])
+    for path in (twin_path, sidecar_path):
+        if path.exists():
+            raise ExportError(f"output already exists: {path}")
+    _write_zip(destination, entries)
+    try:
+        _write_zip(twin_path, twin)
+        sidecar_path.write_bytes(_json_bytes(sidecar))
+    except Exception:
+        for path in (destination, twin_path, sidecar_path):
+            path.unlink(missing_ok=True)
+        raise
+    return report
+
+
+def _write_zip(destination: Path, entries: list[tuple[str, bytes]]) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     try:
         with destination.open("xb") as stream:
             with ZipFile(stream, "w") as archive:
-                entries = [("Info.dat", _json_bytes(info))]
-                entries += [(row["beatmap_filename"], _json_bytes(beatmap)) for _, (beatmap, row) in by_rank]
-                entries += [("song.ogg", audio_bytes), (cover_name, cover_bytes),
-                            ("SaberMapper-report.json", _json_bytes(report))]
                 for filename, data in entries:
                     _zip_entry(filename, data, archive)
     except FileExistsError:
@@ -269,4 +321,22 @@ def export_arrangements(arrangements: list[dict], audio: str | Path, cover: str 
     except Exception:
         destination.unlink(missing_ok=True)
         raise
-    return report
+
+
+def _vivid(arrangements: list[dict], show: dict | None, bundle_dir, evidence) -> dict | None:
+    """Show-merge settings when the export is vivified (a show or any presentation), else None."""
+    from .show import has_presentation, validate_show
+    if show is None and not any(has_presentation(a) for a in arrangements):
+        return None
+    from .show_validation import load_envelope
+    from .vivify import BundleError, read_bundle
+    show = show if show is not None else {"schema_version": "0.1", "primitives": []}
+    names = {a["difficulty"]["name"]: a for a in arrangements}
+    errors = [d for d in validate_show(show, names) if d["severity"] == "error"]
+    if errors:
+        raise ExportError("show validation failed: " + "; ".join(f"{d['code']}: {d['message']}" for d in errors[:10]))
+    try:
+        bundle = read_bundle(bundle_dir) if bundle_dir is not None else None
+    except BundleError as exc:
+        raise ExportError(f"{exc.code}: {exc}") from exc
+    return {"show": show, "bundle": bundle, "evidence": evidence or {}, "envelope": load_envelope()}

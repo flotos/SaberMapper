@@ -9,7 +9,7 @@
     ],
     "release-pair": [
       {"id": "rp-red", "beat": 0, "x": 0, "y": 1, "color": 0, "direction": 3},
-      {"id": "rp-blue", "beat": 1, "x": 3, "y": 1, "color": 1, "direction": 2}
+      {"id": "rp-blue", "beat": 1, "x": 3, "y": 1, "color": 1, "direction": 3}
     ]
   },
   "sections": [
@@ -18,7 +18,7 @@
       {"id": "intro-blue", "beat": 4, "x": 2, "y": 1, "color": 1, "direction": 1}
     ], "patterns": []},
     {"id": "drive", "start_beat": 8, "length_beats": 8, "intent": "alternating technical motion on even accents", "locked": false, "resolved": true, "notes": [
-      {"id": "drive-accent-red", "beat": 2, "x": 0, "y": 2, "color": 0, "direction": 1},
+      {"id": "drive-accent-red", "beat": 2, "x": 0, "y": 2, "color": 0, "direction": 0},
       {"id": "drive-accent-blue", "beat": 6, "x": 3, "y": 2, "color": 1, "direction": 1}
     ], "patterns": [
       {"id": "drive-motif-a", "motif": "alternating-pair", "start_beat": 0},

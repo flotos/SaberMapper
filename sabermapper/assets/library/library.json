@@ -1,0 +1,205 @@
+{
+  "version": 1,
+  "about": "SaberMapper tier-1 asset library. Every shader is single-pass-instanced and lint-clean; library.md describes each entry in words. Safe ranges are the values the agent may use without extra review; the shader's own Range() is the hard limit.",
+  "shaders": {
+    "sm_color_grade": {
+      "file": "shaders/sm_color_grade.shader",
+      "shader_name": "SaberMapper/Post/ColorGrade",
+      "kinds": ["post_process"],
+      "intent": "Section-wide mood: exposure, contrast, saturation and a two-tint split-tone.",
+      "description": "The whole view keeps its shapes but changes temperature: shadows lean towards one tint, highlights towards another. Low saturation reads as washed-out memory, high contrast as harsh daylight.",
+      "properties": {
+        "_Exposure": {"type": "Float", "default": 0, "safe": [-1.5, 1.5], "meaning": "Brightness in photographic stops"},
+        "_Contrast": {"type": "Float", "default": 1, "safe": [0.5, 1.6], "meaning": "Distance from mid grey; below 1 flattens"},
+        "_Saturation": {"type": "Float", "default": 1, "safe": [0, 1.8], "meaning": "0 is monochrome"},
+        "_ShadowTint": {"type": "Color", "default": [0.5, 0.5, 0.5, 1], "meaning": "Grey (0.5) is neutral; push a channel above 0.5 to tint the shadows"},
+        "_HighlightTint": {"type": "Color", "default": [0.5, 0.5, 0.5, 1], "meaning": "Grey (0.5) is neutral; tint for the highlights"},
+        "_Balance": {"type": "Float", "default": 0, "safe": [-1, 1], "meaning": "Moves the shadow/highlight pivot"},
+        "_Mix": {"type": "Float", "default": 1, "safe": [0, 1], "meaning": "Blend with the untouched image; animate for fades"}
+      }
+    },
+    "sm_chromatic_split": {
+      "file": "shaders/sm_chromatic_split.shader",
+      "shader_name": "SaberMapper/Post/ChromaticSplit",
+      "kinds": ["post_process"],
+      "intent": "Impact accents: red and blue fringes pulled apart on a hit, then relaxed.",
+      "description": "Edges grow red and blue ghosts that separate outward from the centre (radial) or along one direction. Small amounts look like lens fringing; large amounts look like a glitch.",
+      "properties": {
+        "_Amount": {"type": "Float", "default": 0.006, "safe": [0, 0.02], "meaning": "Offset of the red and blue copies in screen UV"},
+        "_Angle": {"type": "Float", "default": 0, "safe": [0, 360], "meaning": "Direction of the split when _Radial < 1"},
+        "_Radial": {"type": "Float", "default": 1, "safe": [0, 1], "meaning": "1 splits outward from _Center, 0 along _Angle"},
+        "_Center": {"type": "Vector", "default": [0.5, 0.5, 0, 0], "meaning": "Radial centre in screen UV (xy)"}
+      }
+    },
+    "sm_vignette": {
+      "file": "shaders/sm_vignette.shader",
+      "shader_name": "SaberMapper/Post/Vignette",
+      "kinds": ["post_process"],
+      "intent": "Focus and tension: close the frame in during quiet or ominous passages.",
+      "description": "The screen edges darken (or take the edge colour) in a soft oval, drawing the eye to the note corridor. Strong settings feel claustrophobic.",
+      "properties": {
+        "_Strength": {"type": "Float", "default": 0.4, "safe": [0, 0.85], "meaning": "Opacity of the edge colour"},
+        "_Radius": {"type": "Float", "default": 0.75, "safe": [0.45, 1.3], "meaning": "Where the darkening reaches full strength"},
+        "_Softness": {"type": "Float", "default": 0.45, "safe": [0.1, 1], "meaning": "Width of the transition"},
+        "_Color": {"type": "Color", "default": [0, 0, 0, 1], "meaning": "Edge colour; alpha also dims bloom at the edge"}
+      }
+    },
+    "sm_glow": {
+      "file": "shaders/sm_glow.shader",
+      "shader_name": "SaberMapper/Post/Glow",
+      "kinds": ["post_process"],
+      "intent": "Euphoric lift: bright things bleed light during choruses and drops.",
+      "description": "Bright areas get a soft halo that spreads a little around them; the rest of the image is unchanged. High intensity makes lights look hot and dreamy.",
+      "properties": {
+        "_Threshold": {"type": "Float", "default": 0.8, "safe": [0.3, 1.5], "meaning": "Brightness above which pixels glow"},
+        "_Intensity": {"type": "Float", "default": 1, "safe": [0, 2.5], "meaning": "Strength of the added halo"},
+        "_Radius": {"type": "Float", "default": 0.012, "safe": [0.002, 0.03], "meaning": "Halo spread in screen UV"},
+        "_Tint": {"type": "Color", "default": [1, 1, 1, 1], "meaning": "Colour multiplied into the halo"}
+      }
+    },
+    "sm_pixelate": {
+      "file": "shaders/sm_pixelate.shader",
+      "shader_name": "SaberMapper/Post/Pixelate",
+      "kinds": ["post_process"],
+      "intent": "Digital or retro breakdowns; degrade the image as a transition.",
+      "description": "The view turns into square blocks; fewer cells means chunkier blocks. Optional posterize reduces the colour steps like an old console.",
+      "properties": {
+        "_Cells": {"type": "Float", "default": 120, "safe": [24, 480], "meaning": "Blocks across the screen width; below ~40 notes become hard to read"},
+        "_Levels": {"type": "Float", "default": 0, "safe": [0, 16], "meaning": "Colour steps per channel; 0 or 1 disables posterize"},
+        "_Mix": {"type": "Float", "default": 1, "safe": [0, 1], "meaning": "Blend with the untouched image"}
+      }
+    },
+    "sm_kaleidoscope": {
+      "file": "shaders/sm_kaleidoscope.shader",
+      "shader_name": "SaberMapper/Post/Kaleidoscope",
+      "kinds": ["post_process"],
+      "intent": "Psychedelic set-pieces in sparse passages; never during dense note streams.",
+      "description": "The screen is cut into mirrored wedges around a centre, like a kaleidoscope; rotating it spins the pattern. It duplicates notes visually, so keep it for breaks.",
+      "properties": {
+        "_Segments": {"type": "Float", "default": 6, "safe": [3, 12], "meaning": "Number of mirror wedges (integer part used)"},
+        "_Rotation": {"type": "Float", "default": 0, "safe": [0, 360], "meaning": "Spin of the pattern in degrees"},
+        "_Zoom": {"type": "Float", "default": 1, "safe": [0.5, 2], "meaning": "Scale of the mirrored image"},
+        "_Center": {"type": "Vector", "default": [0.5, 0.5, 0, 0], "meaning": "Fold centre in screen UV (xy)"},
+        "_Mix": {"type": "Float", "default": 1, "safe": [0, 0.7], "meaning": "Blend with the untouched image; keep below 0.7 when notes are present"}
+      }
+    },
+    "sm_threshold_dissolve": {
+      "file": "shaders/sm_threshold_dissolve.shader",
+      "shader_name": "SaberMapper/Post/ThresholdDissolve",
+      "kinds": ["post_process"],
+      "intent": "Stark graphic sections: the image becomes two flat colours, revealed through a burning dissolve.",
+      "description": "Everything brighter than the threshold becomes the light colour and the rest the dark colour, like a screen print. _Progress eats through the image in noisy patches with a glowing edge.",
+      "properties": {
+        "_Threshold": {"type": "Float", "default": 0.5, "safe": [0.15, 0.85], "meaning": "Luminance split point"},
+        "_DarkColor": {"type": "Color", "default": [0, 0, 0, 1], "meaning": "Colour for dark pixels"},
+        "_LightColor": {"type": "Color", "default": [1, 1, 1, 1], "meaning": "Colour for bright pixels"},
+        "_Progress": {"type": "Float", "default": 1, "safe": [0, 1], "meaning": "0 original image, 1 fully two-tone"},
+        "_NoiseScale": {"type": "Float", "default": 40, "safe": [4, 120], "meaning": "Dissolve patch count across the screen"},
+        "_EdgeWidth": {"type": "Float", "default": 0.04, "safe": [0, 0.12], "meaning": "Width of the burning edge"},
+        "_EdgeColor": {"type": "Color", "default": [1, 0.4, 0.1, 1], "meaning": "Colour of the burning edge"}
+      }
+    },
+    "sm_scanline_vhs": {
+      "file": "shaders/sm_scanline_vhs.shader",
+      "shader_name": "SaberMapper/Post/ScanlineVHS",
+      "kinds": ["post_process"],
+      "intent": "Nostalgia, tape, surveillance: analogue texture over the whole view.",
+      "description": "Thin dark horizontal lines, rows that wobble sideways, colour bleeding to the left and right, and fine grain. It reads as an old monitor or a worn tape.",
+      "properties": {
+        "_LineCount": {"type": "Float", "default": 360, "safe": [120, 720], "meaning": "Scanlines over the screen height"},
+        "_LineStrength": {"type": "Float", "default": 0.25, "safe": [0, 0.5], "meaning": "Darkness of the lines"},
+        "_Jitter": {"type": "Float", "default": 0.004, "safe": [0, 0.012], "meaning": "Sideways row wobble in UV"},
+        "_JitterSpeed": {"type": "Float", "default": 8, "safe": [0, 20], "meaning": "Wobble changes per second"},
+        "_Bleed": {"type": "Float", "default": 0.003, "safe": [0, 0.01], "meaning": "Red/blue smear in UV"},
+        "_Noise": {"type": "Float", "default": 0.06, "safe": [0, 0.2], "meaning": "Grain amount"}
+      }
+    },
+    "sm_radial_blur": {
+      "file": "shaders/sm_radial_blur.shader",
+      "shader_name": "SaberMapper/Post/RadialBlur",
+      "kinds": ["post_process"],
+      "intent": "Speed and impact: a zoom streak on drops, risers or the moment of a reveal.",
+      "description": "The image streaks towards a centre point as if the camera lunged forward; the area around the centre stays sharp.",
+      "properties": {
+        "_Strength": {"type": "Float", "default": 0.1, "safe": [0, 0.3], "meaning": "Streak length as a fraction of the distance to the centre"},
+        "_Center": {"type": "Vector", "default": [0.5, 0.5, 0, 0], "meaning": "Streak centre in screen UV (xy)"},
+        "_Falloff": {"type": "Float", "default": 0.1, "safe": [0, 0.6], "meaning": "Radius around the centre kept sharp"}
+      }
+    },
+    "sm_sky_gradient": {
+      "file": "shaders/sm_sky_gradient.shader",
+      "shader_name": "SaberMapper/Sky/Gradient",
+      "kinds": ["skybox", "material"],
+      "intent": "Backdrop colour that carries the section palette; cross-fade between numbered copies at section boundaries.",
+      "description": "The sky fades from the zenith colour overhead through a glowing horizon band to the nadir colour below, like dusk over a flat sea.",
+      "properties": {
+        "_TopColor": {"type": "Color", "default": [0.05, 0.02, 0.15, 1], "meaning": "Colour straight up"},
+        "_BottomColor": {"type": "Color", "default": [0, 0, 0, 1], "meaning": "Colour straight down"},
+        "_HorizonColor": {"type": "Color", "default": [0.6, 0.2, 0.5, 1], "meaning": "Colour of the horizon band"},
+        "_HorizonWidth": {"type": "Float", "default": 0.15, "safe": [0.03, 0.6], "meaning": "Thickness of the band"},
+        "_HorizonHeight": {"type": "Float", "default": 0, "safe": [-0.5, 0.5], "meaning": "Band height; negative lowers it"},
+        "_Exponent": {"type": "Float", "default": 1, "safe": [0.3, 3], "meaning": "Curve of the fade away from the horizon"},
+        "_Glow": {"type": "Float", "default": 0, "safe": [0, 0.3], "meaning": "Alpha written for Beat Saber's bloom; keep low for a sky"}
+      }
+    },
+    "sm_sky_nebula": {
+      "file": "shaders/sm_sky_nebula.shader",
+      "shader_name": "SaberMapper/Sky/Nebula",
+      "kinds": ["skybox", "material"],
+      "intent": "Cosmic, dreamy or vast sections; slow drift under ambient passages.",
+      "description": "Dark space with two-coloured cloudy nebula that slowly drifts, and sparse single-pixel stars in the gaps.",
+      "properties": {
+        "_BaseColor": {"type": "Color", "default": [0.01, 0, 0.03, 1], "meaning": "Empty space colour"},
+        "_ColorA": {"type": "Color", "default": [0.5, 0.1, 0.6, 1], "meaning": "First cloud colour"},
+        "_ColorB": {"type": "Color", "default": [0.1, 0.4, 0.8, 1], "meaning": "Second cloud colour"},
+        "_Density": {"type": "Float", "default": 0.8, "safe": [0, 1.5], "meaning": "How much of the sky is cloud"},
+        "_Scale": {"type": "Float", "default": 2, "safe": [0.8, 5], "meaning": "Cloud size; larger is smaller clouds"},
+        "_Octaves": {"type": "Float", "default": 4, "safe": [2, 5], "meaning": "Detail layers; each adds cost"},
+        "_Drift": {"type": "Float", "default": 0.02, "safe": [0, 0.08], "meaning": "Cloud drift speed"},
+        "_Stars": {"type": "Float", "default": 0.3, "safe": [0, 0.8], "meaning": "Star density"},
+        "_Glow": {"type": "Float", "default": 0, "safe": [0, 0.3], "meaning": "Alpha written for Beat Saber's bloom"}
+      }
+    },
+    "sm_unlit_emissive": {
+      "file": "shaders/sm_unlit_emissive.shader",
+      "shader_name": "SaberMapper/Surface/UnlitEmissive",
+      "kinds": ["material"],
+      "intent": "Default surface for scene prefabs: rings, pillars, shards and tunnel segments that glow in the palette.",
+      "description": "A flat self-lit colour, optionally with a bright rim where the surface turns away from the viewer and light bands scrolling along it. Looks like neon or light panels.",
+      "properties": {
+        "_Color": {"type": "Color", "default": [0.2, 0.6, 1, 1], "meaning": "Base emission colour"},
+        "_Intensity": {"type": "Float", "default": 1, "safe": [0, 4], "meaning": "Emission multiplier"},
+        "_RimColor": {"type": "Color", "default": [1, 1, 1, 1], "meaning": "Rim colour"},
+        "_RimPower": {"type": "Float", "default": 3, "safe": [1, 6], "meaning": "Rim sharpness"},
+        "_RimStrength": {"type": "Float", "default": 0, "safe": [0, 3], "meaning": "Rim brightness; 0 disables"},
+        "_BandCount": {"type": "Float", "default": 0, "safe": [0, 32], "meaning": "Scrolling light bands along UV v; 0 disables"},
+        "_BandSpeed": {"type": "Float", "default": 1, "safe": [-4, 4], "meaning": "Band scroll speed; flashing above ~3 bands/s is a photosensitivity risk"},
+        "_Glow": {"type": "Float", "default": 0.5, "safe": [0, 1], "meaning": "Alpha written for Beat Saber's bloom"}
+      }
+    },
+    "sm_particle_additive": {
+      "file": "shaders/sm_particle_additive.shader",
+      "shader_name": "SaberMapper/Particles/Additive",
+      "kinds": ["material"],
+      "intent": "Particle renderer material: sparks, dust, embers and star fields.",
+      "description": "Soft round glowing dots that add light where they overlap; colour comes from the particle system times the tint.",
+      "properties": {
+        "_Color": {"type": "Color", "default": [1, 1, 1, 1], "meaning": "Tint multiplied with particle colour"},
+        "_Intensity": {"type": "Float", "default": 1.5, "safe": [0, 4], "meaning": "Brightness"},
+        "_Softness": {"type": "Float", "default": 0.6, "safe": [0.1, 1], "meaning": "Edge softness of each dot"},
+        "_Glow": {"type": "Float", "default": 0.3, "safe": [0, 1], "meaning": "Alpha written for Beat Saber's bloom"}
+      }
+    }
+  },
+  "meshes": {
+    "quad": {"params": {"width": 1, "height": 1}, "triangles": "2", "description": "Flat rectangle in the XY plane facing -Z (towards the player)."},
+    "plane": {"params": {"width": 10, "depth": 10, "segments_x": 1, "segments_z": 1}, "triangles": "2*segments_x*segments_z", "description": "Horizontal grid in the XZ plane, facing up."},
+    "cube": {"params": {"size": [1, 1, 1]}, "triangles": "12", "description": "Box with flat faces and per-face UVs."},
+    "uv_sphere": {"params": {"radius": 0.5, "segments": 24, "rings": 16}, "triangles": "2*segments*rings", "description": "Latitude/longitude sphere (pole rows included)."},
+    "ring": {"params": {"inner_radius": 0.8, "outer_radius": 1, "segments": 64}, "triangles": "2*segments", "description": "Flat annulus in the XY plane, like a halo facing the player."},
+    "torus": {"params": {"radius": 1, "thickness": 0.05, "segments": 64, "sides": 8}, "triangles": "2*segments*sides", "description": "Donut around the Z axis; thin ones read as neon rings."},
+    "tube": {"params": {"radius": 2, "length": 4, "segments": 32, "length_segments": 1, "inside": true}, "triangles": "2*segments*length_segments", "description": "Open cylinder along +Z; inside=true faces inward, making a tunnel segment around the player."},
+    "cone": {"params": {"radius": 0.5, "height": 1, "segments": 24}, "triangles": "2*segments", "description": "Cone along +Y with a closed base."},
+    "shard": {"params": {"length": 1, "width": 0.25, "sides": 5, "seed": 1}, "triangles": "2*sides", "description": "Double pyramid with jittered facets, like a crystal splinter."}
+  }
+}

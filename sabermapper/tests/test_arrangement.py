@@ -19,8 +19,8 @@ def arrangement():
 
 def held_notes():
     """Head/tail color notes matching the shared arc and chain fixtures."""
-    return [{"id": "arc-head", "beat": 1, "x": 1, "y": 0, "color": 0, "direction": 1},
-            {"id": "arc-tail", "beat": 2, "x": 2, "y": 1, "color": 0, "direction": 0},
+    return [{"id": "arc-head", "beat": 1, "x": 1, "y": 0, "color": 0, "direction": 0},
+            {"id": "arc-tail", "beat": 2, "x": 2, "y": 1, "color": 0, "direction": 1},
             {"id": "chain-head", "beat": 2, "x": 2, "y": 0, "color": 1, "direction": 1}]
 
 
@@ -51,13 +51,43 @@ class ArrangementTests(unittest.TestCase):
         self.assertIn("unsupported_field", codes)
         self.assertIn("unresolved_section", codes)
 
-    def test_repeated_cut_blocks_unless_reset(self):
-        for beat, blocked in (("7/16", True), ("1", False)):
-            source = arrangement()
-            source["sections"][0]["notes"].append(
+    def test_repeated_cut_blocks_unless_the_hand_rests(self):
+        # Borrowed Waters: a full beat is no reset. Each cut must start where the previous
+        # one left the saber until the hand has idled REST_SECONDS (2 s = 4 beats at 120 BPM).
+        source = arrangement()
+        source["sections"][0]["length_beats"] = 8
+        for beat, expected in (("7/16", ["fast_direction_break"]), ("1", ["flow_parity_break"]),
+                               ("2", ["flow_parity_break"]), ("15/4", ["flow_parity_break"]), ("4", [])):
+            trial = copy.deepcopy(source)
+            trial["sections"][0]["notes"].append(
                 {"id": "repeat", "beat": beat, "x": 0, "y": 1, "color": 0, "direction": 1})
+            codes = [d["code"] for d in validate_arrangement(trial) if d["severity"] == "error"]
+            self.assertEqual(codes, expected, beat)
+
+    def test_rest_is_measured_in_seconds_not_beats(self):
+        # Two beats is 0.67 s at 180 BPM (a break) but 2.4 s at 50 BPM (a rest).
+        for bpm, expected in ((180, ["flow_parity_break"]), (50, [])):
+            source = arrangement()
+            source["song"]["bpm"] = bpm
+            source["sections"][0]["notes"].append(
+                {"id": "repeat", "beat": "2", "x": 0, "y": 1, "color": 0, "direction": 6})
             codes = [d["code"] for d in validate_arrangement(source) if d["severity"] == "error"]
-            self.assertEqual(codes, ["fast_direction_break"] if blocked else [], beat)
+            self.assertEqual(codes, expected, bpm)
+
+    def test_placement_alternates_a_hand_that_never_rests(self):
+        from sabermapper.placement import place_arrangement
+        source = arrangement()
+        source["song"]["bpm"] = 180
+        source["sections"][0]["patterns"] = []
+        source["sections"][0]["length_beats"] = 12
+        # Cuts 0.67 s apart never rest the hand: the placer alternates every one of them.
+        source["sections"][0]["notes"] = [{"id": f"l{i}", "beat": 2 * i, "x": 1, "y": 1, "color": 0} for i in range(6)]
+        placed = place_arrangement(source)["arrangement"]
+        self.assertFalse([d for d in validate_arrangement(placed) if d["severity"] == "error"])
+        from sabermapper.movement import flow_break
+        directions = [n["direction"] for n in placed["sections"][0]["notes"]]
+        self.assertFalse([pair for pair in zip(directions, directions[1:]) if flow_break(*pair, 0, 0.67, False)],
+                         directions)
 
     def test_fast_non_reversing_cut_is_blocking(self):
         # 1/4 beat at 120 BPM is 0.125 s: only a near-reversal (>=135 degrees) is allowed.
@@ -72,10 +102,12 @@ class ArrangementTests(unittest.TestCase):
                     compile_arrangement(source)
         # Player report: sideways then down at a half beat (0.24 s at 125 BPM) forces a wrist reset.
         # 1/2 beat at 120 BPM is 0.25 s; 3/4 beat is 0.375 s, where an alternating 90-degree turn flows.
+        # A full beat is no reset: down then down-left still repeats the forehand.
         for beat, direction, expected in (("1/2", 2, ["fast_direction_break"]),
                                           ("3/4", 2, []),
                                           ("3/4", 6, ["flow_parity_break"]),
-                                          ("1", 6, [])):
+                                          ("1", 6, ["flow_parity_break"]),
+                                          ("1", 5, [])):
             source = arrangement()
             source["sections"][0]["notes"].append(
                 {"id": "next", "beat": beat, "x": 0, "y": 1, "color": 0, "direction": direction})
@@ -198,7 +230,7 @@ class ArrangementTests(unittest.TestCase):
         section["obstacles"] = [{"id": "wall", "beat": 1, "duration_beats": 1,
                                  "x": 0, "y": 0, "width": 1, "height": 5}]
         section["arcs"] = [{"id": "arc", "beat": 1, "x": 1, "y": 0, "color": 0,
-                            "direction": 1, "tail_beat": 2, "tail_x": 2, "tail_y": 1, "tail_direction": 0}]
+                            "direction": 0, "tail_beat": 2, "tail_x": 2, "tail_y": 1, "tail_direction": 1}]
         section["chains"] = [{"id": "chain", "beat": 2, "x": 2, "y": 0, "color": 1,
                               "direction": 1, "tail_beat": 3, "tail_x": 2, "tail_y": 1, "slice_count": 3}]
         section["notes"].extend(held_notes())
@@ -210,7 +242,7 @@ class ArrangementTests(unittest.TestCase):
         self.assertEqual(result["bpmEvents"], [{"b": 10.0, "m": 150}])
         self.assertEqual([len(result[k]) for k in ("bombNotes", "obstacles", "sliders", "burstSliders")], [1] * 4)
 
-def held_saber(inner_beat="7/2", red=((1, 1, 1, 1), (6, 0, 1, 0)), tail=(7, 0)):
+def held_saber(inner_beat="7/2", red=((1, 1, 1, 1), (6, 0, 1, 1)), tail=(7, 1)):
     """End of You 0:42: a blue arc held from beat 2 to 7 with a blue cut inside it.
 
     ``red`` lists (beat, x, y, direction) left-hand notes around the hold; ``tail`` is
@@ -290,7 +322,7 @@ class HeldObjectConnectionTests(unittest.TestCase):
         section = source["sections"][0]
         section["notes"].extend(held_notes())
         section["arcs"] = [{"id": "arc", "beat": 1, "x": 1, "y": 0, "color": 0,
-                            "direction": 1, "tail_beat": 2, "tail_x": 2, "tail_y": 1, "tail_direction": 0}]
+                            "direction": 0, "tail_beat": 2, "tail_x": 2, "tail_y": 1, "tail_direction": 1}]
         section["chains"] = [{"id": "chain", "beat": 2, "x": 2, "y": 0, "color": 1,
                               "direction": 1, "tail_beat": 3, "tail_x": 2, "tail_y": 1, "slice_count": 3}]
         return source
@@ -337,3 +369,16 @@ class HeldObjectConnectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExampleArrangementTests(unittest.TestCase):
+    def test_shipped_examples_pass_validation(self):
+        # docs/experiment-workflow.md validates and compiles these; a rule change must update them too.
+        import json
+        from pathlib import Path
+        examples = sorted((Path(__file__).resolve().parents[1] / "examples").glob("*arrangement*.json"))
+        self.assertTrue(examples)
+        for path in examples:
+            with self.subTest(path.name):
+                source = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual([d["code"] for d in validate_arrangement(source) if d["severity"] == "error"], [])

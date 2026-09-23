@@ -1,4 +1,4 @@
-"""Install the three portable skills into a repository-scoped discovery directory."""
+"""Install the portable skills into a repository-scoped discovery directory."""
 import argparse
 from pathlib import Path
 import shutil
@@ -10,7 +10,7 @@ def main():
     parser.add_argument("--destination", type=Path, help="Override the default workspace-root Codex and Claude directories")
     parser.add_argument("--update", action="store_true", help="Update existing copies of the named bundled skills")
     args = parser.parse_args()
-    names = ("sabermapper-map", "sabermapper-research", "sabermapper-review")
+    names = ("sabermapper-map", "sabermapper-research", "sabermapper-review", "sabermapper-vivify")
     destinations = [args.destination] if args.destination else [root.parent / ".agents" / "skills", root.parent / ".claude" / "skills"]
     pairs = [(root / "skills" / name, base / name) for base in destinations for name in names]
     for source, destination in pairs:

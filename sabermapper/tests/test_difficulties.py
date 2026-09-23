@@ -58,7 +58,7 @@ class ProjectDifficultyTests(unittest.TestCase):
         harder = self.add_harder()
         primary_revision = self.store.get(self.project_id)["revision"]
         changed = copy.deepcopy(harder["arrangement"])
-        changed["sections"][0]["notes"][0]["direction"] = 4
+        changed["sections"][0]["notes"][0]["direction"] = 6
         request = self.store.add_feedback(self.project_id, {"revision": harder["revision"], "start_beat": 0,
                                                             "end_beat": 8, "text": "Harder here", "difficulty": "ExpertPlus"})
         self.assertEqual(request["difficulty"], "ExpertPlus")

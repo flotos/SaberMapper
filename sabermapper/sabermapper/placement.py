@@ -32,7 +32,7 @@ from fractions import Fraction
 from math import hypot
 
 from .movement import (BURST_SECONDS, BURST_SWINGS, CHORD_BEATS, CHORD_SECONDS, FAST_BREAK_SECONDS, REACH_SPEED,
-                       _OPPOSITE, _VECTORS, analyze_movement, flow_break, hidden_window, is_reset, next_effective,
+                       _OPPOSITE, _VECTORS, analyze_movement, flow_break, hidden_window, is_rest, next_effective,
                        turn_degrees)
 from .validation import _beat
 
@@ -277,7 +277,7 @@ def _cut_options(state, notes, hand, beat, seconds, other_last, bpm):
     soft = sorted({s.soft["direction"] for s in notes if "direction" in s.soft})
     gap = None if last_s is None else seconds - last_s
     beat_gap = None if last_b is None else beat - last_b
-    reset = last_s is None or is_reset(beat_gap, gap, bpm)
+    reset = last_s is None or is_rest(gap)
     ids = tuple(s.index for s in notes)
     if fixed:
         candidates = [(fixed[-1], 0.0)]
@@ -484,7 +484,7 @@ class _HandState:
         self.x = self.y = self.index = None
 
     def reset(self, beat, seconds, bpm):
-        return self.seconds is None or is_reset(beat - self.beat, seconds - self.seconds, bpm)
+        return self.seconds is None or is_rest(seconds - self.seconds)
 
     def merges(self, beat, seconds, direction):
         """True when a cut at ``beat`` joins this hand's last swing (a same-cut chord across a 16th)."""
@@ -524,7 +524,7 @@ def _cut_choices(slot, state, ahead, beat, seconds, bpm, joint):
                 cost += BLOCK
         if ahead is not None and "direction" in ahead.fixed and direction != 8:
             later_gap = ahead.seconds - seconds
-            if later_gap > 0 and not is_reset(ahead.beat - beat, later_gap, bpm) and flow_break(
+            if later_gap > 0 and not is_rest(later_gap) and flow_break(
                     direction, ahead.fixed["direction"], hand, later_gap, False):
                 cost += BLOCK  # would break the flow into the hand's next pinned cut
         result.append((direction, cost))

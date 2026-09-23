@@ -285,7 +285,13 @@ class ProjectStore:
                     "reviews": [read_json(p) for p in sorted((path / "reviews").glob("*.json"))],
                     "history": [p.stem for p in sorted((path / "history").glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
                                 if _history_difficulty(p) in (name, None)],
-                    "exports": [p.name for p in sorted((path / "exports").glob("*.zip"))]}
+                    "exports": [p.name for p in sorted((path / "exports").glob("*.zip"))],
+                    "show": self.show(path, siblings)}
+
+    def show(self, path: Path, arrangements: dict[str, dict]) -> dict:
+        """The project's Vivify show record (document, revision, what it was written against, bundle)."""
+        from .show import show_record
+        return show_record(path, arrangements)
 
     def check_save(self, project_id: str, arrangement: dict, expected_revision: str,
                    difficulty: str | None = None) -> dict:
@@ -552,8 +558,17 @@ class ProjectStore:
             revisions = {a["difficulty"]["name"]: arrangement_revision(a) for a in arrangements}
             revision = next(iter(revisions.values())) if len(revisions) == 1 else digest(revisions)
             filename = f"map-{revision[:10]}-{uuid.uuid4().hex[:6]}.zip"
+            from .musical import latest_run
+            from .show import bundle_directory, load_show
+            run_id, evidence = latest_run(path)
             report = export_arrangements(arrangements, path / "song.ogg", path / "cover.png",
-                                         path / "exports" / filename)
+                                         path / "exports" / filename, show=load_show(path),
+                                         bundle_dir=bundle_directory(path),
+                                         evidence={"project_dir": path, "run_id": run_id, "report": evidence})
             report["review"] = read_json(path / "project.json")
             write_json(path / "exports" / (filename + ".json"), report)
-            return {"filename": filename, "report": report, "url": f"/api/projects/{project_id}/files/exports/{filename}"}
+            result = {"filename": filename, "report": report, "url": f"/api/projects/{project_id}/files/exports/{filename}"}
+            if "vivify" in report:  # vivified: the ArcViewer twin and the provenance sidecar sit beside the map
+                result["vanilla_twin"] = Path(report["vivify"]["vanilla_twin"]).name
+                result["provenance_file"] = Path(report["vivify"]["provenance_file"]).name
+            return result

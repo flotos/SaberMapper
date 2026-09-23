@@ -6,8 +6,15 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;',
 const time = seconds => `${Math.floor(Math.max(0,seconds)/60)}:${String(Math.floor(Math.max(0,seconds)%60)).padStart(2,'0')}`;
 const clock = seconds => `${time(seconds)}.${Math.floor(Math.max(0,Number(seconds)||0)*10)%10}`;
 function toast(message, error = false) { $('toast').textContent = message; $('toast').className = error ? 'error' : ''; $('toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').hidden = true, error ? 10000 : 5000); }
+// The studio swaps in updated code between requests; a refused connection during that second is retried.
+async function reach(path, options) {
+  for (let attempt = 0; ; attempt++) {
+    try { return await fetch(path, options); }
+    catch (error) { if (attempt >= 20) throw error; await new Promise(done => setTimeout(done, 500)); }
+  }
+}
 async function api(path, data) {
-  const response = await fetch(path, data === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json','X-SaberMapper-Token':state.token},body:JSON.stringify(data)});
+  const response = await reach(path, data === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json','X-SaberMapper-Token':state.token},body:JSON.stringify(data)});
   const value = await response.json();
   if (!response.ok) {
     const e=value.error, error=new Error((typeof e==='string'?e:e?.message)||`Request failed (${response.status})`);
@@ -159,7 +166,7 @@ $('show-workspace').onclick=()=>toast(`Workspace: ${state.workspace}`);
 $('open-playtest').onclick=()=>{$('game-build').value=state.project.project.game_build||'';$('playtest-dialog').showModal();};$('close-playtest').onclick=()=>$('playtest-dialog').close();
 $('playtest-form').onsubmit=e=>{e.preventDefault();run('Saving…',async()=>{state.project=await api(`/api/projects/${currentId()}/review`,{difficulty:state.project.difficulty,revision:state.project.revision,playtested:true,game_build:$('game-build').value,minutes_spent:Number($('review-minutes').value),variant:$('review-variant').value,decision:$('review-decision').value,notes:$('review-notes').value,ratings:{enjoyment:Number($('rating-enjoyment').value),technical_interest:Number($('rating-tech').value),fatigue:Number($('rating-fatigue').value),timing:Number($('rating-timing').value)}});$('playtest-dialog').close();renderProject();toast('Playtest saved.');});};
 window.addEventListener('resize',drawWaveform);document.addEventListener('keydown',e=>{if(e.code==='Space'&&!['INPUT','TEXTAREA','SELECT','BUTTON'].includes(e.target.tagName)&&state.project&&state.view==='studio'){e.preventDefault();$('play').click();}});
-(async()=>{try{const info=await api('/api/status');state.token=info.token;state.workspace=info.workspace;const list=await refreshProjects();if(list.length)await loadProject(list[0].id);}catch(e){toast(e.message,true);}})();
+(async()=>{try{const info=await api('/api/status');state.token=info.token;state.workspace=info.workspace;state.code=info.code?.version;setInterval(checkCode,30000);const list=await refreshProjects();if(list.length)await loadProject(list[0].id);}catch(e){toast(e.message,true);}})();
 
 $('preview-map').onclick=()=>{
   if(state.busy){toast('Still working…');return;}
@@ -295,3 +302,15 @@ $('confirm-preempt').onclick=()=>{$('preempt-dialog').close();const next=verify.
 $('cancel-preempt').onclick=$('close-preempt').onclick=()=>{verify.pending=null;$('preempt-dialog').close();};
 document.addEventListener('keydown',e=>{if(e.key?.toLowerCase()==='n'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)&&!document.querySelector('dialog[open]')&&consoleActive()){e.preventDefault();openNote();}});
 document.addEventListener('visibilitychange',()=>{if(consoleActive())refreshGame();});window.addEventListener('focus',()=>{if(consoleActive())refreshGame();});
+// The server follows code updates; this page keeps its loaded code until the user reloads it.
+async function checkCode(){
+  if(!state.code)return;
+  let code;try{code=(await api('/api/status')).code;}catch{return;}
+  if(!code)return;
+  const failed=code.update?.state==='failed', updated=code.version!==state.code;
+  $('update-text').textContent=updated?'SaberMapper was updated. Reload this page when you are ready; ArcViewer tabs are not affected.'
+    :failed?`An update could not load; the studio keeps running the previous code. ${code.update.error||''}`:'';
+  $('update-reload').hidden=!updated;$('update-banner').classList.toggle('warn',failed&&!updated);$('update-banner').hidden=!(updated||failed);
+}
+$('update-reload').onclick=()=>location.reload();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkCode();});
